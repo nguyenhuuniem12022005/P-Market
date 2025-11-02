@@ -24,12 +24,13 @@ async function requireAuthentication(req, res, next) {
 
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
         const [rows] = await pool.query(`
-                select email 
+                select id, firstName, lastName, userName, email, phone, address 
                 from User
                 where id = ?
             `, [decoded.id]);
 
         if (rows.length > 0) {
+            req.user = rows[0];
             next();
             return;
         }
