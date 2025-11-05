@@ -18,7 +18,12 @@ async function ensureCustomer(req, res, next) {
         // Chưa tồn tại người dùng, cho phép tạo. Nếu tồn tại rồi thì bỏ qua
         if (rows.length === 0) {
             console.log(`Tạo người dùng với id = ${id}`);
-            await createCustomer(id);
+            const customerClass = 'D23CQCE04-B';
+
+            await pool.query(`
+                insert into Customer(id, class, totalPurchasedOrders)
+                values (?, ?, default)
+                `, [id, customerClass]);
         }
 
         next();
