@@ -20,9 +20,3 @@ export const updateAmount = Joi.object({
         .required()
         .label('Số lượng')
 })
-
-export const updateStatus = Joi.object({
-    status: Joi.boolean()
-        .required()
-        .label('Trạng thái')
-})

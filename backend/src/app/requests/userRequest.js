@@ -67,3 +67,16 @@ export const updateAddress = Joi.object({
         .required()
         .label('Địa chỉ')
 })
+
+export const updateAmount = Joi.object({
+    amount: Joi.number()
+        .required()
+        .label('Số lượng')
+})
+
+export const updateDateOfBirth = Joi.object({
+    dateOfBirth: Joi.date()
+        .iso() // Bắt buộc định dạng 'YYYY-MM-DD'
+        .required()
+        .label('Ngày sinh')
+});

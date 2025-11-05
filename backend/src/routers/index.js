@@ -5,7 +5,7 @@ import customerRouter from './customerRouter';
 function route(app){
     app.use('/users/', userRouter);
     app.use('/auth/', authRouter);
-    app.use('/customer/', customerRouter);
+    app.use('/customers/', customerRouter);
 }
 
 export default route;

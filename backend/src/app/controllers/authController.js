@@ -49,12 +49,10 @@ export async function logout(req, res) {
 }
 
 export async function resetPassword(req, res) {
-    const { id, password } = req.body;
-    const authHeader = req.headers.authorization;
-    const token = authHeader.split(' ')[1];
-    authService.blockToken(token);
+    const { email } = req.params;
+    const { password } = req.body;
 
-    await userService.resetPassword(id, password);
+    await userService.resetPassword(email, password);
     res.json({
         success: true,
         message: 'Thay đổi mật khẩu thành công!'

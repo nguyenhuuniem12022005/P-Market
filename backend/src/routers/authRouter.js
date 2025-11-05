@@ -3,7 +3,7 @@ import { Router } from 'express';
 import * as authRequest from '../app/requests/authRequest.js';
 import validate from '../app/middleware/common/validate.js';
 import requireAuthentication from '../app/middleware/common/require-authentication.js';
-import { checkValidId } from '../app/middleware/common/valid-params.js';
+import { checkValidEmail } from '../app/middleware/common/valid-params.js';
 
 const authRouter = Router();
 
@@ -26,9 +26,8 @@ authRouter.post(
 );
 
 authRouter.patch(
-    '/:id/reset-password',
-    requireAuthentication,
-    checkValidId,
+    '/:email/reset-password',
+    checkValidEmail,
     validate(authRequest.resetPassword),
     authController.resetPassword
 );

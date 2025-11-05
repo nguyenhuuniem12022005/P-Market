@@ -13,26 +13,10 @@ export async function createUser(req, res) {
     });
 }
 
-export async function findUserByEmail(req, res) {
-    const user = await userService.findUserByEmail(req.params.email);
-
-    res.json({
-        success: true,
-        message: 'Người dùng tồn tại'
-    });
-}
-
-export async function findUserByUserName(req, res) {
-    const user = await userService.findUserByUserName(req.params.userName);
-
-    res.json({
-        success: true,
-        message: 'Người dùng tồn tại'
-    })
-}
-
 export async function resetPassword(req, res) {
-    await userService.resetPassword(req.params.id, req.body.password);
+    const email = req.user.email;
+    const { password } = req.body;
+    await userService.resetPassword(email, password);
 
     res.json({
         success: true,
@@ -41,7 +25,7 @@ export async function resetPassword(req, res) {
 }
 
 export async function updateUserName(req, res) {
-    await userService.updateUserName(req.params.id, req.body.userName);
+    await userService.updateUserName(req.user.id, req.body.userName);
 
     res.json({
         success: true,
@@ -50,7 +34,7 @@ export async function updateUserName(req, res) {
 }
 
 export async function updatePhone(req, res) {
-    await userService.updatePhone(req.params.id, req.body.phone);
+    await userService.updatePhone(req.user.id, req.body.phone);
 
     res.json({
         success: true,
@@ -59,7 +43,7 @@ export async function updatePhone(req, res) {
 }
 
 export async function updateAddress(req, res) {
-    await userService.updateAddress(req.params.id, req.body.address);
+    await userService.updateAddress(req.user.id, req.body.address);
 
     res.json({
         success: true,
@@ -68,7 +52,7 @@ export async function updateAddress(req, res) {
 }
 
 export async function uploadAvatar(req, res) {
-    const id = req.params.id;
+    const id = req.user.id;
     const imagePath = `public/uploads/${req.file.filename}`;
     await userService.uploadAvatar(id, imagePath);
 
@@ -76,4 +60,37 @@ export async function uploadAvatar(req, res) {
         success: true,
         message: 'Cập nhật ảnh thành công!'
     })
+}
+
+export async function updateReputationScore(req, res) {
+    const id = req.user.id;
+    const { amount } = req.body;
+
+    await userService.updateReputationScore(id, amount);
+    res.json({
+        success: true,
+        message: 'Cập nhật điểm uy tín thành công!'
+    });
+}
+
+export async function updateGreenCredit(req, res) {
+    const id = req.user.id;
+    const { amount } = req.body;
+
+    await userService.updateGreenCredit(id, amount);
+    res.json({
+        success: true,
+        message: 'Cập nhật Green Credit thành công!'
+    });
+}
+
+export async function updateDateOfBirth(req, res) {
+    const id = req.user.id;
+    const { dateOfBirth } = req.body;
+
+    await userService.updateDateOfBirth(id, dateOfBirth);
+    res.json({
+        success: true,
+        message: 'Cập nhật ngày tháng năm sinh thành công!'
+    });
 }

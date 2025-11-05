@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import pool from '../../configs/mysql.js';
-import multer from 'multer';
 
 export async function createUser({ firstName, lastName, userName, email, password }) {
     const salt = await bcrypt.genSalt(10);
@@ -23,35 +22,15 @@ export async function createUser({ firstName, lastName, userName, email, passwor
     return rows[0];
 }
 
-// Dung de truy van lay ca mat khau
-export async function findUserByEmail(email) {
-    const [rows] = await pool.query(`
-        select id, userName, email, passwordHash 
-        from User 
-        where email = ?
-        `, [email]);
-
-    return rows[0];
-}
-
-export async function findUserByUserName(userName) {
-    const [rows] = await pool.query(`
-        select id, userName, email
-        from User
-        where userName = ?
-        `, [userName]);
-    return rows[0];
-}
-
-export async function resetPassword(id, password) {
+export async function resetPassword(email, password) {
     const salt = await bcrypt.genSalt(10);
     const newPassword = await bcrypt.hash(password, salt);
 
     await pool.query(`
         update User
         set passwordHash = ?
-        where id = ? 
-        `, [newPassword, id]);
+        where email = ? 
+        `, [newPassword, email]);
 }
 
 export async function updateUserName(id, userName) {
@@ -84,4 +63,28 @@ export async function uploadAvatar(id, imagePath) {
         set avatar = ? 
         where id = ?
         `, [imagePath, id]);
+}
+
+export async function updateReputationScore(id, amount) {
+    await pool.query(`
+        update User
+        set reputationScore = least(100, greatest(0, reputationScore + ?))
+        where id = ?
+        `, [amount, id]);
+}
+
+export async function updateGreenCredit(id, amount) {
+    await pool.query(`
+        update User
+        set greenCredit = greatest(0, greenCredit + ?)
+        where id = ?
+        `, [amount, id]);
+}
+
+export async function updateDateOfBirth(id, dateOfBirth) {
+    await pool.query(`
+        update User
+        set dateOfBirth = ?
+        where id = ? 
+        `, [dateOfBirth, id]);
 }

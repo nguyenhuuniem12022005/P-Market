@@ -9,4 +9,16 @@ const customerRouter = Router();
 customerRouter.use(requireAuthentication);
 customerRouter.use(ensureCustomer);
 
-customerRouter.patch('/')
+customerRouter.patch(
+    '/me/update-class',
+    validate(customerRequest.updateClass),
+    customerController.updateClass
+);
+
+customerRouter.patch(
+    '/me/update-total-purchased-orders',
+    validate(customerRequest.updateAmount),
+    customerController.updateTotalPurchasedOrders
+);
+
+export default customerRouter;
