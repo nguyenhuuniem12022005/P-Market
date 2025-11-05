@@ -1,5 +1,4 @@
 import pool from "../../configs/mysql";
-import { createCustomer } from "../services/customerService";
 import ApiError from "../../utils/classes/api-error";
 
 async function ensureCustomer(req, res, next) {
