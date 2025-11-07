@@ -3,17 +3,17 @@ import ApiError from '../../../utils/classes/api-error.js';
 import pool from '../../../configs/mysql.js';
 
 export async function checkValidId(req, res, next) {
-    const id = req.params.id;
+    const userId = req.params.userId;
 
-    if (!validator.isInt(id, { min: 1 })) {
+    if (!validator.isInt(userId, { min: 1 })) {
         return next(ApiError.badRequest('Id không hợp lệ'));
     }
 
     const [rows] = await pool.query(`
         select email
         from User
-        where id = ?
-        `, [id]);
+        where userId = ?
+        `, [userId]);
 
     if (rows.length > 0) {
         next();
