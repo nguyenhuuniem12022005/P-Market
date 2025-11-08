@@ -22,7 +22,7 @@ async function checkProductIdExists(req, res, next) {
         }
         next(ApiError.notFound('Không tìm thấy sản phẩm!'));
     } catch (error) {
-        return next(ApiError.internal('Lỗi khi kiểm tra sản phẩm!'));
+        return next(error);
     }
 }
 

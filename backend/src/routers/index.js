@@ -3,6 +3,8 @@ import userRouter from './userRouter';
 import customerRouter from './customerRouter';
 import supplierRouter from './supplierRouter';
 import productRouter from './productRouter';
+import warehouseRouter from './warehouseRouter';
+import storeRouter from './storeRouter';
 
 function route(app){
     app.use('/users/', userRouter);
@@ -10,6 +12,8 @@ function route(app){
     app.use('/customers/', customerRouter);
     app.use('/suppliers/', supplierRouter);
     app.use('/products/', productRouter);
+    app.use('/warehouses/', warehouseRouter);
+    app.use('/stores/', storeRouter);
 }
 
 export default route;
