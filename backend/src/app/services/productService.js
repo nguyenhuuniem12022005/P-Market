@@ -19,8 +19,8 @@ export async function createProduct(productData, supplierId) {
         description || null, // Chuyển undefined/trống thành null
         unitPrice,
         size || null,
-        status,
-        discount
+        status || 'Active',
+        discount || 0
     ]);
 
     const insertId = results.insertId;
@@ -34,14 +34,20 @@ export async function createProduct(productData, supplierId) {
     return rows[0];
 }
 
-export async function findProducts(productName) {
+export async function searchProducts(searchTerm) {
     const sql = `
-        select * from Product
-        where productName like ? and status = 'Active'
+        select p.*, s.shopName, u.userName 
+        from Product p
+        join Supplier s on p.supplierId = s.supplierId
+        join User u on s.supplierId = u.userId
+        where 
+            (p.productName like ? or u.userName like ?)
+            and p.status = 'Active'
     `;
-    const searchTerm = `%${productName}%`;
     
-    const [rows] = await pool.query(sql, [searchTerm]);
+    const likeTerm = `%${searchTerm}%`;
+    
+    const [rows] = await pool.query(sql, [likeTerm, likeTerm]);
     return rows;
 }
 
@@ -107,6 +113,16 @@ export async function updateProduct(productId, supplierId, updateData) {
     `;
 
     await pool.query(sql, params);
+}
+
+export async function updateProductStatus(productId, supplierId, status) {
+    const sql = `
+        update Product 
+        set status = ?
+        where productId = ? and supplierId = ? 
+    `;
+
+    await pool.query(sql, [status, productId, supplierId]);
 }
 
 export async function deleteProduct(productId, supplierId) {

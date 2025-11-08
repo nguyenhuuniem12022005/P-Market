@@ -1,5 +1,5 @@
-import pool from "../../configs/mysql";
-import ApiError from "../../utils/classes/api-error";
+import pool from "../../configs/mysql.js";
+import ApiError from "../../utils/classes/api-error.js";
 
 async function ensureCustomer(req, res, next) {
     if(!req.user || !req.user.userId){

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
-import ApiError from '../../../utils/classes/api-error';
-import { tokenBlocklist } from '../../services/authService';
+import ApiError from '../../../utils/classes/api-error.js';
+import { tokenBlocklist } from '../../services/authService.js';
 import pool from '../../../configs/mysql.js';
 import dotenv from 'dotenv';
 

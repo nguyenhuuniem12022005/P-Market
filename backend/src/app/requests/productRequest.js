@@ -1,62 +1,99 @@
 import Joi from 'joi';
 
-// Schema để validate khi tạo sản phẩm
 export const createProduct = Joi.object({
     productName: Joi.string()
         .trim()
-        .min(3)
+        .min(2)
         .max(255)
         .required()
         .label('Tên sản phẩm'),
-    
-    categoryId: Joi.number()
-        .integer()
-        .positive() // ID phải là số dương
-        .required()
-        .label('ID Danh mục'),
-    
+
     description: Joi.string()
         .trim()
-        .allow('') // Cho phép mô tả rỗng
-        .optional()
+        .max(2000)
+        .allow(null, '')
         .label('Mô tả'),
-        
+
     unitPrice: Joi.number()
-        .positive() // Giá phải lớn hơn 0
+        .positive()
         .required()
-        .label('Giá'),
-        
+        .label('Giá sản phẩm'),
+
+    categoryId: Joi.number()
+        .integer()
+        .positive()
+        .required()
+        .label('Danh mục'),
+
     size: Joi.string()
         .trim()
-        .allow('')
-        .optional(),
-        
+        .max(50)
+        .allow(null, '')
+        .label('Kích thước'),
+
     status: Joi.string()
-        .valid('Active', 'Sold') // Chỉ cho phép 2 giá trị này
-        .optional()
-        .default('Active'),
-        
+        .valid('Active', 'Sold')
+        .default('Active')
+        .label('Trạng thái'),
+
     discount: Joi.number()
-        .min(0) // Giảm giá không thể âm
-        .optional()
+        .min(0)
+        .max(100)
         .default(0)
+        .label('Giảm giá (%)')
 });
 
-// Schema để validate khi cập nhật sản phẩm
+
 export const updateProduct = Joi.object({
-    // Các trường đều là 'optional' khi cập nhật
-    productName: Joi.string().trim().min(3).max(255).optional().label('Tên sản phẩm'),
-    categoryId: Joi.number().integer().positive().optional().label('ID Danh mục'),
-    description: Joi.string().trim().allow('').optional().label('Mô tả'),
-    unitPrice: Joi.number().positive().optional().label('Giá'),
-    size: Joi.string().trim().allow('').optional(),
-    status: Joi.string().valid('Active', 'Sold').optional(),
-    discount: Joi.number().min(0).optional()
-}).min(1); // Yêu cầu phải có ít nhất 1 trường để cập nhật
+    productName: Joi.string()
+        .trim()
+        .min(2)
+        .max(255)
+        .label('Tên sản phẩm'),
+
+    description: Joi.string()
+        .trim()
+        .max(2000)
+        .allow(null, '')
+        .label('Mô tả'),
+
+    unitPrice: Joi.number()
+        .positive()
+        .label('Giá sản phẩm'),
+
+    categoryId: Joi.number()
+        .integer()
+        .positive()
+        .label('Danh mục'),
+
+    size: Joi.string()
+        .trim()
+        .max(50)
+        .allow(null, '')
+        .label('Kích thước'),
+
+    status: Joi.string()
+        .valid('Active', 'Sold')
+        .label('Trạng thái'),
+
+    discount: Joi.number()
+        .min(0)
+        .max(100)
+        .label('Giảm giá (%)')
+}).min(1); // Phải có ít nhất 1 trường để update
+
 
 export const updateProductStatus = Joi.object({
     status: Joi.string()
-        .valid('Active', 'Sold') // Chỉ cho phép 2 giá trị này
+        .valid('Active', 'Sold')
         .required()
         .label('Trạng thái')
+});
+
+
+export const searchProducts = Joi.object({
+    searchTerm: Joi.string()
+        .trim()
+        .allow('', null)
+        .label('Từ khóa tìm kiếm')
 });

@@ -1,4 +1,4 @@
-import ApiError from "../../../utils/classes/api-error";
+import ApiError from "../../../utils/classes/api-error.js";
 import Joi, {ValidationError} from 'joi';
 
 function validate(schema){
