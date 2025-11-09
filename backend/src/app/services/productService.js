@@ -34,6 +34,14 @@ export async function createProduct(productData, supplierId) {
     return rows[0];
 }
 
+export async function uploadImage(productId, imagePath) {
+    await pool.query(`
+        update Product
+        set imageURL = ? 
+        where productId = ?
+        `, [imagePath, productId]);
+}
+
 export async function searchProducts(searchTerm) {
     const sql = `
         select p.*, s.shopName, u.userName 

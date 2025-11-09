@@ -4,6 +4,7 @@ import requireAuthentication from "../app/middleware/common/require-authenticati
 import validate from "../app/middleware/common/validate.js";
 import * as productRequest from '../app/requests/productRequest.js';
 import checkProductIdExists from "../app/middleware/productMiddleware.js";
+import { upload } from '../app/middleware/uploadMiddleware.js';
 
 const productRouter = Router();
 productRouter.use(requireAuthentication);
@@ -12,6 +13,12 @@ productRouter.post(
     '/new-product',
     validate(productRequest.createProduct),
     productController.createProduct
+);
+
+productRouter.patch(
+    '/:id/upload-image',
+    upload.single('image'),
+    productController.uploadImage
 );
 
 productRouter.get(

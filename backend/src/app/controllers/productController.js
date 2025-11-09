@@ -12,6 +12,18 @@ export async function createProduct(req, res) {
     });
 }
 
+export async function uploadImage(req, res) {
+    const productId = req.params.id;
+    const imagePath = `public/uploads/${req.file.filename}`;
+
+    await productService.uploadImage(productId, imagePath);
+
+    res.json({
+        success: true,
+        message: 'Cập nhật ảnh thành công!'
+    })
+}
+
 export async function searchProducts(req, res) {
     const { searchTerm } = req.query; 
 
