@@ -25,7 +25,7 @@ export async function resetPassword(req, res) {
 }
 
 export async function updateUserName(req, res) {
-    await userService.updateUserName(req.user.id, req.body.userName);
+    await userService.updateUserName(req.user.userId, req.body.userName);
 
     res.json({
         success: true,
@@ -34,7 +34,7 @@ export async function updateUserName(req, res) {
 }
 
 export async function updatePhone(req, res) {
-    await userService.updatePhone(req.user.id, req.body.phone);
+    await userService.updatePhone(req.user.userId, req.body.phone);
 
     res.json({
         success: true,
@@ -43,7 +43,7 @@ export async function updatePhone(req, res) {
 }
 
 export async function updateAddress(req, res) {
-    await userService.updateAddress(req.user.id, req.body.address);
+    await userService.updateAddress(req.user.userId, req.body.address);
 
     res.json({
         success: true,
@@ -52,21 +52,24 @@ export async function updateAddress(req, res) {
 }
 
 export async function uploadAvatar(req, res) {
-    const id = req.user.id;
-    const imagePath = `public/uploads/${req.file.filename}`;
-    await userService.uploadAvatar(id, imagePath);
+  const userId = req.user.userId;
+  const imagePath = `public/uploads/${req.file.filename}`;
+  await userService.uploadAvatar(userId, imagePath);
 
-    res.json({
-        success: true,
-        message: 'Cập nhật ảnh thành công!'
-    })
+  const cleanPath = imagePath.replace(/^public\//, '');
+  res.json({
+    success: true,
+    message: 'Cập nhật ảnh thành công!',
+    data: { avatar: cleanPath },
+    imagePath: cleanPath, // nếu muốn giữ key cũ ở frontend
+  });
 }
 
 export async function updateReputationScore(req, res) {
-    const id = req.user.id;
+    const userId = req.user.userId;
     const { amount } = req.body;
 
-    await userService.updateReputationScore(id, amount);
+    await userService.updateReputationScore(userId, amount);
     res.json({
         success: true,
         message: 'Cập nhật điểm uy tín thành công!'
@@ -74,10 +77,10 @@ export async function updateReputationScore(req, res) {
 }
 
 export async function updateGreenCredit(req, res) {
-    const id = req.user.id;
+    const userId = req.user.userId;
     const { amount } = req.body;
 
-    await userService.updateGreenCredit(id, amount);
+    await userService.updateGreenCredit(userId, amount);
     res.json({
         success: true,
         message: 'Cập nhật Green Credit thành công!'
@@ -85,10 +88,10 @@ export async function updateGreenCredit(req, res) {
 }
 
 export async function updateDateOfBirth(req, res) {
-    const id = req.user.id;
+    const userId = req.user.userId;
     const { dateOfBirth } = req.body;
 
-    await userService.updateDateOfBirth(id, dateOfBirth);
+    await userService.updateDateOfBirth(userId, dateOfBirth);
     res.json({
         success: true,
         message: 'Cập nhật ngày tháng năm sinh thành công!'

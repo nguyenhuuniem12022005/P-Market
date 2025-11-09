@@ -14,8 +14,8 @@ export async function createUser({ firstName, lastName, userName, email, passwor
 
     const insertId = results.insertId;
     const [rows] = await pool.query(`
-        select id, firstName, lastName, userName, email
-        from User where id = ?`
+        select userId, firstName, lastName, userName, email
+        from User where userId = ?`
         , [insertId]);
     // tra ve 1 mang [rowsArray, fieldsObject]
 
@@ -33,58 +33,58 @@ export async function resetPassword(email, password) {
         `, [newPassword, email]);
 }
 
-export async function updateUserName(id, userName) {
+export async function updateUserName(userId, userName) {
     await pool.query(`
         update User
         set userName = ?
-        where id = ?
-        `, [userName, id]);
+        where userId = ?
+        `, [userName, userId]);
 }
 
-export async function updatePhone(id, phone) {
+export async function updatePhone(userId, phone) {
     await pool.query(`
         update User
         set phone = ?
-        where id = ?
-        `, [phone, id]);
+        where userId = ?
+        `, [phone, userId]);
 }
 
-export async function updateAddress(id, address) {
+export async function updateAddress(userId, address) {
     await pool.query(`
         update User
         set address = ?
-        where id = ?  
-        `, [address, id]);
+        where userId = ?  
+        `, [address, userId]);
 }
 
-export async function uploadAvatar(id, imagePath) {
+export async function uploadAvatar(userId, imagePath) {
     await pool.query(`
         update User
         set avatar = ? 
-        where id = ?
-        `, [imagePath, id]);
+        where userId = ?
+        `, [imagePath, userId]);
 }
 
-export async function updateReputationScore(id, amount) {
+export async function updateReputationScore(userId, amount) {
     await pool.query(`
         update User
         set reputationScore = least(100, greatest(0, reputationScore + ?))
-        where id = ?
-        `, [amount, id]);
+        where userId = ?
+        `, [amount, userId]);
 }
 
-export async function updateGreenCredit(id, amount) {
+export async function updateGreenCredit(userId, amount) {
     await pool.query(`
         update User
         set greenCredit = greatest(0, greenCredit + ?)
-        where id = ?
-        `, [amount, id]);
+        where userId = ?
+        `, [amount, userId]);
 }
 
-export async function updateDateOfBirth(id, dateOfBirth) {
+export async function updateDateOfBirth(userId, dateOfBirth) {
     await pool.query(`
         update User
         set dateOfBirth = ?
-        where id = ? 
-        `, [dateOfBirth, id]);
+        where userId = ? 
+        `, [dateOfBirth, userId]);
 }

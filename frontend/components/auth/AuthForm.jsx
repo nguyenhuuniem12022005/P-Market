@@ -1,4 +1,5 @@
 'use client';
+
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -8,22 +9,25 @@ import { Input } from '../ui/Input';
 import toast from 'react-hot-toast';
 import { Loader2 } from 'lucide-react';
 
-export default function AuthForm({ formType, onSubmit, isLoading }) {
+export default function AuthForm({ formType = 'login', onSubmit, isLoading = false }) {
   // --- States ---
   const [loginEmail, setLoginEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Register fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerUsername, setRegisterUsername] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [isExternal, setIsExternal] = useState(false);
-  const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
 
   const isRegister = formType === 'register';
   const title = isRegister ? 'Tạo tài khoản' : 'Đăng nhập';
   const submitButtonText = isRegister ? 'Đăng ký' : 'Đăng nhập';
   const switchFormLink = isRegister ? '/' : '/auth/register';
+
   const switchFormText = isRegister ? 'Đăng nhập ngay' : 'Đăng ký ngay';
   const switchFormPrompt = isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản?';
 
@@ -33,6 +37,7 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
   const validateUsername = (uname) => /^[a-zA-Z0-9_]{3,}$/.test(uname);
   const validatePassword = (pass) => pass.length >= 6;
 
+  // --- Submit handler ---
   const handleSubmit = (e) => {
     e.preventDefault();
     const newErrors = {};
@@ -43,8 +48,8 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
       if (!registerEmail.trim()) newErrors.email = 'Email không được để trống.';
       else if (!isExternal && !validatePtitEmail(registerEmail)) newErrors.email = 'Email PTIT không hợp lệ.';
       else if (isExternal && !validateAnyEmail(registerEmail)) newErrors.email = 'Email không hợp lệ.';
-      if (!registerUsername.trim()) newErrors.usernameReg = 'Username không được để trống.';
-      else if (!validateUsername(registerUsername)) newErrors.usernameReg = 'Username phải có ít nhất 3 ký tự (chữ, số, _).';
+      if (!registerUsername.trim()) newErrors.userName = 'Username không được để trống.';
+      else if (!validateUsername(registerUsername)) newErrors.userName = 'Username phải có ít nhất 3 ký tự (chữ, số, _).';
       if (!password.trim()) newErrors.password = 'Mật khẩu không được để trống.';
       else if (!validatePassword(password)) newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự.';
     } else {
@@ -57,8 +62,8 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
 
     if (Object.keys(newErrors).length === 0) {
       const formData = isRegister
-        ? { firstName, lastName, email: registerEmail, password, username: registerUsername, referralCode, isExternal }
-        : { email: loginEmail, password };
+        ? { firstName, lastName, email: registerEmail.trim(), password: password.trim(), userName: registerUsername.trim(), referralCode, isExternal }
+        : { email: loginEmail.trim(), password: password.trim() };
 
       onSubmit(formData);
     } else {
@@ -75,6 +80,7 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
           width={220}
           height={140}
           priority
+          style={{ height: 'auto' }}
         />
         <h2 className="text-2xl font-bold mt-4">{title}</h2>
       </CardHeader>
@@ -137,37 +143,48 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
               </div>
 
               <div>
-                <label htmlFor="usernameReg">Username</label>
+                <label htmlFor="userName">Username</label>
                 <Input
                   type="text"
-                  id="usernameReg"
+                  id="userName"
                   value={registerUsername}
                   onChange={(e) => setRegisterUsername(e.target.value)}
                   placeholder="Tên đăng nhập (ít nhất 3 ký tự)"
-                  className={`mt-1 ${errors.usernameReg ? 'border-red-500' : ''}`}
+                  className={`mt-1 ${errors.userName ? 'border-red-500' : ''}`}
                 />
-                {errors.usernameReg && <p className="mt-1 text-xs text-red-600">{errors.usernameReg}</p>}
+                {errors.userName && <p className="mt-1 text-xs text-red-600">{errors.userName}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="referral">Mã giới thiệu (Nếu có)</label>
+                <Input
+                  type="text"
+                  id="referral"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value)}
+                  placeholder="Nhập mã của bạn bè"
+                  className="mt-1"
+                />
               </div>
             </>
           )}
 
-          {/* --- Login Fields (Chỉ Email) --- */}
+          {/* --- Login Fields --- */}
           {!isRegister && (
-            <>
-              <div>
-                <label htmlFor="loginEmail">Email</label>
-                <Input
-                  type="email"
-                  id="loginEmail"
-                  name="loginEmail"
-                  placeholder="Nhập email PTIT của bạn"
-                  className={`mt-1 ${errors.loginEmail ? 'border-red-500' : ''}`}
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
-                {errors.loginEmail && <p className="mt-1 text-xs text-red-600">{errors.loginEmail}</p>}
-              </div>
-            </>
+            <div>
+              <label htmlFor="loginEmail">Email</label>
+              <Input
+                type="email"
+                id="loginEmail"
+                name="loginEmail"
+                placeholder="Nhập email PTIT của bạn"
+                className={`mt-1 ${errors.loginEmail ? 'border-red-500' : ''}`}
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                style={{ borderLeft: '4px solid #CC0000' }}
+              />
+              {errors.loginEmail && <p className="mt-1 text-xs text-red-600">{errors.loginEmail}</p>}
+            </div>
           )}
 
           {/* --- Password Field --- */}
@@ -185,17 +202,24 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
             {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
           </div>
 
+          {/* --- Extra Options (Login) --- */}
           {!isRegister && (
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center">
-                <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"/>
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">Ghi nhớ</label>
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+                  Ghi nhớ
+                </label>
               </div>
               <div className="text-sm">
                 <Link href="/forgot-password" className="font-medium text-primary hover:text-primary-hover">
-  Quên mật khẩu?
-</Link>
-
+                  Quên mật khẩu?
+                </Link>
               </div>
             </div>
           )}
@@ -206,18 +230,28 @@ export default function AuthForm({ formType, onSubmit, isLoading }) {
             {isLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
             {isLoading ? 'Đang xử lý...' : submitButtonText}
           </Button>
+
           {!isRegister && (
             <>
               <div className="relative my-2">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t"></span></div>
-                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Hoặc đăng nhập với</span></div>
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t"></span>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Hoặc đăng nhập với</span>
+                </div>
               </div>
-              <Button type="button" className="w-full" variant="secondary">PTIT Microsoft Office 365</Button>
+              <Button type="button" className="w-full" variant="secondary">
+                PTIT Microsoft Office 365
+              </Button>
             </>
           )}
+
           <p className="mt-4 text-center text-sm text-gray-600">
             {switchFormPrompt}{' '}
-            <Link href={switchFormLink} className="font-medium text-primary hover:text-primary-hover">{switchFormText}</Link>
+            <Link href={switchFormLink} className="font-medium text-primary hover:text-primary-hover">
+              {switchFormText}
+            </Link>
           </p>
         </CardFooter>
       </form>

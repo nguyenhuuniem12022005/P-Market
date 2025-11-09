@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
-import ApiError from '../../../utils/classes/api-error';
-import { tokenBlocklist } from '../../services/authService';
+import ApiError from '../../../utils/classes/api-error.js';
+import { tokenBlocklist } from '../../services/authService.js';
 import pool from '../../../configs/mysql.js';
 import dotenv from 'dotenv';
 
@@ -24,18 +24,18 @@ async function requireAuthentication(req, res, next) {
 
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
         const [rows] = await pool.query(`
-                select id, firstName, lastName, userName, email, phone, address 
+                select userId, firstName, lastName, userName, email, phone, address 
                 from User
-                where id = ?
-            `, [decoded.id]);
+                where userId = ?
+            `, [decoded.userId]);
 
         if (rows.length > 0) {
             req.user = rows[0];
-            next();
-            return;
+            
+            return next();
         }
 
-        next(ApiError.unauthorized('Không tồn tại người dùng'));
+         return next(ApiError.unauthorized('Không tồn tại người dùng'));
     } catch (error) {
         return next(ApiError.unauthorized('Token hết hạn hoặc không hợp lệ'));
     }

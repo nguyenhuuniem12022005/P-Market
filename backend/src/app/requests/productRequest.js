@@ -92,32 +92,13 @@ export const updateProductStatus = Joi.object({
 
 
 export const searchProducts = Joi.object({
-    q: Joi.string()
+    searchTerm: Joi.string()
         .trim()
         .allow('', null)
         .label('Từ khóa tìm kiếm'),
-
     categoryId: Joi.number()
         .integer()
         .positive()
-        .optional()
-        .label('Danh mục'),
-
-    status: Joi.string()
-        .valid('Active', 'Sold')
-        .optional()
-        .label('Trạng thái'),
-
-    page: Joi.number()
-        .integer()
-        .min(1)
-        .optional()
-        .label('Trang'),
-
-    limit: Joi.number()
-        .integer()
-        .min(1)
-        .max(100)
-        .optional()
-        .label('Giới hạn')
+        .allow(null)
+        .label('Danh mục')
 });

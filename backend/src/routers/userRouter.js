@@ -43,18 +43,18 @@ userRouter.patch(
     '/me/update-date-of-birth',
     validate(userRequest.updateDateOfBirth),
     userController.updateDateOfBirth
-)
+);
 
 userRouter.patch(
     '/me/update-reputation-score',
     validate(userRequest.updateAmount),
     userController.updateReputationScore
-)
+);
 
 userRouter.patch(
     '/me/update-green-credit',
     validate(userRequest.updateAmount),
     userController.updateGreenCredit
-)
+);
 
 export default userRouter;

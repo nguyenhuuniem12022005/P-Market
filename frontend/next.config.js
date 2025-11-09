@@ -1,29 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
   images: {
-    // Cho phép tải ảnh từ tên miền này
+    // Cho phép tải ảnh từ các domain ngoài
     remotePatterns: [
       {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3001', // Cổng backend của bạn
+        pathname: '/uploads/**', // Đường dẫn uploads trên server
+      },
+      {
         protocol: 'https',
-        hostname: 'placehold.co', 
+        hostname: 'placehold.co',
         port: '',
         pathname: '/**',
       },
     ],
-    // Cho phép hiển thị ảnh SVG từ các nguồn bên ngoài
-    dangerouslyAllowSVG: true, 
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;", // Thêm CSP để tăng bảo mật khi dùng SVG
-    // Hoặc chỉ cho phép SVG từ domain cụ thể (an toàn hơn)
-    // contentDispositionType: 'inline',
-    // dangerouslyAllowSVG: true,
-    // remotePatterns: [
-    //   {
-    //     protocol: 'https',
-    //     hostname: 'placehold.co',
-    //     pathname: '/**',
-    //   },
-    // ],
+    dangerouslyAllowSVG: true, // Cho phép hiển thị SVG từ remote
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;", // Tăng bảo mật
   },
 };
 

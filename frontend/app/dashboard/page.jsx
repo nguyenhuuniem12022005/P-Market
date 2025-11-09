@@ -1,266 +1,361 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Image from 'next/image';
+
+import {
+  Shield, Gift, UserCircle, MapPin, Phone, CalendarDays,
+  Save, KeyRound, Loader2, Camera,
+} from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { getUserDashboard } from '../../lib/api';
-import { 
-  Shield, Gift, BadgeCheck, UserCircle, MapPin, Phone, School, 
-  Save, KeyRound, Loader2 
-} from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
+import {
+  uploadUserAvatar,
+  updateUserProfile,
+  resetPasswordAPI,
+  getUserDashboard,
+  buildAvatarUrl,
+  updateUserDateOfBirth,
+  adjustReputationScore,
+  adjustGreenCredit,
+} from '../../lib/api';
 
-// Giả lập hành động đổi thưởng
-const handleRedeemReputation = () => { alert("Đã đổi 20 Green Credit lấy 10 Điểm uy tín! (Giả lập)"); };
-const handleRedeemBadge = () => { alert("Đã đổi 10 Green Credit lấy Huy hiệu xanh! (Giả lập)"); };
-
+// ===================== Dashboard =====================
 export default function DashboardPage() {
-  const [data, setData] = useState(null);
+  const { user, token, setUser } = useAuth();
+
+  const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // --- Thông tin hồ sơ ---
   const [profileData, setProfileData] = useState({
-    name: "Nguyễn Hữu Niêm",
-    studentId: "B23DCCE076",
-    username: "nguyenhuuniem",
-    class: "D23CQCE04-B", // Cố định
-    phone: "0987654321",
-    address: "XOCDIA.TV"
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    fullName: user?.fullName || '',
+    userName: user?.userName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    address: user?.address || '',
+    dateOfBirth: user?.dateOfBirth || '',
+    avatar: buildAvatarUrl(user?.avatar),
   });
 
-  // --- Trạng thái đổi mật khẩu ---
+  const [scoreDelta, setScoreDelta] = useState({ reputation: '', greenCredit: '' });
+
   const [passwordFields, setPasswordFields] = useState({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
+
   const [passwordError, setPasswordError] = useState('');
 
-  // Hàm cập nhật thông tin hồ sơ
+  // ===================== Load Dashboard =====================
+  useEffect(() => {
+    if (user) {
+      setProfileData(prev => ({
+        ...prev,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        fullName: user.fullName || '',
+        userName: user.userName || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        dateOfBirth: user.dateOfBirth || '',
+        avatar: buildAvatarUrl(user.avatar),
+      }));
+    }
+
+    if (user && token) {
+      (async () => {
+        try {
+          const apiData = await getUserDashboard(token);
+          setDashboardData(apiData);
+          setProfileData(prev => ({
+            ...prev,
+            phone: apiData.phone || prev.phone,
+            address: apiData.address || prev.address,
+            dateOfBirth: apiData.dateOfBirth || prev.dateOfBirth,
+          }));
+        } catch (error) {
+          toast.error('Không thể tải dữ liệu Dashboard.');
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    } else setIsLoading(false);
+  }, [user, token]);
+
+  // ===================== Handlers =====================
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
+    if (name === 'firstName' || name === 'lastName') {
+      const newFirstName = name === 'firstName' ? value : profileData.firstName;
+      const newLastName = name === 'lastName' ? value : profileData.lastName;
+      setProfileData(prev => ({
+        ...prev,
+        [name]: value,
+        fullName: `${newFirstName} ${newLastName}`.trim(),
+      }));
+    } else {
+      setProfileData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  // Hàm cập nhật mật khẩu
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setIsSavingProfile(true);
+    try {
+      await updateUserProfile({
+        userName: profileData.userName,
+        phone: profileData.phone,
+        address: profileData.address,
+      });
+
+      if (profileData.dateOfBirth) {
+        await updateUserDateOfBirth(profileData.dateOfBirth);
+      }
+
+      const updatedUser = { ...user, ...profileData };
+      localStorage.setItem('pmarket_user', JSON.stringify(updatedUser));
+      if (setUser) setUser(updatedUser);
+
+      toast.success('Cập nhật hồ sơ thành công!');
+    } catch (error) {
+      toast.error(error.message || 'Không thể cập nhật hồ sơ.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const result = await uploadUserAvatar(file, token);
+      const imagePathFromApi = result?.imagePath || result?.data?.avatar;
+      const newAvatarUrl = buildAvatarUrl(imagePathFromApi || profileData.avatar);
+
+      setProfileData(prev => ({ ...prev, avatar: newAvatarUrl }));
+
+      const updatedUser = { ...user, avatar: newAvatarUrl };
+      localStorage.setItem('pmarket_user', JSON.stringify(updatedUser));
+      if (setUser) setUser(updatedUser);
+
+      toast.success('Cập nhật ảnh đại diện thành công!');
+    } catch (error) {
+      toast.error(error.message || 'Tải ảnh thất bại.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
     setPasswordFields(prev => ({ ...prev, [name]: value }));
   };
 
-  // Lưu hồ sơ
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
-    setIsSavingProfile(true);
-    console.log("Đang lưu thông tin profile (giả lập):", profileData);
-    setTimeout(() => {
-      toast.success("Cập nhật thông tin thành công!");
-      setIsSavingProfile(false);
-    }, 1000);
-  };
-
-  // Đổi mật khẩu
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordError('');
-    setIsChangingPassword(true);
-
-    if (passwordFields.newPassword.length < 8) {
-      setPasswordError("Mật khẩu mới phải có ít nhất 8 ký tự.");
-      toast.error("Mật khẩu mới phải có ít nhất 8 ký tự.");
-      setIsChangingPassword(false);
-      return;
-    }
     if (passwordFields.newPassword !== passwordFields.confirmPassword) {
-      setPasswordError("Mật khẩu mới không khớp.");
-      toast.error("Mật khẩu mới không khớp.");
-      setIsChangingPassword(false);
+      setPasswordError('Mật khẩu mới không khớp.');
+      toast.error('Mật khẩu mới không khớp.');
+      return;
+    }
+    if (passwordFields.newPassword.length < 6) {
+      setPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      toast.error('Mật khẩu mới phải có ít nhất 6 ký tự.');
       return;
     }
 
-    setTimeout(() => {
-      if (passwordFields.currentPassword !== '123456') {
-        setPasswordError('Mật khẩu cũ không chính xác.');
-        toast.error('Mật khẩu cũ không chính xác.');
-      } else {
-        toast.success('Đổi mật khẩu thành công! (Giả lập)');
-        setPasswordFields({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      }
+    setIsChangingPassword(true);
+    try {
+      const res = await resetPasswordAPI({
+        currentPassword: passwordFields.currentPassword,
+        newPassword: passwordFields.newPassword,
+      });
+      toast.success(res.message || 'Đổi mật khẩu thành công!');
+      setPasswordFields({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      setPasswordError(error.message || 'Đổi mật khẩu thất bại.');
+      toast.error(error.message || 'Đổi mật khẩu thất bại!');
+    } finally {
       setIsChangingPassword(false);
-    }, 1500);
+    }
   };
 
-  // Giả lập tải dữ liệu Dashboard
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const dashboardData = await getUserDashboard();
-        setData(dashboardData);
-      } catch (error) {
-        console.error("Lỗi tải dữ liệu dashboard:", error);
-      } finally {
-        setIsLoading(false);
-      }
+  const handleScoreInput = (type, value) => {
+    setScoreDelta(prev => ({ ...prev, [type]: value }));
+  };
+
+  const handleScoreAdjust = async (type) => {
+    const value = Number(scoreDelta[type]);
+    if (!value && value !== 0) {
+      toast.error('Nhập số hợp lệ');
+      return;
     }
-    loadData();
-  }, []);
+    try {
+      if (type === 'reputation') {
+        await adjustReputationScore(value);
+        setDashboardData(prev => ({ ...prev, reputation: (prev?.reputation ?? 0) + value }));
+      } else {
+        await adjustGreenCredit(value);
+        setDashboardData(prev => ({ ...prev, greenCredit: (prev?.greenCredit ?? 0) + value }));
+      }
+      setScoreDelta(prev => ({ ...prev, [type]: '' }));
+      toast.success('Cập nhật thành công');
+    } catch (error) {
+      toast.error(error.message || 'Không cập nhật được');
+    }
+  };
 
-  if (isLoading) {
-    return <div className="text-center py-10"><p>Đang tải...</p></div>;
-  }
-
-  if (!data) {
-    return <div className="text-center py-10 text-red-500"><p>Lỗi tải dữ liệu.</p></div>;
+  // ===================== Render =====================
+  if (isLoading || !user) {
+    return (
+      <div className="text-center py-10">
+        <p>{!user ? 'Vui lòng đăng nhập.' : 'Đang tải hồ sơ...'}</p>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Trang cá nhân</h1>
 
-      {/* --- CARD PROFILE --- */}
+      {/* Hồ sơ cá nhân */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <UserCircle size={24} /> Profile
+            <UserCircle size={24} /> Hồ sơ cá nhân
           </CardTitle>
         </CardHeader>
-
         <form onSubmit={handleSaveProfile}>
           <CardContent className="space-y-4 text-sm">
-            {/* Họ tên và Mã SV */}
-            <p><strong>Họ và Tên:</strong> {profileData.name}</p>
-            <p className="flex items-center gap-2">
-              <Shield size={16} /> <strong>Mã sinh viên:</strong> {profileData.studentId}
-            </p>
-
-            {/* Username */}
-            <div>
-              <label htmlFor="username" className="block text-xs font-medium text-gray-500 mb-1">
-                Username
+            <div className="flex items-center gap-4 border-b pb-4">
+              <div className="relative w-16 h-16">
+                <Image
+                  src={profileData.avatar}
+                  alt="User Avatar"
+                  fill
+                  className="rounded-full object-cover"
+                  sizes="64px"
+                />
+              </div>
+              <label className="relative cursor-pointer bg-gray-200 hover:bg-gray-300 transition px-3 py-1 rounded-md text-gray-700 flex items-center gap-1">
+                <Camera size={16} /> {isUploading ? 'Đang tải...' : 'Đổi ảnh'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png"
+                  onChange={handleAvatarUpload}
+                  disabled={isUploading}
+                />
               </label>
+            </div>
+
+            <p><strong>Họ và Tên:</strong> {profileData.fullName}</p>
+            <p><strong>Email:</strong> {profileData.email}</p>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Username</label>
               <Input
                 type="text"
-                id="username"
-                name="username"
-                value={profileData.username}
+                name="userName"
+                value={profileData.userName}
                 onChange={handleProfileChange}
-                className="text-sm"
               />
             </div>
 
-            {/* Lớp (Cố định) */}
             <div>
-              <label htmlFor="class" className="block text-xs font-medium text-gray-500 mb-1">
-                <School size={16} className="inline mr-1" /> Lớp
-              </label>
-              <Input
-                type="text"
-                id="class"
-                name="class"
-                value={profileData.class}
-                readOnly
-                disabled
-                className="text-sm bg-gray-100 cursor-not-allowed"
-              />
-            </div>
-
-            {/* Số điện thoại */}
-            <div>
-              <label htmlFor="phone" className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
                 <Phone size={16} className="inline mr-1" /> Số điện thoại
               </label>
               <Input
                 type="tel"
-                id="phone"
                 name="phone"
                 value={profileData.phone}
                 onChange={handleProfileChange}
-                className="text-sm"
               />
             </div>
 
-            {/* Địa chỉ */}
             <div>
-              <label htmlFor="address" className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
                 <MapPin size={16} className="inline mr-1" /> Địa chỉ
               </label>
               <Input
                 type="text"
-                id="address"
                 name="address"
                 value={profileData.address}
                 onChange={handleProfileChange}
-                className="text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                <CalendarDays size={16} /> Ngày sinh
+              </label>
+              <Input
+                type="date"
+                name="dateOfBirth"
+                value={profileData.dateOfBirth ? profileData.dateOfBirth.slice(0, 10) : ''}
+                onChange={handleProfileChange}
               />
             </div>
           </CardContent>
-
           <CardFooter>
-            <Button type="submit" size="sm" className="flex items-center gap-1" disabled={isSavingProfile}>
+            <Button type="submit" size="sm" disabled={isSavingProfile}>
               {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               {isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </CardFooter>
         </form>
       </Card>
-      {/* --- HẾT CARD PROFILE --- */}
 
-      {/* --- CARD ĐỔI MẬT KHẨU --- */}
+      {/* Đổi mật khẩu */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <KeyRound size={24} /> Đổi mật khẩu
           </CardTitle>
         </CardHeader>
-
         <form onSubmit={handleChangePassword}>
           <CardContent className="space-y-4">
-            <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
-                Mật khẩu cũ
-              </label>
-              <Input
-                type="password"
-                id="currentPassword"
-                name="currentPassword"
-                value={passwordFields.currentPassword}
-                onChange={handlePasswordChange}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-                Mật khẩu mới
-              </label>
-              <Input
-                type="password"
-                id="newPassword"
-                name="newPassword"
-                value={passwordFields.newPassword}
-                onChange={handlePasswordChange}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Xác nhận mật khẩu mới
-              </label>
-              <Input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={passwordFields.confirmPassword}
-                onChange={handlePasswordChange}
-                required
-              />
-            </div>
+            <Input
+              type="password"
+              name="currentPassword"
+              placeholder="Mật khẩu cũ"
+              value={passwordFields.currentPassword}
+              onChange={handlePasswordChange}
+              required
+            />
+            <Input
+              type="password"
+              name="newPassword"
+              placeholder="Mật khẩu mới"
+              value={passwordFields.newPassword}
+              onChange={handlePasswordChange}
+              required
+            />
+            <Input
+              type="password"
+              name="confirmPassword"
+              placeholder="Xác nhận mật khẩu mới"
+              value={passwordFields.confirmPassword}
+              onChange={handlePasswordChange}
+              required
+            />
             {passwordError && (
               <p className="text-sm text-red-600 text-center">{passwordError}</p>
             )}
           </CardContent>
-
           <CardFooter>
             <Button type="submit" variant="secondary" disabled={isChangingPassword}>
               {isChangingPassword ? <Loader2 size={16} className="animate-spin mr-1" /> : null}
@@ -269,79 +364,60 @@ export default function DashboardPage() {
           </CardFooter>
         </form>
       </Card>
-      {/* --- HẾT CARD ĐỔI MẬT KHẨU --- */}
 
-      {/* --- CARD TỔNG QUAN --- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tổng quan</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-4">
-            <Shield size={40} className="text-blue-600" />
-            <div>
-              <p className="text-sm text-gray-600">Điểm uy tín của bạn</p>
-              <p className="text-3xl font-bold">{data.reputation}</p>
-            </div>
-          </div>
-          <div className="p-6 bg-green-50 border border-green-200 rounded-lg flex items-center gap-4">
-            <Gift size={40} className="text-green-600" />
-            <div>
-              <p className="text-sm text-gray-600">Green Credit</p>
-              <p className="text-3xl font-bold">{data.greenCredit}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* --- CARD MỜI BẠN BÈ --- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Thưởng điểm mời bạn bè</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p>Mã mời của bạn:</p>
-          <Input type="text" value="HUU-NIEM-123" readOnly className="font-mono bg-gray-100" />
-          <Button variant="secondary">Sao chép mã</Button>
-          <p className="text-xs text-gray-600">
-            Cả bạn và người được mời đều được cộng 5 điểm uy tín khi họ xác thực mã sinh viên.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* --- CARD ĐỔI GREEN CREDIT --- */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Đổi thưởng Green Credit</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 border rounded-md flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Shield size={32} className="text-blue-500" />
-              <div>
-                <h4 className="font-semibold">Đổi điểm uy tín</h4>
-                <p className="text-sm text-gray-600">
-                  <strong className="text-green-600">20 Green Credit</strong> = <strong className="text-blue-600">10 Điểm Uy tín</strong>
-                </p>
+      {/* Tổng quan + Điều chỉnh điểm */}
+      {dashboardData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tổng quan</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <Shield size={40} className="text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Điểm uy tín</p>
+                  <p className="text-3xl font-bold">{dashboardData.reputation}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  value={scoreDelta.reputation}
+                  onChange={(e) => handleScoreInput('reputation', e.target.value)}
+                  placeholder="+/- điểm"
+                  className="w-32"
+                />
+                <Button size="sm" onClick={() => handleScoreAdjust('reputation')}>
+                  Cập nhật
+                </Button>
               </div>
             </div>
-            <Button variant="primary" onClick={handleRedeemReputation} disabled={data.greenCredit < 20}>Đổi</Button>
-          </div>
 
-          <div className="p-4 border rounded-md flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <BadgeCheck size={32} className="text-green-500" />
-              <div>
-                <h4 className="font-semibold">Đổi huy hiệu xanh</h4>
-                <p className="text-sm text-gray-600">
-                  <strong className="text-green-600">10 Green Credit</strong> = Huy hiệu (1 tuần)
-                </p>
+            <div className="p-6 bg-green-50 border border-green-200 rounded-lg flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <Gift size={40} className="text-green-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Green Credit</p>
+                  <p className="text-3xl font-bold">{dashboardData.greenCredit}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  value={scoreDelta.greenCredit}
+                  onChange={(e) => handleScoreInput('greenCredit', e.target.value)}
+                  placeholder="+/- credit"
+                  className="w-32"
+                />
+                <Button size="sm" onClick={() => handleScoreAdjust('greenCredit')}>
+                  Cập nhật
+                </Button>
               </div>
             </div>
-            <Button variant="primary" onClick={handleRedeemBadge} disabled={data.greenCredit < 10}>Đổi</Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

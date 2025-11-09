@@ -1,39 +1,154 @@
 'use client';
-import React, { createContext, useState, useContext } from 'react';
+
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import {
+  loginUser,
+  registerUser,
+  logoutUser,
+  removeAuthToken,
+  buildAvatarUrl,
+} from '../lib/api';
 
 const AuthContext = createContext();
 
+const getInitialAuth = () => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('pmarket_token');
+    const userJson = localStorage.getItem('pmarket_user');
+    try {
+      const user = userJson ? JSON.parse(userJson) : null;
+      if (user && user.avatar) {
+        user.avatar = buildAvatarUrl(user.avatar);
+      }
+      return { token, user };
+    } catch {
+      return { token: null, user: null };
+    }
+  }
+  return { token: null, user: null };
+};
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const initialAuth = getInitialAuth();
+  const [user, setUser] = useState(initialAuth.user);
+  const [token, setToken] = useState(initialAuth.token);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
   const router = useRouter();
 
-  const login = (username, email, password) => {
-    console.log("Login attempt:", { username, email, password });
-    const fakeUser = { name: "Nguyễn Hữu Niêm", username, email, avatar: "/avatar.png" };
-    setUser(fakeUser);
-    router.push('/home'); // Redirect handled here
-  };
+  useEffect(() => {
+    setIsLoadingInitial(false);
+  }, []);
 
-  // Add register function
-  const register = (formData) => {
-    console.log("Register attempt (simulated):", formData);
-    const fakeUser = { name: `${formData.firstName} ${formData.lastName}`, username: formData.username, email: formData.email, avatar: "/avatar.png" };
-    setUser(fakeUser); // Log the user in immediately after registration (simulation)
-    if (!formData.isExternal) {
-      toast.info('Kiểm tra email PTIT để xác thực!');
-      setTimeout(() => router.push('/home'), 2000); // Redirect after delay
-    } else {
-      toast.info('Kiểm tra email để nhận thông tin tài khoản PTIT!');
-      setTimeout(() => router.push('/home'), 2000); // Redirect after delay
+  const login = async (formData) => {
+    const { email, password } = formData;
+    try {
+      const data = await loginUser(email, password);
+      const apiUser = data.user || {};
+
+      const userData = {
+        userId: apiUser.userId,
+        firstName: apiUser.firstName || '',
+        lastName: apiUser.lastName || '',
+        fullName:
+          apiUser.fullName ||
+          `${apiUser.lastName || ''} ${apiUser.firstName || ''}`.trim() ||
+          'Người dùng',
+        userName: apiUser.userName || '',
+        email,
+        phone: apiUser.phone || '',
+        address: apiUser.address || '',
+        avatar: buildAvatarUrl(apiUser.avatar),
+        dateOfBirth: apiUser.dateOfBirth || '',
+        reputation: apiUser.reputation || 85,
+        greenCredit: apiUser.greenCredit || 0,
+      };
+
+      setUser(userData);
+      setToken(data.token.access_token);
+
+      localStorage.setItem('pmarket_user', JSON.stringify(userData));
+      localStorage.setItem('pmarket_token', data.token.access_token);
+
+      toast.success('Đăng nhập thành công!');
+      router.push('/home');
+    } catch (error) {
+      console.error('[AuthContext] Login Error:', error);
+      toast.error(error.message || 'Đăng nhập thất bại.');
+      throw error;
     }
   };
 
+  const register = async (formData) => {
+    try {
+      const data = await registerUser(formData);
+      const apiUser = data.user || {};
+      const userData = {
+        userId: apiUser.userId,
+        firstName: apiUser.firstName || '',
+        lastName: apiUser.lastName || '',
+        fullName:
+          apiUser.fullName ||
+          `${apiUser.lastName || ''} ${apiUser.firstName || ''}`.trim() ||
+          'Người dùng',
+        userName: apiUser.userName || '',
+        email: formData.email,
+        phone: apiUser.phone || '',
+        address: apiUser.address || '',
+        avatar: buildAvatarUrl(apiUser.avatar),
+      };
 
-  const logout = () => { setUser(null); router.push('/'); };
+      setUser(userData);
+      setToken(data.token.access_token);
 
-  const value = { user, isAuthenticated: !!user, login, logout, register }; // Add register to value
+      localStorage.setItem('pmarket_user', JSON.stringify(userData));
+      localStorage.setItem('pmarket_token', data.token.access_token);
+
+      toast.success('Đăng ký thành công!');
+      router.push('/home');
+    } catch (error) {
+      console.error('[AuthContext] Register Error:', error);
+      toast.error(error.message || 'Đăng ký thất bại.');
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    if (token) {
+      try {
+        await logoutUser(token);
+      } catch (error) {
+        console.warn('⚠️ Lỗi khi gọi API logout:', error);
+      }
+    }
+
+    setUser(null);
+    setToken(null);
+    removeAuthToken();
+    toast('Đã đăng xuất 👋');
+    router.push('/');
+  };
+
+  const value = {
+    user,
+    setUser,
+    token,
+    isAuthenticated: !!user && !!token,
+    login,
+    register,
+    logout,
+    isLoadingInitial,
+  };
+
+  if (isLoadingInitial) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Đang tải ứng dụng...</p>
+      </div>
+    );
+  }
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

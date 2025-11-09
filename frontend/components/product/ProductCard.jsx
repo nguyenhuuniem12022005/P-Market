@@ -12,7 +12,13 @@ function resolveImage(product) {
     const normalized = product.thumbnail.replace(/^public\//, '');
     return `${API_BASE}/${normalized}`;
   }
-  if (product.imageUrl) return product.imageUrl;
+  // SỬA: Nếu imageUrl bắt đầu bằng /uploads, build URL đầy đủ
+  if (product.imageUrl) {
+    if (product.imageUrl.startsWith('/uploads')) {
+      return `${API_BASE}${product.imageUrl}`;
+    }
+    return product.imageUrl;
+  }
   return FALLBACK_IMAGE;
 }
 

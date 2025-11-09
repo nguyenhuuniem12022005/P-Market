@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getProductById, getReviewsByProductId } from '../../../lib/api';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Avatar } from '../../../components/ui/Avatar';
 import ReviewCard from '../../../components/product/ReviewCard';
-import { ShoppingCart, Star, ShieldCheck, Handshake } from 'lucide-react';
+import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
+import { getProductById, getReviewsByProductId } from '../../../lib/api';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 
@@ -19,11 +19,21 @@ const FALLBACK_IMAGE = 'https://placehold.co/600x400/eee/31343C?text=P-Market';
 
 const resolveImage = (product) => {
   if (!product) return FALLBACK_IMAGE;
+  
+  if (product.imageUrl) {
+    if (product.imageUrl.startsWith('/uploads')) {
+      return `${API_BASE}${product.imageUrl}`;
+    }
+    if (product.imageUrl.startsWith('http')) {
+      return product.imageUrl;
+    }
+  }
+  
   if (product.thumbnail) {
     const normalized = product.thumbnail.replace(/^public\//, '');
     return `${API_BASE}/${normalized}`;
   }
-  if (product.imageUrl) return product.imageUrl;
+  
   return FALLBACK_IMAGE;
 };
 
@@ -62,22 +72,38 @@ export default function ProductDetailPage() {
   }, [params.id]);
 
   const title = product?.productName || product?.title || 'Sản phẩm';
+  const description = product?.description || 'Không có mô tả';
   const priceValue = product?.unitPrice ?? product?.price ?? 0;
-  const sellerName = product?.shopName || product?.seller?.name || 'Người bán ẩn danh';
+  const sellerName = product?.shopName || product?.userName || 'Người bán ẩn danh';
   const sellerReputation = product?.sellerRating ?? product?.seller?.reputation ?? 'Chưa có';
   const productImage = resolveImage(product);
 
   // --- Các handler ---
   const handleWriteReview = () => alert("Chức năng đánh giá sẽ có sau khi mua hàng thành công!");
-  const handleAddToCart = () => { if (product) addToCart(product); };
-  const handleDirectPurchase = () => router.push('/chat');
+  const handleAddToCart = () => { 
+    if (product) {
+      addToCart(product);
+      alert(`Đã thêm "${title}" vào giỏ hàng!`);
+    }
+  };
+  
+  const handleContactSeller = () => {
+    // Chuyển đến trang chat với người bán
+    router.push(`/chat?seller=${product?.supplierId || ''}&product=${params.id}`);
+  };
+  
+  const handleDirectPurchase = () => {
+    // Mua trực tiếp = liên hệ với người bán
+    handleContactSeller();
+  };
+  
   const handleEscrowPurchase = async () => {
     if (!isConnected) {
       alert("Vui lòng kết nối ví để sử dụng Mua an toàn!");
       await connectWallet();
       return;
     }
-    alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm ${title}... (Giả lập)`);
+    alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm "${title}"...\n\nChức năng này sẽ được phát triển với smart contract.`);
   };
 
   // --- Loading Skeleton ---
@@ -100,6 +126,7 @@ export default function ProductDetailPage() {
               <Skeleton height={48} />
               <Skeleton height={48} />
               <Skeleton height={48} />
+              <Skeleton height={48} />
             </CardContent></Card>
           </div>
         </div>
@@ -110,8 +137,13 @@ export default function ProductDetailPage() {
   // --- Không tìm thấy sản phẩm ---
   if (!product) {
     return (
-      <div className="py-8 text-center">
-        <p>Không tìm thấy sản phẩm.</p>
+      <div className="py-8 px-4 text-center">
+        <Card className="max-w-md mx-auto">
+          <CardContent className="p-8">
+            <p className="text-lg text-gray-600 mb-4">Không tìm thấy sản phẩm.</p>
+            <Button onClick={() => router.push('/home')}>Quay lại trang chủ</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -133,46 +165,91 @@ export default function ProductDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Mô tả */}
+          {/* Mô tả từ người bán */}
           <Card>
             <CardContent className="p-6">
               <h2 className="text-2xl font-bold mb-4">Mô tả sản phẩm</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{product.description}</p>
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {description}
+              </p>
             </CardContent>
           </Card>
 
-          {/* Đánh giá */}
+          {/* Đánh giá & Bình luận */}
           <Card>
             <CardContent className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Đánh giá sản phẩm</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Đánh giá & Bình luận</h2>
                 <Button variant="outline" size="sm" onClick={handleWriteReview}>
                   <Star size={16} className="mr-2" /> Viết đánh giá
                 </Button>
               </div>
+              
+              {/* Hiển thị số sao trung bình */}
+              {reviews.length > 0 && (
+                <div className="mb-6 pb-6 border-b">
+                  <div className="flex items-center gap-4">
+                    <div className="text-4xl font-bold">
+                      {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 mb-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={20}
+                            className={i < Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-600">{reviews.length} đánh giá</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Danh sách đánh giá */}
               <div className="space-y-4">
-                {reviews.length === 0
-                  ? (<p className="text-gray-600">Chưa có đánh giá.</p>)
-                  : (reviews.map((review) => (<ReviewCard key={review.id} review={review} />)))}
+                {reviews.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-2">Chưa có đánh giá nào cho sản phẩm này.</p>
+                    <p className="text-sm text-gray-500">Hãy là người đầu tiên đánh giá sau khi mua hàng!</p>
+                  </div>
+                ) : (
+                  reviews.map((review) => (<ReviewCard key={review.id} review={review} />))
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* --- Thông tin người bán (đã chuyển về cột trái) --- */}
+          {/* --- Thông tin người bán --- */}
           <Card>
-            <CardContent className="p-4 flex items-center gap-4">
-              <Avatar src={product.seller?.avatar} />
-              <div>
-                <h3 className="font-semibold">{sellerName}</h3>
-                <p className="text-sm text-gray-600">
-                  Điểm uy tín: {sellerReputation}
-                </p>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Thông tin người bán</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Avatar src={product.seller?.avatar || '/avatar.png'} size="lg" />
+                  <div>
+                    <h4 className="font-semibold text-lg">{sellerName}</h4>
+                    <p className="text-sm text-gray-600">
+                      Điểm uy tín: <span className="font-medium text-primary">{sellerReputation}</span>
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={handleContactSeller}
+                  className="flex items-center gap-2"
+                >
+                  <MessageCircle size={18} />
+                  Liên hệ người bán
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* === Cột Phải (Chỉ chứa phần mua hàng) === */}
+        {/* === Cột Phải (Phần mua hàng) === */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="sticky top-24 shadow-lg">
             <CardContent className="p-6 space-y-4">
@@ -183,21 +260,26 @@ export default function ProductDetailPage() {
                   : `${Number(priceValue).toLocaleString('vi-VN')} ₫`}
               </p>
 
+              {/* Nút Mua an toàn với Escrow */}
               <Button
                 size="lg"
                 className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 focus:ring-green-500"
                 onClick={handleEscrowPurchase}
               >
-                <ShieldCheck size={20} /> Mua an toàn (Ký quỹ Escrow)
+                <ShieldCheck size={20} /> Mua an toàn (Escrow)
               </Button>
+
+              {/* Nút Mua trực tiếp = Liên hệ người bán */}
               <Button
                 size="lg"
                 variant="secondary"
                 className="w-full flex items-center justify-center gap-2"
                 onClick={handleDirectPurchase}
               >
-                <Handshake size={20} /> Mua trực tiếp (Liên hệ)
+                <Handshake size={20} /> Mua trực tiếp
               </Button>
+
+              {/* Nút Thêm vào giỏ hàng */}
               <Button
                 size="lg"
                 variant="outline"
@@ -206,6 +288,17 @@ export default function ProductDetailPage() {
               >
                 <ShoppingCart size={20} /> Thêm vào giỏ hàng
               </Button>
+
+              {/* Nút Liên hệ người bán */}
+              <div className="pt-4 border-t">
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-center gap-2 text-primary hover:bg-primary/10"
+                  onClick={handleContactSeller}
+                >
+                  <MessageCircle size={20} /> Chat với người bán
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

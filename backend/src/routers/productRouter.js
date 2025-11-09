@@ -1,50 +1,54 @@
-import { Router } from 'express';
+import { Router } from "express";
 import * as productController from '../app/controllers/productController.js';
-import requireAuthentication from '../app/middleware/common/require-authentication.js';
-import validate from '../app/middleware/common/validate.js';
+import requireAuthentication from "../app/middleware/common/require-authentication.js";
+import validate from "../app/middleware/common/validate.js";
 import * as productRequest from '../app/requests/productRequest.js';
-import checkProductIdExists from '../app/middleware/productMiddleware.js';
+import checkProductIdExists from "../app/middleware/productMiddleware.js";
+import { upload } from "../app/middleware/uploadMiddleware.js";
 
 const productRouter = Router();
 
-// ========= Public APIs =========
-productRouter.get('/categories', productController.handleGetCategories);
-productRouter.get('/', productController.handleGetAllProducts);
-
-// Lấy danh sách sản phẩm của một supplier cụ thể
+// Route c�ng khai - kh�ng y�u c?u x�c th?c
 productRouter.get(
-  '/supplier/:supplierId',
-  productController.handleGetProductsBySupplier,
+    '/',
+    validate(productRequest.searchProducts),
+    productController.searchProducts
 );
 
-// Chi tiết một sản phẩm
 productRouter.get(
-  '/:id',
-  checkProductIdExists,
-  productController.handleGetProductById,
+    '/:id',
+    productController.getProductById
 );
 
-// ========= Protected APIs (cần đăng nhập) =========
+// C�c route c?n l?i y�u c?u x�c th?c
+productRouter.use(requireAuthentication);
+
 productRouter.post(
-  '/new-product',
-  requireAuthentication,
-  validate(productRequest.createProduct),
-  productController.createProduct,
+    '/new-product',
+    upload.single('image'),
+    validate(productRequest.createProduct),
+    productController.createProduct
 );
 
 productRouter.put(
-  '/:id/update-product',
-  requireAuthentication,
-  checkProductIdExists,
-  validate(productRequest.updateProduct),
-  productController.handleUpdateProduct,
+    '/:id/update-product',
+    checkProductIdExists,
+    validate(productRequest.updateProduct),
+    productController.updateProduct
+);
+
+productRouter.patch(
+    '/:id/update-product-status',
+    checkProductIdExists,
+    validate(productRequest.updateProductStatus),
+    productController.updateProductStatus
 );
 
 productRouter.delete(
-  '/:id/delete-product',
-  requireAuthentication,
-  checkProductIdExists,
-  productController.handleDeleteProduct,
+    '/:id/delete-product',
+    checkProductIdExists,
+    productController.deleteProduct
 );
 
 export default productRouter;
+

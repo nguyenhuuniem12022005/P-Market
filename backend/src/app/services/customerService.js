@@ -1,4 +1,4 @@
-import pool from "../../configs/mysql";
+import pool from "../../configs/mysql.js";
 
 export async function updateClass(id, newClass) {
     await pool.query(`

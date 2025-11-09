@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -12,9 +12,9 @@ export const buildAvatarUrl = (src) => {
   return `${base}/${cleaned}`;
 };
 
-// ===================== TOKEN QUẢN LÝ =====================
+// ===================== TOKEN QUáº¢N LĂ =====================
 /**
- * Lưu token vào localStorage.
+ * LÆ°u token vĂ o localStorage.
  */
 export const setAuthToken = (token) => {
   if (typeof window !== "undefined") {
@@ -23,7 +23,7 @@ export const setAuthToken = (token) => {
 };
 
 /**
- * Lấy token từ localStorage.
+ * Láº¥y token tá»« localStorage.
  */
 export const getAuthToken = () => {
   if (typeof window !== "undefined") {
@@ -33,7 +33,7 @@ export const getAuthToken = () => {
 };
 
 /**
- * Xóa token và user data khỏi localStorage (khi đăng xuất).
+ * XĂ³a token vĂ  user data khá»i localStorage (khi Ä‘Äƒng xuáº¥t).
  */
 export const removeAuthToken = () => {
   if (typeof window !== "undefined") {
@@ -42,32 +42,32 @@ export const removeAuthToken = () => {
   }
 };
 
-// === HEADER TỰ ĐỘNG THÊM TOKEN ===
+// === HEADER Tá»° Äá»˜NG THĂM TOKEN ===
 /**
- * Tự động tạo header Authorization nếu có token.
+ * Tá»± Ä‘á»™ng táº¡o header Authorization náº¿u cĂ³ token.
  */
 function authHeader() {
   const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ===================== XỬ LÝ LỖI AXIOS CHUNG =====================
+// ===================== Xá»¬ LĂ Lá»–I AXIOS CHUNG =====================
 /**
- * Xử lý lỗi tập trung cho các request axios.
+ * Xá»­ lĂ½ lá»—i táº­p trung cho cĂ¡c request axios.
  */
 function handleAxiosError(error) {
   if (error.response) {
     const message =
-      error.response.data.message || `Lỗi API (${error.response.status})`;
+      error.response.data.message || `Lá»—i API (${error.response.status})`;
     throw new Error(message);
   }
-  throw new Error("Yêu cầu mạng thất bại hoặc lỗi không xác định.");
+  throw new Error("YĂªu cáº§u máº¡ng tháº¥t báº¡i hoáº·c lá»—i khĂ´ng xĂ¡c Ä‘á»‹nh.");
 }
 
 // ===================== AUTH API =====================
 
 /**
- * ✅ Đăng ký
+ * âœ… ÄÄƒng kĂ½
  */
 export async function registerUser(formData) {
   try {
@@ -79,8 +79,8 @@ export async function registerUser(formData) {
 }
 
 /**
- * ✅ Đăng nhập
- * [ĐÃ SỬA] Tự động lưu token và user info vào localStorage.
+ * âœ… ÄÄƒng nháº­p
+ * [ÄĂƒ Sá»¬A] Tá»± Ä‘á»™ng lÆ°u token vĂ  user info vĂ o localStorage.
  */
 export async function loginUser(email, password) {
   try {
@@ -102,8 +102,8 @@ export async function loginUser(email, password) {
 }
 
 /**
- * ✅ Đăng xuất
- * [ĐÃ SỬA] Tự động xóa token và user info khỏi localStorage.
+ * âœ… ÄÄƒng xuáº¥t
+ * [ÄĂƒ Sá»¬A] Tá»± Ä‘á»™ng xĂ³a token vĂ  user info khá»i localStorage.
  */
 export async function logoutUser() {
   try {
@@ -123,7 +123,7 @@ export async function logoutUser() {
 // ===================== USER API =====================
 
 /**
- * ✅ Upload avatar
+ * âœ… Upload avatar
  */
 export async function uploadUserAvatar(file) {
   try {
@@ -148,7 +148,7 @@ export async function uploadUserAvatar(file) {
 }
 
 /**
- * ✅ Cập nhật thông tin người dùng (userName, phone, address)
+ * âœ… Cáº­p nháº­t thĂ´ng tin ngÆ°á»i dĂ¹ng (userName, phone, address)
  */
 export async function updateUserProfile(profileData = {}) {
   try {
@@ -191,12 +191,12 @@ export async function updateUserProfile(profileData = {}) {
     }
 
     if (results.length === 0) {
-      return { success: false, message: "Không có dữ liệu nào để cập nhật." };
+      return { success: false, message: "KhĂ´ng cĂ³ dá»¯ liá»‡u nĂ o Ä‘á»ƒ cáº­p nháº­t." };
     }
 
     return {
       success: true,
-      message: "Cập nhật thông tin cá nhân thành công!",
+      message: "Cáº­p nháº­t thĂ´ng tin cĂ¡ nhĂ¢n thĂ nh cĂ´ng!",
       results,
     };
   } catch (error) {
@@ -205,7 +205,7 @@ export async function updateUserProfile(profileData = {}) {
 }
 
 /**
- * ✅ Đổi mật khẩu
+ * âœ… Äá»•i máº­t kháº©u
  */
 export async function resetPasswordAPI(newPassword) {
   try {
@@ -220,66 +220,62 @@ export async function resetPasswordAPI(newPassword) {
   }
 }
 
-// ===================== PRODUCT API =====================
-export async function fetchCategories() {
-  try {
-    const res = await axios.get(`${API_URL}/products/categories`);
-    return res.data.data || [];
-  } catch (error) {
-    handleAxiosError(error);
-  }
-}
+/**
+ * L?y t?t c? s?n ph?m (g?n đây nh?t)
+ */
 
-export async function createProduct(productData) {
+/**
+ * L?y chi ti?t s?n ph?m theo ID
+ */
+export async function getProductById(productId) {
   try {
-    const res = await axios.post(
-      `${API_URL}/products/new-product`,
-      productData,
-      {
-        headers: {
-          ...authHeader(),
-          "Content-Type": "application/json",
-        },
-      },
+    const res = await axios.get(
+      `${API_URL}/products/${productId}`,
+      { headers: authHeader() }
     );
-    return res.data;
+    return res.data.product || null;
   } catch (error) {
-    handleAxiosError(error);
+    console.error('Error fetching product details:', error);
+    return null;
   }
 }
 
-export async function getAllProducts(params = {}) {
+/**
+ * L?y danh sách đánh giá c?a s?n ph?m (mock data - s? tích h?p API th?c sau)
+ */
+export async function getReviewsByProductId(productId) {
+  // TODO: Tích h?p API th?c khi backend có endpoint reviews
+  return [
+    {
+      id: 1,
+      userName: 'Nguy?n Văn A',
+      rating: 5,
+      comment: 'S?n ph?m r?t t?t, đúng như mô t?!',
+      createdAt: '2024-01-15',
+      avatar: '/avatar.png'
+    },
+    {
+      id: 2,
+      userName: 'Tr?n Th? B',
+      rating: 4,
+      comment: 'Ch?t lư?ng ?n, giao hàng nhanh.',
+      createdAt: '2024-01-10',
+      avatar: '/avatar.png'
+    }
+  ];
+}
+export async function getAllProducts(limit = 50) {
   try {
-    const res = await axios.get(`${API_URL}/products`, { params });
-    return {
-      items: res.data.data || [],
-      meta: res.data.meta || {},
-    };
+    // API công khai - không c?n token
+    const res = await axios.get(`${API_URL}/products`);
+    
+    const products = res.data.products || [];
+    // Gi?i h?n s? lư?ng s?n ph?m hi?n th?
+    return products.slice(0, limit);
   } catch (error) {
-    handleAxiosError(error);
+    console.error('Error fetching products:', error);
+    return [];
   }
-}
-
-export async function searchProducts(params = {}) {
-  return getAllProducts(params);
-}
-
-export async function getProductById(id) {
-  try {
-    const res = await axios.get(`${API_URL}/products/${id}`);
-    return res.data.product;
-  } catch (error) {
-    handleAxiosError(error);
-  }
-}
-
-export async function getReviewsByProductId() {
-  // Backend chưa có API review -> tạm trả mảng trống
-  return [];
-}
-
-export async function getUserDashboard() {
-  return { reputation: 85, greenCredit: 20 };
 }
 export async function updateUserDateOfBirth(dateOfBirth) {
   try {
@@ -319,3 +315,116 @@ export async function adjustGreenCredit(amount) {
     handleAxiosError(error);
   }
 }
+
+// ===================== PRODUCT API =====================
+
+/**
+ * Táº¡o sáº£n pháº©m má»›i (ÄÄƒng bĂ i)
+ */
+export async function createProduct(productData) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/products/new-product`,
+      productData,  // FormData s? đư?c g?i tr?c ti?p
+      { 
+        headers: {
+          ...authHeader(),
+          // Không set Content-Type, đ? browser t? đ?ng set cho FormData
+        }
+      }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+/**
+ * TĂ¬m kiáº¿m sáº£n pháº©m
+ */
+export async function searchProducts(params = {}) {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
+    if (params.q) queryParams.append('searchTerm', params.q);
+    if (params.categoryId) queryParams.append('categoryId', params.categoryId);
+
+    const res = await axios.get(
+      `${API_URL}/products?${queryParams.toString()}`,
+      { headers: authHeader() }
+    );
+    
+    return {
+      success: res.data.success,
+      items: res.data.products || [],
+      message: res.data.message
+    };
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+/**
+ * Cáº­p nháº­t sáº£n pháº©m
+ */
+export async function updateProduct(productId, productData) {
+  try {
+    const res = await axios.put(
+      `${API_URL}/products/${productId}/update-product`,
+      productData,
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+/**
+ * XĂ³a sáº£n pháº©m
+ */
+export async function deleteProduct(productId) {
+  try {
+    const res = await axios.delete(
+      `${API_URL}/products/${productId}/delete-product`,
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+// ===================== CATEGORY API =====================
+
+/**
+ * Láº¥y danh sĂ¡ch táº¥t cáº£ danh má»¥c
+ */
+export async function fetchCategories() {
+  try {
+    const res = await axios.get(`${API_URL}/categories`, {
+      headers: authHeader()
+    });
+    return res.data;
+  } catch (error) {
+    console.warn('fetchCategories error:', error.message);
+    return {
+      success: true,
+      categories: [
+        { categoryId: 1, categoryName: 'SĂ¡ch & VÄƒn phĂ²ng pháº©m' },
+        { categoryId: 2, categoryName: 'Äá»“ Ä‘iá»‡n tá»­' },
+        { categoryId: 3, categoryName: 'Thá»i trang' },
+        { categoryId: 4, categoryName: 'Äá»“ gia dá»¥ng' },
+        { categoryId: 5, categoryName: 'Thá»ƒ thao & Sá»©c khá»e' },
+        { categoryId: 6, categoryName: 'KhĂ¡c' }
+      ]
+    };
+  }
+}
+
+
+
+
+
+
+

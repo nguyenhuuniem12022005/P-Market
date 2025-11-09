@@ -1,6 +1,6 @@
 import multer from 'multer';
 import path from 'path';
-import ApiError from '../../utils/classes/api-error';
+import ApiError from '../../utils/classes/api-error.js';
 import fs from 'fs';
 
 const uploadDir = 'src/public/uploads';

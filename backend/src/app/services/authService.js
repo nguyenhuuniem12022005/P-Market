@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../../configs/mysql.js';
 import moment from 'moment';
 import NodeCache from 'node-cache';
-import * as userService from './userService'
+import * as userService from './userService.js'
 
 dotenv.config();
 
@@ -32,7 +32,7 @@ export async function register({ firstName, lastName, userName, email, password 
 }
 
 export function authToken(user) {
-    const payload = { id: user.id };
+    const payload = { userId: user.userId };
     const accessToken = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: process.env.LOGIN_EXPIRE_IN });
     const decode = jwt.decode(accessToken);
     const expireIn = decode.exp - decode.iat;
