@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { getProductById, getReviewsByProductId } from '../../../lib/api';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
@@ -13,6 +12,20 @@ import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001';
+const FALLBACK_IMAGE = 'https://placehold.co/600x400/eee/31343C?text=P-Market';
+
+const resolveImage = (product) => {
+  if (!product) return FALLBACK_IMAGE;
+  if (product.thumbnail) {
+    const normalized = product.thumbnail.replace(/^public\//, '');
+    return `${API_BASE}/${normalized}`;
+  }
+  if (product.imageUrl) return product.imageUrl;
+  return FALLBACK_IMAGE;
+};
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -48,6 +61,12 @@ export default function ProductDetailPage() {
     return () => { isMounted = false; };
   }, [params.id]);
 
+  const title = product?.productName || product?.title || 'Sản phẩm';
+  const priceValue = product?.unitPrice ?? product?.price ?? 0;
+  const sellerName = product?.shopName || product?.seller?.name || 'Người bán ẩn danh';
+  const sellerReputation = product?.sellerRating ?? product?.seller?.reputation ?? 'Chưa có';
+  const productImage = resolveImage(product);
+
   // --- Các handler ---
   const handleWriteReview = () => alert("Chức năng đánh giá sẽ có sau khi mua hàng thành công!");
   const handleAddToCart = () => { if (product) addToCart(product); };
@@ -58,7 +77,7 @@ export default function ProductDetailPage() {
       await connectWallet();
       return;
     }
-    alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm ${product.title}... (Giả lập)`);
+    alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm ${title}... (Giả lập)`);
   };
 
   // --- Loading Skeleton ---
@@ -107,8 +126,8 @@ export default function ProductDetailPage() {
           <Card>
             <CardContent className="p-0 overflow-hidden rounded-lg">
               <img
-                src={product.imageUrl || `https://placehold.co/600x400/eee/31343C?text=${product.title}`}
-                alt={product.title}
+                src={productImage}
+                alt={title}
                 className="w-full h-auto object-cover aspect-video md:aspect-[16/9]"
               />
             </CardContent>
@@ -144,9 +163,9 @@ export default function ProductDetailPage() {
             <CardContent className="p-4 flex items-center gap-4">
               <Avatar src={product.seller?.avatar} />
               <div>
-                <h3 className="font-semibold">{product.seller?.name || 'Người bán ẩn danh'}</h3>
+                <h3 className="font-semibold">{sellerName}</h3>
                 <p className="text-sm text-gray-600">
-                  Điểm uy tín: {product.seller?.reputation ?? 'Chưa có'}
+                  Điểm uy tín: {sellerReputation}
                 </p>
               </div>
             </CardContent>
@@ -157,11 +176,11 @@ export default function ProductDetailPage() {
         <div className="lg:col-span-1 space-y-6">
           <Card className="sticky top-24 shadow-lg">
             <CardContent className="p-6 space-y-4">
-              <h1 className="text-2xl font-bold leading-tight">{product.title}</h1>
+              <h1 className="text-2xl font-bold leading-tight">{title}</h1>
               <p className="text-3xl text-primary font-semibold">
-                {Number(product.price) === 0
+                {Number(priceValue) === 0
                   ? 'Miễn phí'
-                  : `${Number(product.price).toLocaleString('vi-VN')} ₫`}
+                  : `${Number(priceValue).toLocaleString('vi-VN')} ₫`}
               </p>
 
               <Button
