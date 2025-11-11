@@ -35,12 +35,12 @@ export const createProduct = Joi.object({
         .valid('Active', 'Sold')
         .default('Active')
         .label('Trạng thái'),
-
+    
     discount: Joi.number()
         .min(0)
         .max(100)
         .default(0)
-        .label('Giảm giá (%)')
+        .label('Giảm giá')
 });
 
 
@@ -79,7 +79,7 @@ export const updateProduct = Joi.object({
     discount: Joi.number()
         .min(0)
         .max(100)
-        .label('Giảm giá (%)')
+        .label('Giảm giá')
 }).min(1); // Phải có ít nhất 1 trường để update
 
 

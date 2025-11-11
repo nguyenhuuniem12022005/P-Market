@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -17,9 +17,15 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
-import { useAuth } from '../../context/AuthContext'; // ✅ import AuthContext
+import { useAuth } from '../../context/AuthContext'; // ? import AuthContext
+import { useCart } from '../../context/CartContext';
+import { buildAvatarUrl } from '../../lib/api';
+import { resolveProductImage } from '../../lib/image';
+import dynamic from 'next/dynamic';
 
-// --- Dữ liệu giả lập (mock) ---
+const ChatWidget = dynamic(() => import('../chat/ChatWidget'), { ssr: false });
+
+// --- D? li?u gi? l?p (mock) ---
 const mockNotifications = [
   {
     id: 1,
@@ -44,27 +50,13 @@ const mockNotifications = [
   },
 ];
 
-const mockCartItems = [
-  {
-    id: 1,
-    name: 'Sản phẩm A',
-    price: 120000,
-    image: '/product1.jpg',
-    quantity: 1,
-  },
-  {
-    id: 2,
-    name: 'Sản phẩm B',
-    price: 90000,
-    image: '/product2.jpg',
-    quantity: 2,
-  },
-];
+const FALLBACK_PRODUCT_IMAGE = 'https://placehold.co/80x60?text=P-Market';
 
 export default function Header() {
   const router = useRouter();
   const { isConnected, walletAddress, connectWallet } = useWallet();
   const { user, isAuthenticated, logout } = useAuth(); // ✅ lấy user từ context
+  const { cartItems = [] } = useCart();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,21 +75,22 @@ export default function Header() {
     }
   };
 
-  // ✅ Tên & Avatar người dùng
-  const userName = user?.fullName || user?.userName || 'Khách';
-  const userAvatarUrl = user?.avatar || '/avatar.png';
+  // ? T�n & Avatar ng�?i d�ng
+  const userName = user?.fullName || user?.userName || 'Kh�ch';
+  const userAvatarUrl = buildAvatarUrl(user?.avatar);
 
-  // ✅ Số lượng thông báo và giỏ hàng
+  // ? S? l�?ng th�ng b�o v� gi? h�ng
   const notificationCount = mockNotifications.filter((n) => !n.read).length;
-  const cartCount = mockCartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const cartCount = cartItems.reduce((sum, item) => sum + (item?.quantity || 1), 0);
 
-  // ✅ Hàm xử lý đăng xuất
+  // ? H�m x? l? ��ng xu?t
   const handleLogout = async () => {
     await logout(); // clear user + token
-    router.push('/'); // quay lại trang đăng nhập
+    router.push('/'); // quay l?i trang ��ng nh?p
   };
 
   return (
+    <>
     <header className="bg-primary text-white shadow-md sticky top-0 z-50">
       <Container>
         <div className="flex justify-between items-center h-16 gap-4">
@@ -114,7 +107,7 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* --- Ô TÌM KIẾM --- */}
+          {/* --- � T?M KI?M --- */}
           <div className="flex-grow max-w-2xl hidden md:flex items-center relative">
             <Input
               type="text"
@@ -135,7 +128,7 @@ export default function Header() {
 
           {/* --- ICONS & USER --- */}
           <div className="flex-shrink-0 flex items-center gap-1 md:gap-2">
-            {/* --- Ví (Wallet) --- */}
+            {/* --- V� (Wallet) --- */}
             {isConnected ? (
               <div className="hidden lg:flex items-center text-xs font-medium bg-primary-hover p-2 rounded-full">
                 <Wallet size={18} className="mr-1" />
@@ -155,7 +148,7 @@ export default function Header() {
               </Button>
             )}
 
-            {/* --- Đăng sản phẩm --- */}
+            {/* --- ��ng s?n ph?m --- */}
             <Link
               href="/products/new"
               className="relative p-2 rounded-full hover:bg-primary-hover"
@@ -222,7 +215,7 @@ export default function Header() {
               )}
             </div>
 
-            {/* --- GIỎ HÀNG --- */}
+            {/* --- GI? H�NG --- */}
             <div
               className="relative"
               onMouseEnter={() => setIsCartOpen(true)}
@@ -247,28 +240,39 @@ export default function Header() {
                     Giỏ Hàng Của Bạn
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {mockCartItems.length > 0 ? (
-                      mockCartItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-gray-100"
-                        >
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={50}
-                            height={50}
-                            className="rounded-md object-cover"
-                          />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{item.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {item.quantity} ×{' '}
-                              {item.price.toLocaleString()}₫
-                            </p>
+                    {cartItems.length > 0 ? (
+                      cartItems.map((item) => {
+                        const productLink = `/products/${item.productId || item.id || ''}`;
+                        const productName = item.productName || item.title || 'Sản phẩm';
+                        const productPrice = Number(item.unitPrice ?? item.price ?? 0);
+                        const productImage = resolveProductImage(item, FALLBACK_PRODUCT_IMAGE);
+
+                        return (
+                          <div
+                            key={item.id ?? item.productId}
+                            className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 hover:bg-gray-100"
+                          >
+                            <Link href={productLink} className="flex items-center gap-3 flex-1">
+                              <Image
+                                src={productImage}
+                                alt={productName}
+                                width={50}
+                                height={50}
+                                className="rounded-md object-cover"
+                              />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{productName}</p>
+                                <p className="text-xs text-gray-500">
+                                  {(item.quantity || 1)} x{' '}
+                                  {productPrice === 0
+                                    ? 'Miễn phí'
+                                    : `${productPrice.toLocaleString('vi-VN')} ₫`}
+                                </p>
+                              </div>
+                            </Link>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="px-4 py-3 text-sm text-gray-500">
                         Giỏ hàng trống.
@@ -287,13 +291,13 @@ export default function Header() {
               )}
             </div>
 
-            {/* --- USER & ĐĂNG XUẤT --- */}
+            {/* --- USER & ��NG XU?T --- */}
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard"
                 className="hidden md:flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-primary-hover"
               >
-                <Avatar src={userAvatarUrl} alt={`Avatar của ${userName}`} />
+                <Avatar src={userAvatarUrl} alt={`Avatar c?a ${userName}`} />
                 <span className="text-sm font-medium">{userName}</span>
               </Link>
 
@@ -311,8 +315,12 @@ export default function Header() {
         </div>
       </Container>
     </header>
+    <ChatWidget />
+    </>
   );
 }
+
+
 
 
 

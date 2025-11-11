@@ -8,6 +8,11 @@ import checkWarehouseIdExists from '../app/middleware/warehouseMiddeware.js';
 const warehouseRouter = Router();
 warehouseRouter.use(requireAuthentication);
 
+warehouseRouter.get(
+    '/',
+    warehouseController.getWarehouses
+);
+
 warehouseRouter.post(
     '/new-warehouse',
     validate(warehouseRequest.createWarehouse),

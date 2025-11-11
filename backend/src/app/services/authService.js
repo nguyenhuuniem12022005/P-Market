@@ -27,7 +27,27 @@ export async function checkValidLogin(email, password) {
 }
 
 export async function register({ firstName, lastName, userName, email, password }) {
+    // Tạo User trước
     const newUser = await userService.createUser({ firstName, lastName, userName, email, password });
+    
+    // Kiểm tra email để phân quyền
+    const isPTIT = email.endsWith('@stu.ptit.edu.vn') || email.endsWith('@ptit.edu.vn');
+    
+    // Tạo Supplier (tất cả user đều là supplier)
+    const shopName = "shop_" + newUser.userId + "_" + Math.random().toString(36).substring(2, 6);
+    await pool.query(`
+        INSERT INTO Supplier(supplierId, shopName, sellerRating)
+        VALUES (?, ?, 0)
+    `, [newUser.userId, shopName]);
+    
+    // Nếu là email PTIT thì tạo thêm Customer
+    if (isPTIT) {
+        await pool.query(`
+            INSERT INTO Customer(customerId, class, totalPurchasedOrders)
+            VALUES (?, 'D23CQCE04-B', 0)
+        `, [newUser.userId]);
+    }
+    
     return newUser;
 }
 
@@ -44,8 +64,6 @@ export function authToken(user) {
 }
 
 export function blockToken(token){
-    const decode = jwt.decode(token);
-    const now = moment().unix();
-    const expireIn = decode.exp - now;
+    const expireIn = moment().add(7, 'days').unix();
     tokenBlocklist.set(token, true, expireIn);
 }

@@ -35,7 +35,12 @@ export const createUser = Joi.object({
 })
 
 export const resetPassword = Joi.object({
-    password: Joi.string()
+    currentPassword: Joi.string()
+        .min(6)
+        .max(255)
+        .required()
+        .label('Mật khẩu hiện tại'),
+    newPassword: Joi.string()
         .min(6)
         .max(255)
         .required()
@@ -72,6 +77,20 @@ export const updateAmount = Joi.object({
     amount: Joi.number()
         .required()
         .label('Số lượng')
+})
+
+export const updateReputationScore = Joi.object({
+    amount: Joi.number()
+        .integer()
+        .required()
+        .label('Điểm uy tín')
+})
+
+export const updateGreenCredit = Joi.object({
+    amount: Joi.number()
+        .integer()
+        .required()
+        .label('Green Credit')
 })
 
 export const updateDateOfBirth = Joi.object({

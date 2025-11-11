@@ -8,22 +8,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Trash2, Minus, Plus } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001';
+import { resolveProductImage } from '../../lib/image';
 
-const resolveImageUrl = (item) => {
-  if (!item) return 'https://placehold.co/100x100/eee/31343C?text=Product';
-  
-  if (item.imageUrl) {
-    if (item.imageUrl.startsWith('/uploads')) {
-      return `${API_BASE}${item.imageUrl}`;
-    }
-    if (item.imageUrl.startsWith('http')) {
-      return item.imageUrl;
-    }
-  }
-  
-  return `https://placehold.co/100x100/eee/31343C?text=${encodeURIComponent(item.productName || item.title || 'Sản phẩm')}`;
-};
+const resolveImageUrl = (item) =>
+  resolveProductImage(
+    item,
+    `https://placehold.co/100x100/eee/31343C?text=${encodeURIComponent(
+      item?.productName || item?.title || 'Sản phẩm'
+    )}`
+  );
 
 export default function CartPage() {
   const { cartItems, removeFromCart, itemCount, updateQuantity } = useCart();

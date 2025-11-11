@@ -140,12 +140,19 @@ export default function DashboardPage() {
     setIsUploading(true);
     try {
       const result = await uploadUserAvatar(file, token);
-      const imagePathFromApi = result?.imagePath || result?.data?.avatar;
-      const newAvatarUrl = buildAvatarUrl(imagePathFromApi || profileData.avatar);
+      const rawAvatarPath =
+        result?.avatarUrl ||
+        result?.imagePath ||
+        result?.data?.avatar ||
+        result?.avatar ||
+        profileData.avatar;
 
-      setProfileData(prev => ({ ...prev, avatar: newAvatarUrl }));
+      const cacheBustedPath = `${rawAvatarPath}${rawAvatarPath.includes('?') ? '&' : '?'}ts=${Date.now()}`;
+      const freshAvatarUrl = buildAvatarUrl(cacheBustedPath);
 
-      const updatedUser = { ...user, avatar: newAvatarUrl };
+      setProfileData(prev => ({ ...prev, avatar: freshAvatarUrl }));
+
+      const updatedUser = { ...user, avatar: cacheBustedPath };
       localStorage.setItem('pmarket_user', JSON.stringify(updatedUser));
       if (setUser) setUser(updatedUser);
 

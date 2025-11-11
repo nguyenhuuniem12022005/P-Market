@@ -31,3 +31,12 @@ export async function deleteWarehouse(req, res) {
         message: 'Xóa kho hàng thành công!'
     });
 }
+
+export async function getWarehouses(req, res) {
+    const warehouses = await warehouseService.getAllWarehouses();
+
+    res.status(200).json({
+        success: true,
+        warehouses
+    });
+}

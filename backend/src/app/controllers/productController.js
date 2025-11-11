@@ -4,11 +4,12 @@ export async function createProduct(req, res) {
     const supplierId = req.user.userId;
     
     // Lấy đường dẫn file ảnh nếu có upload
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const imageURL = req.file ? `/uploads/${req.file.filename}` : null;
     
     const productData = {
         ...req.body,
-        imageUrl
+        status: 'Draft',
+        imageURL
     };
 
     const newProduct = await productService.createProduct(productData, supplierId);
@@ -37,8 +38,17 @@ export async function searchProducts(req, res) {
 export async function updateProduct(req, res) {
     const productId = req.params.id;
     const supplierId = req.user.userId;
+    const imageURL = req.file ? `/uploads/${req.file.filename}` : undefined;
 
-    await productService.updateProduct(productId, supplierId, req.body);
+    const updatePayload = {
+        ...req.body
+    };
+
+    if (imageURL !== undefined) {
+        updatePayload.imageURL = imageURL;
+    }
+
+    await productService.updateProduct(productId, supplierId, updatePayload);
 
     res.status(200).json({
         success: true,
@@ -77,7 +87,7 @@ export async function getProductById(req, res) {
     if (!product) {
         return res.status(404).json({
             success: false,
-            message: 'Kh�ng t?m th?y s?n ph?m'
+            message: 'Không tìm thấy sản phẩm'
         });
     }
     

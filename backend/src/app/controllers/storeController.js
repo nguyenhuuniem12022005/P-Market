@@ -1,9 +1,16 @@
 import * as storeService from '../services/storeService.js';
+import * as productService from '../services/productService.js';
 
 export async function createStore(req, res) {
     const { productId, warehouseId, quantity } = req.body;
 
-    const store = await storeService.createStore(productId, warehouseId, quantity);
+    const store = await storeService.createStore({
+        productId: Number(productId),
+        warehouseId: Number(warehouseId),
+        quantity: Number(quantity)
+    });
+
+    await productService.activateProduct(Number(productId));
 
     res.json({ 
         success: true, 

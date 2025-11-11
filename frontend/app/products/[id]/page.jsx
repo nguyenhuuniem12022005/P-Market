@@ -9,33 +9,12 @@ import ReviewCard from '../../../components/product/ReviewCard';
 import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
-import { getProductById, getReviewsByProductId } from '../../../lib/api';
+import { getProductById, getReviewsByProductId, buildAvatarUrl } from '../../../lib/api';
+import { resolveProductImage } from '../../../lib/image';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001';
 const FALLBACK_IMAGE = 'https://placehold.co/600x400/eee/31343C?text=P-Market';
-
-const resolveImage = (product) => {
-  if (!product) return FALLBACK_IMAGE;
-  
-  if (product.imageUrl) {
-    if (product.imageUrl.startsWith('/uploads')) {
-      return `${API_BASE}${product.imageUrl}`;
-    }
-    if (product.imageUrl.startsWith('http')) {
-      return product.imageUrl;
-    }
-  }
-  
-  if (product.thumbnail) {
-    const normalized = product.thumbnail.replace(/^public\//, '');
-    return `${API_BASE}/${normalized}`;
-  }
-  
-  return FALLBACK_IMAGE;
-};
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -74,22 +53,34 @@ export default function ProductDetailPage() {
   const title = product?.productName || product?.title || 'Sản phẩm';
   const description = product?.description || 'Không có mô tả';
   const priceValue = product?.unitPrice ?? product?.price ?? 0;
-  const sellerName = product?.shopName || product?.userName || 'Người bán ẩn danh';
-  const sellerReputation = product?.sellerRating ?? product?.seller?.reputation ?? 'Chưa có';
-  const productImage = resolveImage(product);
+  const totalQuantity = product?.totalQuantity ?? 0;
+  const sellerName = product?.seller?.userName || product?.seller?.shopName || product?.userName || product?.shopName || 'Người bán ẩn danh';
+  const sellerReputation = product?.seller?.reputationScore ?? product?.reputationScore ?? 'Chưa có';
+  const sellerAvatar = buildAvatarUrl(product?.seller?.avatar);
+  const productImage = resolveProductImage(product, FALLBACK_IMAGE);
 
   // --- Các handler ---
   const handleWriteReview = () => alert("Chức năng đánh giá sẽ có sau khi mua hàng thành công!");
   const handleAddToCart = () => { 
-    if (product) {
-      addToCart(product);
-      alert(`Đã thêm "${title}" vào giỏ hàng!`);
-    }
+    if (!product) return;
+
+    const cartProduct = {
+      id: product.productId || product.id,
+      productId: product.productId || product.id,
+      productName: product.productName || product.title,
+      title: product.productName || product.title,
+      unitPrice: Number(product.unitPrice ?? product.price ?? 0),
+      imageURL: product.imageURL,
+      thumbnail: product.thumbnail
+    };
+
+    addToCart(cartProduct);
+    alert(`Đã thêm "${cartProduct.productName || cartProduct.title}" vào giỏ hàng!`);
   };
   
   const handleContactSeller = () => {
     // Chuyển đến trang chat với người bán
-    router.push(`/chat?seller=${product?.supplierId || ''}&product=${params.id}`);
+    router.push(`/chat?product=${params.id}`);
   };
   
   const handleDirectPurchase = () => {
@@ -228,7 +219,7 @@ export default function ProductDetailPage() {
               <h3 className="text-lg font-semibold mb-4">Thông tin người bán</h3>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <Avatar src={product.seller?.avatar || '/avatar.png'} size="lg" />
+                  <Avatar src={sellerAvatar} size="lg" />
                   <div>
                     <h4 className="font-semibold text-lg">{sellerName}</h4>
                     <p className="text-sm text-gray-600">
@@ -242,11 +233,29 @@ export default function ProductDetailPage() {
                   className="flex items-center gap-2"
                 >
                   <MessageCircle size={18} />
-                  Liên hệ người bán
+                  Liên hệ 
                 </Button>
               </div>
             </CardContent>
           </Card>
+
+          {product?.stores?.length > 0 && (
+            <Card>
+              <CardContent className="p-6 space-y-2">
+                <h3 className="text-lg font-semibold">Kho hàng</h3>
+                <p className="text-sm text-gray-600">
+                  Sản phẩm đang có tại {product.stores.length} kho:
+                </p>
+                <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
+                  {product.stores.map((store) => (
+                    <li key={`${store.warehouseId}-${store.productId}`}>
+                      {store.warehouseName}: <span className="font-semibold">{store.quantity}</span> sản phẩm
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* === Cột Phải (Phần mua hàng) === */}
@@ -258,6 +267,12 @@ export default function ProductDetailPage() {
                 {Number(priceValue) === 0
                   ? 'Miễn phí'
                   : `${Number(priceValue).toLocaleString('vi-VN')} ₫`}
+              </p>
+              <p className="text-sm text-gray-600">
+                Số lượng còn lại:{' '}
+                <span className="font-semibold">
+                  {totalQuantity > 0 ? totalQuantity : 'Đang cập nhật'}
+                </span>
               </p>
 
               {/* Nút Mua an toàn với Escrow */}
@@ -296,7 +311,7 @@ export default function ProductDetailPage() {
                   className="w-full flex items-center justify-center gap-2 text-primary hover:bg-primary/10"
                   onClick={handleContactSeller}
                 >
-                  <MessageCircle size={20} /> Chat với người bán
+                  <MessageCircle size={20} /> Chat 
                 </Button>
               </div>
             </CardContent>

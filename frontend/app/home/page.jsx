@@ -1,68 +1,70 @@
 ﻿// app/home/page.jsx hoặc tương tự
 import { Suspense } from 'react';
-import { getAllProducts } from '../../lib/api';
+import { getAllProducts, fetchCategories } from '../../lib/api';
 import ProductCard from '../../components/product/ProductCard';
 import HeroBanner from '../../components/layout/HeroBanner';
 import Link from 'next/link';
-import Image from 'next/image';
 import SkeletonCard from '../../components/ui/SkeletonCard';
+
+export const dynamic = 'force-dynamic';
 
 // =========================
 // 🧩 CATEGORY GRID
 // =========================
-const CategoryGrid = () => (
-  <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
-    <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-      <Link href="/category/books" className="flex flex-col items-center text-center">
-        <Image
-          src="https://placehold.co/100x100/F5F5F5/CC0000?text=Sach+Vo"
-          width={50}
-          height={50}
-          alt="Sách vở"
-          className="rounded-full mb-1"
-        />
-        <span className="text-xs">Sách vở</span>
-      </Link>
+async function CategoryGrid() {
+  const result = await fetchCategories();
+  const categories = result?.categories || [];
 
-      <Link href="/category/electronics" className="flex flex-col items-center text-center">
-        <Image
-          src="https://placehold.co/100x100/F5F5F5/CC0000?text=Do+Dien+Tu"
-          width={50}
-          height={50}
-          alt="Đồ điện tử"
-          className="rounded-full mb-1"
-        />
-        <span className="text-xs">Đồ điện tử</span>
-      </Link>
+  if (categories.length === 0) {
+    return (
+      <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
+        <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
+        <p className="text-sm text-gray-500">Chưa có danh mục nào.</p>
+      </div>
+    );
+  }
 
-      <Link href="/category/housing" className="flex flex-col items-center text-center">
-        <Image
-          src="https://placehold.co/100x100/F5F5F5/CC0000?text=Phong+Tro"
-          width={50}
-          height={50}
-          alt="Phòng trọ"
-          className="rounded-full mb-1"
-        />
-        <span className="text-xs">Phòng trọ</span>
-      </Link>
-
-      <Link href="/category/fashion" className="flex flex-col items-center text-center">
-        <Image
-          src="https://placehold.co/100x100/F5F5F5/CC0000?text=Thoi+Trang"
-          width={50}
-          height={50}
-          alt="Thời trang"
-          className="rounded-full mb-1"
-        />
-        <span className="text-xs">Thời trang</span>
-      </Link>
+  return (
+    <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
+      <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {categories.map((category) => (
+          <Link
+            key={category.categoryId}
+            href={`/category/${category.slug || category.categoryId}`}
+            className="flex flex-col items-center text-center"
+          >
+            <div className="h-16 w-16 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center mb-2">
+              <span className="text-xs font-semibold text-primary text-center px-2">
+                {category.categoryName}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-gray-700">
+              {category.categoryName}
+            </span>
+          </Link>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+}
 
-// =========================
-// 🧩 PRODUCT GRID (async)
+function CategoryGridSkeleton() {
+  return (
+    <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm animate-pulse">
+      <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, index) => (
+          <div key={index} className="flex flex-col items-center">
+            <div className="h-16 w-16 rounded-full bg-gray-200 mb-2" />
+            <div className="h-3 w-16 bg-gray-200 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // =========================
 async function ProductGrid() {
   const products = await getAllProducts(24); // Lấy 24 sản phẩm gần đây nhất
@@ -78,7 +80,7 @@ async function ProductGrid() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard key={product.productId} product={product} />
       ))}
     </div>
   );
@@ -106,7 +108,9 @@ export default function HomePage() {
       <HeroBanner />
 
       <div className="px-4 sm:px-6 lg:px-8 py-8">
-        <CategoryGrid />
+        <Suspense fallback={<CategoryGridSkeleton />}>
+          <CategoryGrid />
+        </Suspense>
 
         <div className="bg-white p-4 rounded-lg shadow-sm">
           <h2 className="text-lg font-semibold mb-3">Sản phẩm mới đăng</h2>

@@ -1,5 +1,31 @@
 import pool from "../../configs/mysql.js";
 
+const DEFAULT_WAREHOUSES = [
+    { warehouseName: 'Kho Hà Nội', capacity: 2000 },
+    { warehouseName: 'Kho TP.HCM', capacity: 2200 },
+    { warehouseName: 'Kho Đà Nẵng', capacity: 1500 },
+];
+
+async function seedDefaultWarehouses() {
+    const values = [];
+    const placeholders = [];
+
+    DEFAULT_WAREHOUSES.forEach(({ warehouseName, capacity }) => {
+        values.push(warehouseName, capacity);
+        placeholders.push("(?, ?)");
+    });
+
+    if (values.length === 0) return;
+
+    await pool.query(
+        `
+            insert into Warehouse (warehouseName, capacity)
+            values ${placeholders.join(', ')}
+        `,
+        values
+    );
+}
+
 export async function createWarehouse(data) {
     const { warehouseName, capacity } = data;
     const sql = `
@@ -47,4 +73,23 @@ export async function deleteWarehouse(warehouseId) {
         delete from Warehouse 
         where warehouseId = ?
         `, [warehouseId]);
+}
+
+export async function getAllWarehouses() {
+    let [rows] = await pool.query(`
+        select *
+        from Warehouse
+        order by warehouseName asc
+    `);
+
+    if (rows.length === 0) {
+        await seedDefaultWarehouses();
+        [rows] = await pool.query(`
+            select *
+            from Warehouse
+            order by warehouseName asc
+        `);
+    }
+
+    return rows;
 }

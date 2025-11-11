@@ -2,11 +2,11 @@ import pool from "../../configs/mysql.js";
 
 // Đăng bài
 export async function createProduct(productData, supplierId) {
-    const { productName, description, imageUrl, unitPrice, categoryId, size, status, discount } = productData;
+    const { productName, description, imageURL, unitPrice, categoryId, size, status, discount } = productData;
 
     const sql = `
         insert into Product (
-            supplierId, categoryId, productName, description, imageUrl,
+            supplierId, categoryId, productName, description, imageURL,
             unitPrice, size, status, discount
         )
         values (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -17,10 +17,10 @@ export async function createProduct(productData, supplierId) {
         categoryId,
         productName,
         description || null,
-        imageUrl || null,  // ← THÊM imageUrl
+        imageURL || null,
         unitPrice,
         size || null,
-        status || 'Active',
+        status || 'Draft',
         discount || 0
     ]);
 
@@ -36,8 +36,8 @@ export async function createProduct(productData, supplierId) {
 }
 
 export async function searchProducts(searchTerm, categoryId = null) {
-    let sql = `
-        select p.*, s.shopName, u.userName, c.categoryName
+    let baseSql = `
+        select p.*, s.shopName, s.sellerRating, u.userName, u.avatar as sellerAvatar, u.reputationScore, c.categoryName
         from Product p
         join Supplier s on p.supplierId = s.supplierId
         join User u on s.supplierId = u.userId
@@ -47,22 +47,35 @@ export async function searchProducts(searchTerm, categoryId = null) {
     
     const params = [];
     
-    // Nếu có searchTerm
     if (searchTerm && searchTerm.trim() !== '') {
-        sql += ` and (p.productName like ? or u.userName like ? or c.categoryName like ?)`;
+        baseSql += ` and (p.productName like ? or u.userName like ? or c.categoryName like ?)`;
         const likeTerm = `%${searchTerm}%`;
         params.push(likeTerm, likeTerm, likeTerm);
     }
     
-    // Nếu có categoryId
     if (categoryId) {
-        sql += ` and p.categoryId = ?`;
+        baseSql += ` and p.categoryId = ?`;
         params.push(categoryId);
     }
     
-    sql += ` order by p.productId desc`;
+    const finalSql = `
+        select wrapped.*
+        from (
+            select base.*, coalesce(inv.totalQuantity, 0) as totalQuantity
+            from (
+                ${baseSql}
+            ) as base
+            left join (
+                select productId, sum(quantity) as totalQuantity
+                from Store
+                group by productId
+            ) inv on inv.productId = base.productId
+        ) wrapped
+        where wrapped.totalQuantity > 0
+        order by wrapped.productId desc
+    `;
     
-    const [rows] = await pool.query(sql, params);
+    const [rows] = await pool.query(finalSql, params);
     return rows;
 }
 
@@ -101,6 +114,11 @@ export async function updateProduct(productId, supplierId, updateData) {
     if (updateData.discount !== undefined) {
         fields.push("discount = ?");
         params.push(updateData.discount);
+    }
+
+    if (updateData.imageURL !== undefined) {
+        fields.push("imageURL = ?");
+        params.push(updateData.imageURL || null);
     }
 
     if (updateData.categoryId !== undefined){
@@ -150,14 +168,68 @@ export async function deleteProduct(productId, supplierId) {
 }
 
 export async function getProductById(productId) {
-    const [rows] = await pool.query(`
-        select p.*, s.shopName, u.userName, c.categoryName
+    const [products] = await pool.query(`
+        select 
+            p.*, 
+            s.shopName, 
+            s.sellerRating,
+            u.userName, 
+            u.avatar as sellerAvatar, 
+            u.reputationScore,
+            u.phone,
+            u.address,
+            c.categoryName
         from Product p
         join Supplier s on p.supplierId = s.supplierId
         join User u on s.supplierId = u.userId
         left join Category c on p.categoryId = c.categoryId
         where p.productId = ? and p.status = 'Active'
     `, [productId]);
-    
-    return rows[0] || null;
+
+    if (products.length === 0) {
+        return null;
+    }
+
+    const product = products[0];
+
+    const [stocks] = await pool.query(`
+        select st.productId, st.warehouseId, st.quantity, w.warehouseName
+        from Store st
+        join Warehouse w on st.warehouseId = w.warehouseId
+        where st.productId = ?
+    `, [productId]);
+
+    const [totalRows] = await pool.query(`
+        select coalesce(sum(quantity), 0) as totalQuantity
+        from Store
+        where productId = ?
+    `, [productId]);
+
+    const seller = {
+        supplierId: product.supplierId,
+        shopName: product.shopName,
+        sellerRating: product.sellerRating,
+        userName: product.userName,
+        avatar: product.sellerAvatar,
+        reputationScore: product.reputationScore,
+        phone: product.phone,
+        address: product.address
+    };
+
+    delete product.sellerAvatar;
+
+    return {
+        ...product,
+        seller,
+        stores: stocks,
+        totalQuantity: totalRows[0]?.totalQuantity || 0
+    };
+}
+
+export async function activateProduct(productId) {
+    await pool.query(`
+        update Product
+        set status = 'Active'
+        where productId = ?
+    `, [productId]);
 }

@@ -48,52 +48,60 @@ export async function updateAddress(req, res) {
     res.json({
         success: true,
         message: 'Cập nhật địa chỉ thành công!'
-    })
+    });
 }
 
 export async function uploadAvatar(req, res) {
-  const userId = req.user.userId;
-  const imagePath = `public/uploads/${req.file.filename}`;
-  await userService.uploadAvatar(userId, imagePath);
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: 'Không có file ảnh nào được upload!'
+    });
+  }
 
-  const cleanPath = imagePath.replace(/^public\//, '');
+  const imagePath = `public/uploads/${req.file.filename}`;
+  await userService.uploadAvatar(req.user.userId, imagePath);
+
   res.json({
     success: true,
-    message: 'Cập nhật ảnh thành công!',
-    data: { avatar: cleanPath },
-    imagePath: cleanPath, // nếu muốn giữ key cũ ở frontend
+    message: 'Upload avatar thành công!',
+    avatarUrl: `/uploads/${req.file.filename}`
   });
 }
 
 export async function updateReputationScore(req, res) {
-    const userId = req.user.userId;
-    const { amount } = req.body;
+    await userService.updateReputationScore(req.user.userId, req.body.amount);
 
-    await userService.updateReputationScore(userId, amount);
     res.json({
         success: true,
-        message: 'Cập nhật điểm uy tín thành công!'
+        message: 'Cập nhật reputation score thành công!'
     });
 }
 
 export async function updateGreenCredit(req, res) {
-    const userId = req.user.userId;
-    const { amount } = req.body;
+    await userService.updateGreenCredit(req.user.userId, req.body.amount);
 
-    await userService.updateGreenCredit(userId, amount);
     res.json({
         success: true,
-        message: 'Cập nhật Green Credit thành công!'
+        message: 'Cập nhật green credit thành công!'
     });
 }
 
 export async function updateDateOfBirth(req, res) {
-    const userId = req.user.userId;
-    const { dateOfBirth } = req.body;
+    await userService.updateDateOfBirth(req.user.userId, req.body.dateOfBirth);
 
-    await userService.updateDateOfBirth(userId, dateOfBirth);
     res.json({
         success: true,
-        message: 'Cập nhật ngày tháng năm sinh thành công!'
+        message: 'Cập nhật ngày sinh thành công!'
+    });
+}
+
+// THÊM HÀM MỚI: API lấy dashboard data
+export async function getDashboardData(req, res) {
+    const dashboardData = await userService.getUserDashboardData(req.user.userId);
+
+    res.json({
+        success: true,
+        data: dashboardData
     });
 }

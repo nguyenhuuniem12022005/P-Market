@@ -33,6 +33,7 @@ productRouter.post(
 productRouter.put(
     '/:id/update-product',
     checkProductIdExists,
+    upload.single('image'),
     validate(productRequest.updateProduct),
     productController.updateProduct
 );
@@ -51,4 +52,6 @@ productRouter.delete(
 );
 
 export default productRouter;
+
+
 

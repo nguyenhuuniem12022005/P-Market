@@ -6,6 +6,9 @@ import customerRouter from './customerRouter.js';
 import supplierRouter from './supplierRouter.js';
 import storeRouter from './storeRouter.js';
 import warehouseRouter from './warehouseRouter.js';
+import overviewRouter from './overviewRouter.js';
+import chatRouter from './chatRouter.js';
+import cartRouter from './cartRouter.js';
 
 function route(app){
     app.use('/auth', authRouter);
@@ -16,6 +19,9 @@ function route(app){
     app.use('/suppliers', supplierRouter);
     app.use('/stores', storeRouter);
     app.use('/warehouses', warehouseRouter);
+    app.use('/reports', overviewRouter);
+    app.use('/chatrooms', chatRouter);
+    app.use('/cart', cartRouter);
     
 }
 

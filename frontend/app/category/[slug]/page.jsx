@@ -1,34 +1,28 @@
-﻿'use client';
+'use client';
 
 import { useParams, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import ProductCard from '../../../components/product/ProductCard';
 import { Card, CardContent } from '../../../components/ui/Card';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
-import { searchProducts, fetchCategories } from '../../../lib/api';
+import { searchProducts, fetchCategories, extractCategoryIdFromSlug } from '../../../lib/api';
 import toast from 'react-hot-toast';
 
-const getCategoryName = (slug) => {
-  const categoryMap = {
-    'books': 'Sách vở',
-    'electronics': 'Đồ điện tử',
-    'housing': 'Phòng trọ',
-    'fashion': 'Thời trang'
-  };
-  return categoryMap[slug] || 'Danh mục';
-};
-
-// THÊM function mapping slug sang categoryId
-const getCategoryId = (slug) => {
-  const categoryMap = {
-    'books': 1,           // Sách & Văn phòng phẩm
-    'electronics': 2,     // Đồ điện tử
-    'fashion': 3,         // Thời trang
-    'housing': 4,         // Đồ gia dụng / Phòng trọ
-    'sports': 5,          // Thể thao
-    'other': 6            // Khác
-  };
-  return categoryMap[slug] || null;
+const legacyCategoryMap = {
+  books: { id: 1, name: 'Sách vở' },
+  reading: { id: 1, name: 'Sách vở' },
+  clothing: { id: 2, name: 'Quần áo' },
+  fashion: { id: 2, name: 'Quần áo' },
+  housing: { id: 3, name: 'Phòng trọ' },
+  rent: { id: 3, name: 'Phòng trọ' },
+  electronics: { id: 4, name: 'Đồ điện tử' },
+  gadgets: { id: 4, name: 'Đồ điện tử' },
+  home: { id: 5, name: 'Đồ gia dụng' },
+  lifestyle: { id: 5, name: 'Đồ gia dụng' },
+  sports: { id: 6, name: 'Đồ thể thao' },
+  fitness: { id: 6, name: 'Đồ thể thao' },
+  courses: { id: 7, name: 'Khóa học' },
+  education: { id: 7, name: 'Khóa học' },
 };
 
 export default function CategoryPage() {
@@ -36,26 +30,47 @@ export default function CategoryPage() {
   const searchParams = useSearchParams();
   const slug = params.slug;
   const searchQuery = searchParams.get('q');
-  
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [categoryName, setCategoryName] = useState(getCategoryName(slug));
+  const [categoryName, setCategoryName] = useState('Danh mục');
 
   useEffect(() => {
     async function loadProducts() {
       setLoading(true);
       try {
         let result;
-        
+
         if (searchQuery) {
-          // Tìm kiếm theo từ khóa
           result = await searchProducts({ searchTerm: searchQuery });
           setCategoryName(`Kết quả tìm kiếm: "${searchQuery}"`);
         } else {
-          // Tìm kiếm theo categoryId (ĐÃ SỬA)
-          const categoryId = getCategoryId(slug);
-          result = await searchProducts({ categoryId: categoryId });
-          setCategoryName(getCategoryName(slug));
+          const legacy = legacyCategoryMap[slug];
+          let categoryId =
+            extractCategoryIdFromSlug(slug) ??
+            legacy?.id ??
+            null;
+          let resolvedName = legacy?.name || 'Danh mục';
+
+          try {
+            const categoryResponse = await fetchCategories();
+            const categoryList = categoryResponse?.categories || [];
+            const matched = categoryList.find(
+              (category) =>
+                category.slug === slug || category.categoryId === categoryId
+            );
+            if (matched) {
+              categoryId = matched.categoryId;
+              resolvedName = matched.categoryName || resolvedName;
+            }
+          } catch (categoryError) {
+            console.warn('Không tải được danh mục:', categoryError.message);
+          }
+
+          result = await searchProducts(
+            categoryId ? { categoryId } : {}
+          );
+          setCategoryName(resolvedName);
         }
 
         if (result && result.success) {
@@ -71,6 +86,7 @@ export default function CategoryPage() {
         setLoading(false);
       }
     }
+
     loadProducts();
   }, [slug, searchQuery]);
 
@@ -100,17 +116,9 @@ export default function CategoryPage() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {products.map((product) => (
-                <ProductCard 
-                  key={product.productId} 
-                  product={{
-                    id: product.productId,
-                    title: product.productName,
-                    price: product.unitPrice,
-                    imageUrl: product.imageUrl || 'https://placehold.co/600x400/e9d5ff/31343C?text=Product',
-                    seller: {
-                      name: product.userName || 'Người bán'
-                    }
-                  }} 
+                <ProductCard
+                  key={product.productId}
+                  product={product}
                 />
               ))}
             </div>
