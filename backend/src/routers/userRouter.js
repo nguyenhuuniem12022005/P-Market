@@ -9,11 +9,14 @@ const userRouter = Router();
 
 userRouter.use(requireAuthentication);
 
-userRouter.post(
-    '/me/reset-password',
+const resetPasswordHandlers = [
     validate(userRequest.resetPassword),
-    userController.resetPassword
-);
+    userController.resetPassword,
+];
+
+userRouter.post('/me/reset-password', resetPasswordHandlers);
+
+userRouter.patch('/me/update-password', resetPasswordHandlers);
 
 userRouter.patch(
     '/me/update-username',

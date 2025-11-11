@@ -14,9 +14,8 @@ export async function createUser(req, res) {
 }
 
 export async function resetPassword(req, res) {
-    const email = req.user.email;
-    const { password } = req.body;
-    await userService.resetPassword(email, password);
+    const { currentPassword, newPassword } = req.body;
+    await userService.changePassword(req.user.userId, currentPassword, newPassword);
 
     res.json({
         success: true,

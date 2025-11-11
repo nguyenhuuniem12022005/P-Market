@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
 
 export async function createUser({ firstName, lastName, userName, email, password }) {
@@ -20,7 +21,50 @@ export async function createUser({ firstName, lastName, userName, email, passwor
     return rows[0];
 }
 
+export async function changePassword(userId, currentPassword, newPassword) {
+    const [rows] = await pool.query(`
+        select userId, passwordHash
+        from User
+        where userId = ?
+    `, [userId]);
+
+    if (rows.length === 0) {
+        throw ApiError.notFound('Không tìm thấy người dùng');
+    }
+
+    const { passwordHash: existingHash } = rows[0];
+    const isMatch = await bcrypt.compare(currentPassword, existingHash);
+
+    if (!isMatch) {
+        throw ApiError.badRequest('Mật khẩu hiện tại không chính xác');
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, existingHash);
+    if (isSamePassword) {
+        throw ApiError.badRequest('Mật khẩu mới phải khác mật khẩu hiện tại');
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const nextHash = await bcrypt.hash(newPassword, salt);
+
+    await pool.query(`
+        update User 
+        set passwordHash = ?
+        where userId = ?
+    `, [nextHash, userId]);
+}
+
 export async function resetPassword(email, password) {
+    const [rows] = await pool.query(`
+        select userId
+        from User
+        where email = ?
+    `, [email]);
+
+    if (rows.length === 0) {
+        throw ApiError.notFound('Không tìm thấy người dùng');
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -28,7 +72,7 @@ export async function resetPassword(email, password) {
         update User 
         set passwordHash = ?
         where email = ?
-        `, [passwordHash, email]);
+    `, [passwordHash, email]);
 }
 
 export async function updateUserName(userId, userName) {
