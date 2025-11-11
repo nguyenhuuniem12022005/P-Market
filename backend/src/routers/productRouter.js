@@ -4,17 +4,38 @@ import requireAuthentication from "../app/middleware/common/require-authenticati
 import validate from "../app/middleware/common/validate.js";
 import * as productRequest from '../app/requests/productRequest.js';
 import checkProductIdExists from "../app/middleware/productMiddleware.js";
+<<<<<<< HEAD
 import { upload } from "../app/middleware/uploadMiddleware.js";
 
 const productRouter = Router();
 
 // Route công khai - không yêu c?u xác th?c
+=======
+import { upload } from '../app/middleware/uploadMiddleware.js';
+
+const productRouter = Router();
+productRouter.use(requireAuthentication);
+
+productRouter.post(
+    '/new-product',
+    validate(productRequest.createProduct),
+    productController.createProduct
+);
+
+productRouter.patch(
+    '/:id/upload-image',
+    upload.single('image'),
+    productController.uploadImage
+);
+
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 productRouter.get(
     '/',
     validate(productRequest.searchProducts),
     productController.searchProducts
 );
 
+<<<<<<< HEAD
 productRouter.get(
     '/:id',
     productController.getProductById
@@ -34,6 +55,11 @@ productRouter.put(
     '/:id/update-product',
     checkProductIdExists,
     upload.single('image'),
+=======
+productRouter.put(
+    '/:id/update-product',
+    checkProductIdExists,
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     validate(productRequest.updateProduct),
     productController.updateProduct
 );
@@ -51,7 +77,11 @@ productRouter.delete(
     productController.deleteProduct
 );
 
+<<<<<<< HEAD
 export default productRouter;
 
 
 
+=======
+export default productRouter;
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

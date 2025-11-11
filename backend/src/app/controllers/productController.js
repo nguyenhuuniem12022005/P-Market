@@ -2,6 +2,7 @@ import * as productService from '../services/productService.js';
 
 export async function createProduct(req, res) {
     const supplierId = req.user.userId;
+<<<<<<< HEAD
     
     // Lấy đường dẫn file ảnh nếu có upload
     const imageURL = req.file ? `/uploads/${req.file.filename}` : null;
@@ -13,6 +14,10 @@ export async function createProduct(req, res) {
     };
 
     const newProduct = await productService.createProduct(productData, supplierId);
+=======
+
+    const newProduct = await productService.createProduct(req.body, supplierId);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
     res.status(201).json({
         success: true,
@@ -21,6 +26,7 @@ export async function createProduct(req, res) {
     });
 }
 
+<<<<<<< HEAD
 export async function searchProducts(req, res) {
     const { searchTerm, categoryId } = req.query; 
 
@@ -28,6 +34,25 @@ export async function searchProducts(req, res) {
         searchTerm || '', 
         categoryId ? Number(categoryId) : null
     );
+=======
+export async function uploadImage(req, res) {
+    const productId = req.params.id;
+    const imagePath = `public/uploads/${req.file.filename}`;
+
+    await productService.uploadImage(productId, imagePath);
+
+    res.json({
+        success: true,
+        message: 'Cập nhật ảnh thành công!'
+    })
+}
+
+export async function searchProducts(req, res) {
+    const { searchTerm } = req.query; 
+
+    const products = await productService.searchProducts(searchTerm || '');
+
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     res.status(200).json({
         success: true,
         message: 'Tìm kiếm thành công!',
@@ -38,6 +63,7 @@ export async function searchProducts(req, res) {
 export async function updateProduct(req, res) {
     const productId = req.params.id;
     const supplierId = req.user.userId;
+<<<<<<< HEAD
     const imageURL = req.file ? `/uploads/${req.file.filename}` : undefined;
 
     const updatePayload = {
@@ -49,6 +75,10 @@ export async function updateProduct(req, res) {
     }
 
     await productService.updateProduct(productId, supplierId, updatePayload);
+=======
+
+    await productService.updateProduct(productId, supplierId, req.body);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
     res.status(200).json({
         success: true,
@@ -79,6 +109,7 @@ export async function deleteProduct(req, res) {
         message: 'Xóa sản phẩm thành công!'
     });
 }
+<<<<<<< HEAD
 
 export async function getProductById(req, res) {
     const productId = req.params.id;
@@ -96,3 +127,5 @@ export async function getProductById(req, res) {
         product: product
     });
 }
+=======
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

@@ -52,12 +52,18 @@ export async function updateAddress(req, res) {
 }
 
 export async function uploadAvatar(req, res) {
+<<<<<<< HEAD
   if (!req.file) {
     return res.status(400).json({
       success: false,
       message: 'Không có file ảnh nào được upload!'
     });
   }
+=======
+    const userId = req.user.userId;
+    const imagePath = `public/uploads/${req.file.filename}`;
+    await userService.uploadAvatar(userId, imagePath);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
   const imagePath = `public/uploads/${req.file.filename}`;
   await userService.uploadAvatar(req.user.userId, imagePath);
@@ -70,8 +76,15 @@ export async function uploadAvatar(req, res) {
 }
 
 export async function updateReputationScore(req, res) {
+<<<<<<< HEAD
     await userService.updateReputationScore(req.user.userId, req.body.amount);
 
+=======
+    const userId = req.user.userId;
+    const { amount } = req.body;
+
+    await userService.updateReputationScore(userId, amount);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     res.json({
         success: true,
         message: 'Cập nhật reputation score thành công!'
@@ -79,8 +92,15 @@ export async function updateReputationScore(req, res) {
 }
 
 export async function updateGreenCredit(req, res) {
+<<<<<<< HEAD
     await userService.updateGreenCredit(req.user.userId, req.body.amount);
 
+=======
+    const userId = req.user.userId;
+    const { amount } = req.body;
+
+    await userService.updateGreenCredit(userId, amount);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     res.json({
         success: true,
         message: 'Cập nhật green credit thành công!'
@@ -88,8 +108,15 @@ export async function updateGreenCredit(req, res) {
 }
 
 export async function updateDateOfBirth(req, res) {
+<<<<<<< HEAD
     await userService.updateDateOfBirth(req.user.userId, req.body.dateOfBirth);
 
+=======
+    const userId = req.user.userId;
+    const { dateOfBirth } = req.body;
+
+    await userService.updateDateOfBirth(userId, dateOfBirth);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     res.json({
         success: true,
         message: 'Cập nhật ngày sinh thành công!'

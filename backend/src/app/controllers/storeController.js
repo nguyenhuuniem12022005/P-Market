@@ -1,9 +1,13 @@
 import * as storeService from '../services/storeService.js';
+<<<<<<< HEAD
 import * as productService from '../services/productService.js';
+=======
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
 export async function createStore(req, res) {
     const { productId, warehouseId, quantity } = req.body;
 
+<<<<<<< HEAD
     const store = await storeService.createStore({
         productId: Number(productId),
         warehouseId: Number(warehouseId),
@@ -11,6 +15,9 @@ export async function createStore(req, res) {
     });
 
     await productService.activateProduct(Number(productId));
+=======
+    const store = await storeService.createStore(productId, warehouseId, quantity);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
     res.json({ 
         success: true, 

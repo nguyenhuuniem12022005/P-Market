@@ -35,7 +35,11 @@ export async function updateUserName(userId, userName) {
     await pool.query(`
         update User 
         set userName = ?
+<<<<<<< HEAD
         where userId = ?    
+=======
+        where userId = ?
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [userName, userId]);
 }
 
@@ -43,7 +47,11 @@ export async function updatePhone(userId, phone) {
     await pool.query(`
         update User 
         set phone = ?
+<<<<<<< HEAD
         where userId = ?    
+=======
+        where userId = ?
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [phone, userId]);
 }
 
@@ -51,31 +59,53 @@ export async function updateAddress(userId, address) {
     await pool.query(`
         update User 
         set address = ?
+<<<<<<< HEAD
         where userId = ?    
+=======
+        where userId = ?  
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [address, userId]);
 }
 
 export async function uploadAvatar(userId, imagePath) {
     await pool.query(`
+<<<<<<< HEAD
         update User 
         set avatar = ?
         where userId = ?    
+=======
+        update User
+        set avatar = ? 
+        where userId = ?
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [imagePath, userId]);
 }
 
 export async function updateReputationScore(userId, amount) {
     await pool.query(`
+<<<<<<< HEAD
         update User 
         set reputationScore = reputationScore + ?
         where userId = ?    
+=======
+        update User
+        set reputationScore = least(100, greatest(0, reputationScore + ?))
+        where userId = ?
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [amount, userId]);
 }
 
 export async function updateGreenCredit(userId, amount) {
     await pool.query(`
+<<<<<<< HEAD
         update User 
         set greenCredit = greenCredit + ?
         where userId = ?    
+=======
+        update User
+        set greenCredit = greatest(0, greenCredit + ?)
+        where userId = ?
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
         `, [amount, userId]);
 }
 
@@ -83,6 +113,7 @@ export async function updateDateOfBirth(userId, dateOfBirth) {
     await pool.query(`
         update User 
         set dateOfBirth = ?
+<<<<<<< HEAD
         where userId = ?    
         `, [dateOfBirth, userId]);
 }
@@ -146,4 +177,8 @@ export async function getUserDashboardData(userId) {
         purchasedProducts
         
     };
+=======
+        where userId = ? 
+        `, [dateOfBirth, userId]);
+>>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 }
