@@ -30,7 +30,6 @@ export async function deleteWarehouse(req, res) {
         success: true,
         message: 'Xóa kho hàng thành công!'
     });
-<<<<<<< HEAD
 }
 
 export async function getWarehouses(req, res) {
@@ -41,6 +40,3 @@ export async function getWarehouses(req, res) {
         warehouses
     });
 }
-=======
-}
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

@@ -36,8 +36,4 @@ storeRouter.delete(
     storeController.deleteStore
 );
 
-<<<<<<< HEAD
 export default storeRouter;
-=======
-export default storeRouter;
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // backend/src/app/middleware/common/validate.js (ĐÃ SỬA HOÀN CHỈNH)
 
 import ApiError from "../../../utils/classes/api-error.js";
@@ -6,10 +5,6 @@ import Joi from 'joi'; // 1. Chỉ import đối tượng chính Joi (Default Im
 
 // 2. Trích xuất ValidationError từ đối tượng Joi (Đúng cách cho CommonJS)
 const { ValidationError } = Joi; 
-=======
-import ApiError from "../../../utils/classes/api-error.js";
-import Joi, {ValidationError} from 'joi';
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
 function validate(schema){
     if(!Joi.isSchema(schema)){

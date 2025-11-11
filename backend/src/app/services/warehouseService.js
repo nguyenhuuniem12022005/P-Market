@@ -1,6 +1,5 @@
 import pool from "../../configs/mysql.js";
 
-<<<<<<< HEAD
 const DEFAULT_WAREHOUSES = [
     { warehouseName: 'Kho Hà Nội', capacity: 2000 },
     { warehouseName: 'Kho TP.HCM', capacity: 2200 },
@@ -27,8 +26,6 @@ async function seedDefaultWarehouses() {
     );
 }
 
-=======
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 export async function createWarehouse(data) {
     const { warehouseName, capacity } = data;
     const sql = `
@@ -76,7 +73,6 @@ export async function deleteWarehouse(warehouseId) {
         delete from Warehouse 
         where warehouseId = ?
         `, [warehouseId]);
-<<<<<<< HEAD
 }
 
 export async function getAllWarehouses() {
@@ -97,6 +93,3 @@ export async function getAllWarehouses() {
 
     return rows;
 }
-=======
-}
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

@@ -34,15 +34,9 @@ userRouter.patch(
 );
 
 userRouter.patch(
-<<<<<<< HEAD
     '/me/upload-avatar',
     upload.single('avatar'),
     userController.uploadAvatar
-=======
-    '/me/update-date-of-birth',
-    validate(userRequest.updateDateOfBirth),
-    userController.updateDateOfBirth
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 );
 
 userRouter.patch(
@@ -56,7 +50,6 @@ userRouter.patch(
     validate(userRequest.updateGreenCredit),
     userController.updateGreenCredit
 );
-<<<<<<< HEAD
 
 userRouter.patch(
     '/me/update-date-of-birth',
@@ -69,7 +62,5 @@ userRouter.get(
     '/me/dashboard',
     userController.getDashboardData
 );
-=======
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 
 export default userRouter;

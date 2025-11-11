@@ -8,14 +8,11 @@ import checkWarehouseIdExists from '../app/middleware/warehouseMiddeware.js';
 const warehouseRouter = Router();
 warehouseRouter.use(requireAuthentication);
 
-<<<<<<< HEAD
 warehouseRouter.get(
     '/',
     warehouseController.getWarehouses
 );
 
-=======
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 warehouseRouter.post(
     '/new-warehouse',
     validate(warehouseRequest.createWarehouse),
@@ -34,8 +31,4 @@ warehouseRouter.delete(
     warehouseController.deleteWarehouse
 );
 
-<<<<<<< HEAD
 export default warehouseRouter;
-=======
-export default warehouseRouter;
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29

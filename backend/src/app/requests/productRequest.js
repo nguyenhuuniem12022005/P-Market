@@ -35,20 +35,12 @@ export const createProduct = Joi.object({
         .valid('Active', 'Sold')
         .default('Active')
         .label('Trạng thái'),
-<<<<<<< HEAD
     
-=======
-
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
     discount: Joi.number()
         .min(0)
         .max(100)
         .default(0)
-<<<<<<< HEAD
         .label('Giảm giá')
-=======
-        .label('Giảm giá (%)')
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 });
 
 
@@ -87,11 +79,7 @@ export const updateProduct = Joi.object({
     discount: Joi.number()
         .min(0)
         .max(100)
-<<<<<<< HEAD
         .label('Giảm giá')
-=======
-        .label('Giảm giá (%)')
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 }).min(1); // Phải có ít nhất 1 trường để update
 
 
@@ -107,14 +95,10 @@ export const searchProducts = Joi.object({
     searchTerm: Joi.string()
         .trim()
         .allow('', null)
-<<<<<<< HEAD
         .label('Từ khóa tìm kiếm'),
     categoryId: Joi.number()
         .integer()
         .positive()
         .allow(null)
         .label('Danh mục')
-=======
-        .label('Từ khóa tìm kiếm')
->>>>>>> 06406b659bff6749c8c68af1c8cdb76f71717a29
 });
