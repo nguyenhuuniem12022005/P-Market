@@ -32,7 +32,7 @@ async function updateOrderStatus(orderId, status) {
 }
 
 async function recordEscrowLedger(orderId, status, amount) {
-  const snapshot = getEscrowSnapshot({ orderId, status, amount });
+  const snapshot = await getEscrowSnapshot({ orderId, status, amount });
   await pool.query(
     `
     insert into EscrowLedger (salesOrderId, txHash, blockNumber, gasUsed, network, status)
@@ -145,17 +145,20 @@ export async function listOrdersForCustomer(customerId) {
     });
   }
 
-  return Array.from(map.values()).map((order) => ({
-    ...order,
-    orderDate: order.orderDate instanceof Date ? order.orderDate.toISOString() : order.orderDate,
-    escrow:
-      order.ledger ||
-      getEscrowSnapshot({
-        orderId: order.orderId,
-        status: order.status,
-        amount: order.totalAmount,
-      }),
-  }));
+  const orders = Array.from(map.values());
+  return Promise.all(
+    orders.map(async (order) => ({
+      ...order,
+      orderDate: order.orderDate instanceof Date ? order.orderDate.toISOString() : order.orderDate,
+      escrow:
+        order.ledger ||
+        (await getEscrowSnapshot({
+          orderId: order.orderId,
+          status: order.status,
+          amount: order.totalAmount,
+        })),
+    }))
+  );
 }
 
 export async function listEscrowEventsForUser(customerId) {
