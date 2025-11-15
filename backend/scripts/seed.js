@@ -163,7 +163,7 @@ const SAMPLE_DEVELOPER_APPS = [
     name: 'P-Market HScoin',
     origins: ['https://p-market.onrender.com', 'https://p-market-1.onrender.com'],
     quota: 1000,
-    status: 'APPROVED',
+    status: 'ACTIVE',
     apiKey: process.env.HSCOIN_API_KEY || '4176EE7EE9C54DA09C2776AE12327DEA1',
   },
 ];
