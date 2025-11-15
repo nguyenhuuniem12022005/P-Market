@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import pool from '../../configs/mysql.js';
+import ApiError from '../../utils/classes/api-error.js';
 
 const greenLedgerStore = new Map();
 
@@ -16,8 +17,18 @@ const ESCROW_STATUS_MAP = {
   Cancelled: 'REFUNDED',
 };
 
+const SIMPLE_TOKEN_ADDRESS = (process.env.HSCOIN_SIMPLE_TOKEN_ADDRESS || '').trim().toLowerCase();
+const HSCOIN_ALLOWED_CALLERS = (process.env.HSCOIN_ALLOWED_CALLERS || '')
+  .split(',')
+  .map((addr) => addr.trim().toLowerCase())
+  .filter(Boolean);
+
 let hscoinTokenCache = { token: null, expiresAt: 0 };
 let chainCache = { blocks: [], fetchedAt: 0 };
+
+function normalizeAddress(address) {
+  return String(address || '').trim().toLowerCase();
+}
 
 function defaultLedger() {
   return {
@@ -569,4 +580,38 @@ export async function getEscrowSnapshot({ orderId, status = 'Pending', amount = 
   const fallback = buildFallbackEscrowSnapshot({ orderId, status, amount });
   const remote = await buildRemoteEscrowSnapshot({ orderId, status, amount });
   return remote || fallback;
+}
+
+export async function executeSimpleToken({ caller, method, args = [], value = 0 }) {
+  if (!SIMPLE_TOKEN_ADDRESS) {
+    throw ApiError.badRequest('Chưa cấu hình HSCOIN_SIMPLE_TOKEN_ADDRESS');
+  }
+  if (!method) {
+    throw ApiError.badRequest('Thiếu tên hàm (function)');
+  }
+
+  const normalizedCaller = normalizeAddress(caller);
+  if (!normalizedCaller) {
+    throw ApiError.badRequest('Thiếu địa chỉ ví caller');
+  }
+  if (HSCOIN_ALLOWED_CALLERS.length && !HSCOIN_ALLOWED_CALLERS.includes(normalizedCaller)) {
+    throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
+  }
+
+  const payload = {
+    contractAddress: SIMPLE_TOKEN_ADDRESS,
+    callerAddress: normalizedCaller,
+    inputData: {
+      function: method,
+      args: Array.isArray(args) ? args : [args],
+    },
+    value: Number(value) || 0,
+  };
+
+  const response = await callHscoin('/contracts/execute', {
+    method: 'POST',
+    body: payload,
+    requireAuth: true,
+  });
+  return response?.data || response;
 }

@@ -24,4 +24,10 @@ blockchainRouter.post(
 
 blockchainRouter.get('/developer/metrics', blockchainController.getDeveloperMetrics);
 
+blockchainRouter.post(
+  '/simple-token/execute',
+  validate(blockchainRequest.executeSimpleToken),
+  blockchainController.executeSimpleToken
+);
+
 export default blockchainRouter;

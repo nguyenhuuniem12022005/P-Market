@@ -68,3 +68,22 @@ export async function getDeveloperMetrics(req, res, next) {
     return next(error);
   }
 }
+
+export async function executeSimpleToken(req, res, next) {
+  try {
+    const payload = {
+      caller: req.body.caller,
+      method: req.body.method || req.body?.inputData?.function,
+      args: req.body?.inputData?.args ?? req.body.args ?? [],
+      value: req.body.value || 0,
+    };
+    const data = await blockchainService.executeSimpleToken(payload);
+    return res.status(200).json({
+      success: true,
+      message: 'Thực thi hợp đồng SimpleToken thành công',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
