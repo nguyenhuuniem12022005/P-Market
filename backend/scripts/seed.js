@@ -178,6 +178,15 @@ const SAMPLE_DEVELOPER_METRICS = [
   },
 ];
 
+const DEFAULT_PAYMENT_METHOD_SEED = {
+  methodName: 'Ví HScoin',
+  provider: 'HScoin Escrow',
+  accountNumber: 'HSC-0001',
+  status: 'ACTIVE',
+};
+
+let cachedPaymentMethodId = null;
+
 async function ensureCategories() {
   for (const category of DEFAULT_CATEGORIES) {
     await pool.query(
@@ -216,6 +225,60 @@ async function ensureWarehouses() {
   }
 
   return map;
+}
+
+async function ensurePaymentMethodId() {
+  if (cachedPaymentMethodId) {
+    return cachedPaymentMethodId;
+  }
+
+  const [existing] = await pool.query(
+    'select paymentMethodId from PaymentMethod order by paymentMethodId asc limit 1'
+  );
+  if (existing.length > 0) {
+    cachedPaymentMethodId = existing[0].paymentMethodId;
+    return cachedPaymentMethodId;
+  }
+
+  const [columns] = await pool.query('show columns from PaymentMethod');
+  const columnNames = [];
+  const values = [];
+
+  for (const column of columns) {
+    const field = column.Field;
+    if (String(column.Extra || '').toLowerCase().includes('auto_increment')) {
+      continue;
+    }
+
+    let value = DEFAULT_PAYMENT_METHOD_SEED[field];
+
+    if (value === undefined) {
+      if (column.Default !== null || column.Null === 'YES') {
+        continue;
+      }
+
+      if (/int|decimal|float|double/i.test(column.Type)) {
+        value = 0;
+      } else if (/date|time/i.test(column.Type)) {
+        value = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      } else {
+        value = 'HScoin Seed';
+      }
+    }
+
+    columnNames.push(field);
+    values.push(value);
+  }
+
+  if (columnNames.length === 0) {
+    throw new Error('Không thể tạo payment method mặc định vì không xác định được cột bắt buộc.');
+  }
+
+  const placeholders = columnNames.map(() => '?').join(', ');
+  const sql = `insert into PaymentMethod (${columnNames.join(', ')}) values (${placeholders})`;
+  const [result] = await pool.query(sql, values);
+  cachedPaymentMethodId = result.insertId;
+  return cachedPaymentMethodId;
 }
 
 async function upsertUser(user) {
@@ -433,6 +496,7 @@ async function ensureOrders(userMap, productMap) {
   for (const order of SAMPLE_ORDERS) {
     const customer = userMap.get(order.customerEmail);
     if (!customer) continue;
+    const paymentMethodId = order.paymentMethodId || (await ensurePaymentMethodId());
 
     const [existing] = await pool.query(
       `
@@ -450,16 +514,22 @@ async function ensureOrders(userMap, productMap) {
       await pool.query(
         `
           update SalesOrder
-          set status = ?, shippingAddress = ?, deliveryDate = ?
+          set status = ?, shippingAddress = ?, deliveryDate = ?, paymentMethodId = ?
           where salesOrderId = ?
         `,
-        [order.status, order.shippingAddress || null, order.deliveryDate || null, salesOrderId]
+        [
+          order.status,
+          order.shippingAddress || null,
+          order.deliveryDate || null,
+          paymentMethodId,
+          salesOrderId,
+        ]
       );
     } else {
       const [result] = await pool.query(
         `
-          insert into SalesOrder (customerId, totalAmount, shippingAddress, status, orderDate, deliveryDate)
-          values (?, ?, ?, ?, ?, ?)
+          insert into SalesOrder (customerId, totalAmount, shippingAddress, status, orderDate, deliveryDate, paymentMethodId)
+          values (?, ?, ?, ?, ?, ?, ?)
         `,
         [
           customer.userId,
@@ -468,6 +538,7 @@ async function ensureOrders(userMap, productMap) {
           order.status,
           order.orderDate || new Date(),
           order.deliveryDate || null,
+          paymentMethodId,
         ]
       );
       salesOrderId = result.insertId;
