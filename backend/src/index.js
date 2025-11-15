@@ -20,11 +20,24 @@ const __dirname = path.dirname(__filename);
 // Thư mục cần phục vụ là: public/uploads
 
 // --- Cấu hình CORS ---
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.CLIENT_URL,
+  'https://p-market-1.onrender.com',
+  'https://p-market.onrender.com'
+].filter(Boolean);
+
 const corsOptions = {
-    origin: 'http://localhost:3000', 
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true, 
-    optionsSuccessStatus: 204
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions)); 
 
@@ -41,7 +54,6 @@ app.use('/uploads', express.static(uploadsPath));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use('/uploads', express.static('src/public/uploads')); // ← THÊM dòng này
 // --- Cấu hình Route Handler ---
 route(app);
 
