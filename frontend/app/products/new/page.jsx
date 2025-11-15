@@ -11,10 +11,10 @@ import { useWallet } from '../../../context/WalletContext';
 import { UploadCloud, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { createProduct, updateProduct, addProductToStore, fetchWarehouses, fetchCategories } from '../../../lib/api';
+import { createProduct, updateProduct, addProductToStore, fetchWarehouses, fetchCategories, executeSimpleToken } from '../../../lib/api';
 
 export default function CreateProductPage() {
-  const { isConnected } = useWallet();
+  const { isConnected, walletAddress, connectWallet } = useWallet();
   const router = useRouter();
   
   // Step 1: Product info
@@ -176,6 +176,12 @@ export default function CreateProductPage() {
       return;
     }
 
+    if (!isConnected || !walletAddress) {
+      toast.error('Vui lòng liên kết ví HScoin trước khi đăng bài.');
+      connectWallet();
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -187,7 +193,20 @@ export default function CreateProductPage() {
       const result = await addProductToStore(payload);
       
       if (result?.success) {
-        toast.success('Đăng bài thành công!');
+        toast.success('Đăng bài thành công! Đang trừ phí ký quỹ...');
+        const burnAmount = Math.max(1, Math.round(Number(price) || 1));
+        try {
+          await executeSimpleToken({
+            caller: walletAddress,
+            method: 'burn',
+            args: [walletAddress, burnAmount],
+            value: 0,
+          });
+          toast.success('Đã trừ phí đăng bài trên HScoin.');
+        } catch (tokenError) {
+          console.error('Burn token error:', tokenError);
+          toast.error(tokenError.message || 'Không thể gọi hợp đồng burn token.');
+        }
         router.replace(`/home?posted=${Date.now()}`);
       } else {
         toast.error(result?.message || 'Đăng bài thất bại!');

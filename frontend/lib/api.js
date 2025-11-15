@@ -249,6 +249,17 @@ export async function disconnectHsWallet() {
   }
 }
 
+export async function executeSimpleToken(payload) {
+  try {
+    const res = await axios.post(`${API_URL}/blockchain/simple-token/execute`, payload, {
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function adjustReputationScore(amount) {
   try {
     const res = await axios.patch(

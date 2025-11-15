@@ -7,13 +7,14 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Avatar } from '../../../components/ui/Avatar';
 import ReviewCard from '../../../components/product/ReviewCard';
-import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle } from 'lucide-react';
+import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle, Loader2 } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
-import { getProductById, getReviewsByProductId, buildAvatarUrl } from '../../../lib/api';
+import { getProductById, getReviewsByProductId, buildAvatarUrl, executeSimpleToken } from '../../../lib/api';
 import { resolveProductImage } from '../../../lib/image';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
+import toast from 'react-hot-toast';
 
 const FALLBACK_IMAGE = 'https://placehold.co/600x400/eee/31343C?text=P-Market';
 
@@ -24,7 +25,8 @@ export default function ProductDetailPage() {
   const [reviews, setReviews] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
-  const { isConnected, connectWallet } = useWallet();
+  const { isConnected, connectWallet, walletAddress } = useWallet();
+  const [isEscrowProcessing, setIsEscrowProcessing] = useState(false);
 
   // --- Fetch dữ liệu ---
   useEffect(() => {
@@ -89,13 +91,29 @@ export default function ProductDetailPage() {
     handleContactSeller();
   };
   
-  const handleEscrowPurchase = () => {
-    if (!isConnected) {
-      alert("Vui lòng kết nối ví để sử dụng Mua an toàn!");
+  const handleEscrowPurchase = async () => {
+    if (!isConnected || !walletAddress) {
+      toast.error('Vui lòng kết nối ví HScoin trước khi mua!');
       connectWallet();
       return;
     }
-    alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm "${title}"...\n\nChức năng này sẽ được phát triển với smart contract.`);
+    const burnAmount = Math.max(1, Math.round(Number(priceValue) || 1));
+    setIsEscrowProcessing(true);
+    try {
+      await executeSimpleToken({
+        caller: walletAddress,
+        method: 'burn',
+        args: [walletAddress, burnAmount],
+        value: 0,
+      });
+      toast.success('Đã khóa HScoin cho giao dịch escrow!');
+      // TODO: gọi API tạo đơn hàng thật sau khi tích hợp hoàn chỉnh
+    } catch (error) {
+      console.error('Escrow burn error:', error);
+      toast.error(error.message || 'Không thể thực hiện giao dịch HScoin.');
+    } finally {
+      setIsEscrowProcessing(false);
+    }
   };
 
   // --- Loading Skeleton ---
@@ -287,8 +305,17 @@ export default function ProductDetailPage() {
                 size="lg"
                 className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 focus:ring-green-500"
                 onClick={handleEscrowPurchase}
+                disabled={isEscrowProcessing}
               >
-                <ShieldCheck size={20} /> Mua an toàn (Escrow)
+                {isEscrowProcessing ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" /> Đang ký quỹ...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={20} /> Mua an toàn (Escrow)
+                  </>
+                )}
               </Button>
 
               {/* Nút Mua trực tiếp = Liên hệ người bán */}
