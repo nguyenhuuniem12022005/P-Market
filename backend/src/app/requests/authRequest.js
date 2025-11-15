@@ -46,7 +46,12 @@ export const register = Joi.object({
         .min(6)
         .max(255)
         .required()
-        .label('Mật khẩu')
+        .label('Mật khẩu'),
+    referralCode: Joi.string()
+        .trim()
+        .max(20)
+        .allow('', null)
+        .label('Referral Code')
 })
 
 export const resetPassword = Joi.object({

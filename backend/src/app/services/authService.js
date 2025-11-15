@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken';
 import pool from '../../configs/mysql.js';
 import moment from 'moment';
 import NodeCache from 'node-cache';
-import * as userService from './userService.js'
+import * as userService from './userService.js';
+import * as referralService from './referralService.js';
 
 dotenv.config();
 
@@ -26,9 +27,24 @@ export async function checkValidLogin(email, password) {
     return false;
 }
 
-export async function register({ firstName, lastName, userName, email, password }) {
+export async function register({ firstName, lastName, userName, email, password, referralCode }) {
+    const sanitizedReferral = referralCode?.trim()?.toUpperCase() || null;
+    const referrer = sanitizedReferral
+        ? await referralService.findReferrerByToken(sanitizedReferral)
+        : null;
+
+    const referralToken = await referralService.generateUniqueReferralToken(userName);
+
     // Tạo User trước
-    const newUser = await userService.createUser({ firstName, lastName, userName, email, password });
+    const newUser = await userService.createUser({
+        firstName,
+        lastName,
+        userName,
+        email,
+        password,
+        referralToken,
+        referredByToken: referrer ? sanitizedReferral : null,
+    });
     
     // Kiểm tra email để phân quyền
     const isPTIT = email.endsWith('@stu.ptit.edu.vn') || email.endsWith('@ptit.edu.vn');
@@ -46,6 +62,14 @@ export async function register({ firstName, lastName, userName, email, password 
             INSERT INTO Customer(customerId, class, totalPurchasedOrders)
             VALUES (?, 'D23CQCE04-B', 0)
         `, [newUser.userId]);
+    }
+
+    if (referrer) {
+        await referralService.createReferralTracking({
+            referrerId: referrer.userId,
+            referredUserId: newUser.userId,
+            referralToken: sanitizedReferral,
+        });
     }
     
     return newUser;

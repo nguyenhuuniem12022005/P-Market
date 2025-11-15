@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
@@ -148,11 +149,17 @@ export default function ProductDetailPage() {
           {/* Ảnh sản phẩm */}
           <Card>
             <CardContent className="p-0 overflow-hidden rounded-lg">
-              <img
-                src={productImage}
-                alt={title}
-                className="w-full h-auto object-cover aspect-video md:aspect-[16/9]"
-              />
+              <div className="relative w-full">
+                <Image
+                  src={productImage}
+                  alt={title}
+                  width={1200}
+                  height={675}
+                  className="w-full h-auto object-cover aspect-video md:aspect-[16/9]"
+                  sizes="(max-width: 1024px) 100vw, 66vw"
+                  priority
+                />
+              </div>
             </CardContent>
           </Card>
 

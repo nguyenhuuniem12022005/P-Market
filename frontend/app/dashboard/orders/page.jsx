@@ -1,83 +1,177 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
-import { Card, CardHeader, CardContent } from '../../../components/ui/Card'; // 3 dots
-import { Button } from '../../../components/ui/Button';      // 3 dots
-import Image from 'next/image';
-import Link from 'next/link';
-import { Package, Truck, Star } from 'lucide-react';
-import { useState, useEffect } from 'react'; // <-- Import hooks
 
-// Dữ liệu đơn hàng giả lập
-const mockOrdersData = [
-  { id: 'DH123', product: { productId: 1, title: 'Sách Lập trình JavaScript', imageUrl: 'https://placehold.co/100x100/e9d5ff/31343C?text=JS+Book', price: '150000.00' }, seller: 'Nguyễn Văn A', status: 'Đang giao', date: '20/10/2025' },
-  { id: 'DH456', product: { productId: 2, title: 'Bàn phím cơ', imageUrl: 'https://placehold.co/100x100/bbf7d0/31343C?text=Keyboard', price: '750000.00' }, seller: 'Trần Thị B', status: 'Đã giao', date: '15/10/2025' },
-];
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import Link from 'next/link';
+import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
+import { fetchMyOrders } from '../../../lib/api';
+import { Package, Truck, ExternalLink, Loader2, Shield } from 'lucide-react';
+
+const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+const HSCOIN_CONTRACT_URL = 'https://hsc-w3oq.onrender.com/auth/contract.html';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+
+const statusBadge = {
+  Pending: 'bg-amber-100 text-amber-700',
+  Completed: 'bg-emerald-100 text-emerald-700',
+  Cancelled: 'bg-gray-100 text-gray-600',
+};
+
+const buildProductImage = (src) => {
+  if (!src) return '/placeholder.png';
+  if (/^(https?:|data:)/i.test(src)) return src;
+  const cleaned = src.replace(/^public\//i, '').replace(/^\/+/, '');
+  return `${API_BASE}/${cleaned}`;
+};
 
 export default function OrdersPage() {
-  const [confirmedOrders, setConfirmedOrders] = useState({});
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setConfirmedOrders(JSON.parse(localStorage.getItem('confirmedOrders') || '{}'));
+    async function load() {
+      try {
+        const data = await fetchMyOrders();
+        setOrders(data || []);
+      } catch (err) {
+        setError(err.message || 'Không thể tải danh sách đơn hàng.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
+
+  const copyHash = async (hash) => {
+    if (!hash) return;
+    try {
+      await navigator.clipboard.writeText(hash);
+      toast.success('Đã sao chép mã giao dịch');
+    } catch {
+      toast.error('Không thể sao chép mã giao dịch');
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Đơn mua của bạn</h1>
+      <header className="space-y-1">
+        <p className="text-sm text-primary font-semibold">Flow #3 · Escrow &amp; giao dịch</p>
+        <h1 className="text-2xl font-bold">Đơn mua của bạn</h1>
+        <p className="text-sm text-gray-600">
+          Mỗi đơn hàng đều giữ tiền trong escrow HScoin cho tới khi bạn xác nhận. Xem hash, block và hợp đồng ngay bên dưới.
+        </p>
+      </header>
 
-      {mockOrdersData.length === 0 ? (
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
+      )}
+
+      {loading ? (
         <Card>
-          <CardContent className="p-6 text-center text-gray-500">
-            Bạn chưa có đơn hàng nào.
+          <CardContent className="p-6 text-sm text-gray-600 flex items-center gap-2">
+            <Loader2 className="animate-spin" size={16} /> Đang tải danh sách đơn hàng…
           </CardContent>
         </Card>
+      ) : orders.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-center text-gray-500">Bạn chưa có đơn hàng nào.</CardContent>
+        </Card>
       ) : (
-        // --- SỬA LẠI PHẦN MAP ---
-        mockOrdersData.map((order) => { // <-- Dùng ngoặc nhọn {} thay vì ngoặc đơn ()
-          // Di chuyển khai báo vào đây, trước return JSX
-          const hasConfirmedReceipt = !!confirmedOrders[order.id]; 
+        orders.map((order) => {
+          const badgeClass = statusBadge[order.status] || statusBadge.Pending;
+          const icon =
+            order.status === 'Completed' ? (
+              <Package size={16} className="inline mr-1" />
+            ) : (
+              <Truck size={16} className="inline mr-1" />
+            );
 
-          // Trả về JSX cho mỗi đơn hàng
-          return ( 
-            <Card key={order.id}>
-              <CardHeader className="flex flex-row justify-between items-center text-sm text-gray-600 border-b pb-3 pt-4 px-4">
-                <span>Mã đơn: <strong>{order.id}</strong></span>
-                <span>Ngày đặt: {order.date}</span>
-                <span className={`font-semibold ${order.status === 'Đã giao' ? 'text-green-600' : 'text-orange-600'}`}>
-                  {order.status === 'Đang giao' ? <Truck size={16} className="inline mr-1" /> : <Package size={16} className="inline mr-1" />}
-                  {order.status}
-                </span>
-              </CardHeader>
-              <CardContent className="p-4 flex items-center gap-4">
-                <Image
-                  src={order.product.imageUrl}
-                  alt={order.product.title}
-                  width={80}
-                  height={80}
-                  className="rounded-md object-cover"
-                />
-                <div className="flex-grow">
-                  <span className="font-semibold">{order.product.title}</span>
-                  <p className="text-sm text-gray-500">Người bán: {order.seller}</p>
-                  <p className="font-bold text-primary mt-1">
-                    {Number(order.product.price).toLocaleString('vi-VN')} ₫
-                  </p>
+          return (
+            <Card key={order.orderId}>
+              <CardHeader className="flex flex-col gap-2 border-b border-gray-100 pb-4">
+                <div className="flex flex-wrap items-center justify-between text-sm text-gray-600 gap-2">
+                  <span>
+                    Mã đơn: <strong>#{order.orderId}</strong>
+                  </span>
+                  <span>
+                    Ngày đặt:{' '}
+                    {order.orderDate ? new Date(order.orderDate).toLocaleString('vi-VN') : 'Không xác định'}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClass}`}>
+                    {icon}
+                    {order.status}
+                  </span>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  {order.status === 'Đã giao' && hasConfirmedReceipt && ( 
-                    <Link href={`/dashboard/orders/${order.id}/review`}>
-                      <Button variant="outline" size="sm">
-                        <Star size={16} className="mr-1"/> Đánh giá
-                      </Button>
+                <p className="text-sm text-gray-500">
+                  Người bán: <span className="font-semibold">{order.seller?.name || '—'}</span>
+                </p>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                {order.items?.map((item) => (
+                  <div key={item.orderDetailId} className="flex items-center gap-4">
+                    <img
+                      src={buildProductImage(item.imageURL)}
+                      alt={item.productName}
+                      className="h-20 w-20 rounded-md object-cover border border-gray-100"
+                    />
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{item.productName}</p>
+                      <p className="text-sm text-gray-500">
+                        SL: {item.quantity} · Đơn giá: {currency.format(item.unitPrice || 0)}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-primary">
+                      {currency.format((item.unitPrice || 0) * (item.quantity || 0))}
+                    </p>
+                  </div>
+                ))}
+
+                <div className="border-t border-gray-100 pt-4 grid gap-3 md:grid-cols-2">
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>
+                      Tổng thanh toán:{' '}
+                      <span className="font-semibold text-gray-900">{currency.format(order.totalAmount || 0)}</span>
+                    </p>
+                    <p>Địa chỉ giao: {order.shippingAddress || 'Chưa cập nhật'}</p>
+                    <Link href={`/dashboard/orders/${order.orderId}`} className="text-primary text-xs font-semibold">
+                      Xem chi tiết đơn
                     </Link>
-                  )}
-                  <Link href={`/dashboard/orders/${order.id}`}>
-                    <Button variant="secondary" size="sm">Xem chi tiết</Button>
-                  </Link>
+                  </div>
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-gray-700 space-y-1">
+                    <div className="flex items-center gap-2 text-primary font-semibold">
+                      <Shield size={14} /> Escrow HScoin
+                    </div>
+                    <p>
+                      Trạng thái: <strong>{order.escrow?.status || 'LOCKED'}</strong>
+                    </p>
+                    <p>
+                      Tx Hash:{' '}
+                      <button
+                        type="button"
+                        onClick={() => copyHash(order.escrow?.txHash)}
+                        className="font-mono text-xs text-primary underline"
+                      >
+                        {order.escrow?.txHash?.slice(0, 12)}…
+                      </button>
+                    </p>
+                    <p>
+                      Block #{order.escrow?.blockNumber} · {order.escrow?.network}
+                    </p>
+                    <Link
+                      href={HSCOIN_CONTRACT_URL}
+                      target="_blank"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    >
+                      Mở trên HScoin <ExternalLink size={12} />
+                    </Link>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           );
-        }) // <-- Đóng ngoặc nhọn của map
-        // --- HẾT PHẦN SỬA ---
+        })
       )}
     </div>
   );

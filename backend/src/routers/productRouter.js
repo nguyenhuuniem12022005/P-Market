@@ -23,6 +23,29 @@ productRouter.get(
 // C�c route c?n l?i y�u c?u x�c th?c
 productRouter.use(requireAuthentication);
 
+productRouter.get(
+    '/my',
+    productController.listMyProducts
+);
+
+productRouter.get(
+    '/audits/pending',
+    productController.listPendingAudits
+);
+
+productRouter.get(
+    '/:id/audits',
+    checkProductIdExists,
+    productController.getProductAudits
+);
+
+productRouter.post(
+    '/:id/audits',
+    checkProductIdExists,
+    validate(productRequest.requestProductAudit),
+    productController.requestProductAudit
+);
+
 productRouter.post(
     '/new-product',
     upload.single('image'),
@@ -43,6 +66,13 @@ productRouter.patch(
     checkProductIdExists,
     validate(productRequest.updateProductStatus),
     productController.updateProductStatus
+);
+
+productRouter.patch(
+    '/:id/audits/:auditId',
+    checkProductIdExists,
+    validate(productRequest.reviewProductAudit),
+    productController.reviewProductAudit
 );
 
 productRouter.delete(

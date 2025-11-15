@@ -32,8 +32,8 @@ export const createProduct = Joi.object({
         .label('Kích thước'),
 
     status: Joi.string()
-        .valid('Active', 'Sold')
-        .default('Active')
+        .valid('Draft', 'Pending', 'Active', 'Sold')
+        .default('Draft')
         .label('Trạng thái'),
     
     discount: Joi.number()
@@ -73,7 +73,7 @@ export const updateProduct = Joi.object({
         .label('Kích thước'),
 
     status: Joi.string()
-        .valid('Active', 'Sold')
+        .valid('Draft', 'Pending', 'Active', 'Sold')
         .label('Trạng thái'),
 
     discount: Joi.number()
@@ -85,7 +85,7 @@ export const updateProduct = Joi.object({
 
 export const updateProductStatus = Joi.object({
     status: Joi.string()
-        .valid('Active', 'Sold')
+        .valid('Draft', 'Pending', 'Active', 'Sold')
         .required()
         .label('Trạng thái')
 });
@@ -101,4 +101,14 @@ export const searchProducts = Joi.object({
         .positive()
         .allow(null)
         .label('Danh mục')
+});
+
+export const requestProductAudit = Joi.object({
+    note: Joi.string().trim().max(500).allow('', null).label('Ghi chú'),
+    attachments: Joi.array().items(Joi.string().uri().trim()).max(5).default([]).label('Tài liệu'),
+});
+
+export const reviewProductAudit = Joi.object({
+    status: Joi.string().valid('APPROVED', 'REJECTED').required().label('Trạng thái kiểm duyệt'),
+    note: Joi.string().trim().max(500).allow('', null).label('Ghi chú'),
 });

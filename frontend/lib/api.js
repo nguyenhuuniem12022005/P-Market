@@ -372,6 +372,83 @@ export async function deleteProduct(productId) {
   }
 }
 
+export async function fetchMyProducts() {
+  try {
+    const res = await axios.get(`${API_URL}/products/my`, {
+      headers: authHeader(),
+    });
+    return res.data?.products || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function updateProductStatus(productId, status) {
+  try {
+    const res = await axios.patch(
+      `${API_URL}/products/${productId}/update-product-status`,
+      { status },
+      {
+        headers: {
+          ...authHeader(),
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function requestProductAudit(productId, payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/products/${productId}/audits`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchProductAudits(productId) {
+  try {
+    const res = await axios.get(`${API_URL}/products/${productId}/audits`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchPendingProductAudits() {
+  try {
+    const res = await axios.get(`${API_URL}/products/audits/pending`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function reviewProductAudit(productId, auditId, payload) {
+  try {
+    const res = await axios.patch(
+      `${API_URL}/products/${productId}/audits/${auditId}`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 // ===================== STORE API =====================
 export async function addProductToStore(storeData) {
   try {
@@ -548,5 +625,137 @@ export async function fetchCategories() {
         { categoryId: 6, categoryName: 'Khác' }
       ]
     };
+  }
+}
+
+// ===================== BLOCKCHAIN API =====================
+export async function fetchGreenCreditSummary() {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/green-credit`, {
+      headers: authHeader()
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function requestGreenCreditSync(reason = '') {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/green-credit/sync`,
+      { reason },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchDeveloperApps() {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/developer/apps`, {
+      headers: authHeader()
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function registerDeveloperApp(payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/developer/apps`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchDeveloperMetrics() {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/developer/metrics`, {
+      headers: authHeader()
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+// ===================== ORDER API =====================
+export async function fetchMyOrders() {
+  try {
+    const res = await axios.get(`${API_URL}/orders/me`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchEscrowEvents() {
+  try {
+    const res = await axios.get(`${API_URL}/orders/me/escrow`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+// ===================== REFERRAL / REWARDS API =====================
+export async function fetchReferralSummary() {
+  try {
+    const res = await axios.get(`${API_URL}/referrals/me`, {
+      headers: authHeader()
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchReferralRewards() {
+  try {
+    const res = await axios.get(`${API_URL}/referrals/rewards`, {
+      headers: authHeader()
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function markReferralQualified(referredUserId) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/referrals/qualify`,
+      { referredUserId },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function rewardReferral(payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/referrals/reward`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
   }
 }

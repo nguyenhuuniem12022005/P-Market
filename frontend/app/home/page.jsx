@@ -3,6 +3,8 @@ import { Suspense } from 'react';
 import { getAllProducts, fetchCategories } from '../../lib/api';
 import ProductCard from '../../components/product/ProductCard';
 import HeroBanner from '../../components/layout/HeroBanner';
+import UserFlowShowcase from '../../components/layout/UserFlowShowcase';
+import BlockchainValueProps from '../../components/layout/BlockchainValueProps';
 import Link from 'next/link';
 import SkeletonCard from '../../components/ui/SkeletonCard';
 
@@ -111,6 +113,10 @@ export default function HomePage() {
         <Suspense fallback={<CategoryGridSkeleton />}>
           <CategoryGrid />
         </Suspense>
+
+        <UserFlowShowcase />
+
+        <BlockchainValueProps />
 
         <div className="bg-white p-4 rounded-lg shadow-sm">
           <h2 className="text-lg font-semibold mb-3">Sản phẩm mới đăng</h2>

@@ -36,8 +36,8 @@ export default function ReputationPage() {
          </CardHeader>
          <CardContent className="space-y-2 text-sm text-gray-700">
             <p>✅ <strong>+5 điểm:</strong> Mời bạn bè thành công (cả 2).</p>
-            <p>✅ <strong>+5 điểm:</strong> Nhận đánh giá "Hài lòng" từ người mua.</p>
-            <p>❌ <strong>-10 điểm:</strong> Nhận đánh giá "Không hài lòng" (Sản phẩm không đúng mô tả).</p>
+            <p>✅ <strong>+5 điểm:</strong> Nhận đánh giá &quot;Hài lòng&quot; từ người mua.</p>
+            <p>❌ <strong>-10 điểm:</strong> Nhận đánh giá &quot;Không hài lòng&quot; (Sản phẩm không đúng mô tả).</p>
             <p>❌ <strong>-10 điểm:</strong> Đưa ra nhận xét không đúng sự thật.</p>
             <p className="mt-4 font-semibold">⚠️ Cần tối thiểu 85 điểm để đăng bài!</p>
          </CardContent>

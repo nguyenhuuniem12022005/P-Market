@@ -20,6 +20,8 @@ export async function register(req, res) {
         phone: newUser.phone || '', // Thêm phone
         address: newUser.address || '', // Thêm address
         avatar: newUser.avatar || '/avatar.png',
+        referralToken: newUser.referralToken,
+        referredByToken: newUser.referredByToken || '',
       },
       token: tokenInfo,
     });
@@ -61,6 +63,8 @@ export async function login(req, res) {
         phone: validLogin.phone || '', 
         address: validLogin.address || '', 
         avatar: validLogin.avatar || '/avatar.png',
+        referralToken: validLogin.referralToken,
+        referredByToken: validLogin.referredByToken || '',
       },
       token: tokenInfo,
     });

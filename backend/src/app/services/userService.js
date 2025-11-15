@@ -2,19 +2,35 @@ import bcrypt from 'bcrypt';
 import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
 
-export async function createUser({ firstName, lastName, userName, email, password }) {
+export async function createUser({
+    firstName,
+    lastName,
+    userName,
+    email,
+    password,
+    referralToken,
+    referredByToken = null,
+}) {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
     const queryText = `
-        insert into User (firstName, lastName, userName, email, passwordHash)
-        values (?, ?, ?, ?, ?)
+        insert into User (firstName, lastName, userName, email, passwordHash, referralToken, referredByToken)
+        values (?, ?, ?, ?, ?, ?, ?)
     `;
-    const [results] = await pool.query(queryText, [firstName, lastName, userName, email, passwordHash]);
+    const [results] = await pool.query(queryText, [
+        firstName,
+        lastName,
+        userName,
+        email,
+        passwordHash,
+        referralToken,
+        referredByToken,
+    ]);
 
     const insertId = results.insertId;
     const [rows] = await pool.query(`
-        select userId, firstName, lastName, userName, email
+        select userId, firstName, lastName, userName, email, referralToken, referredByToken
         from User where userId = ?`
         , [insertId]);
 

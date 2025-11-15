@@ -96,3 +96,70 @@ export async function getProductById(req, res) {
         product: product
     });
 }
+
+export async function requestProductAudit(req, res, next) {
+    try {
+        const productId = Number(req.params.id);
+        const supplierId = req.user.userId;
+        const audit = await productService.requestProductAudit(productId, supplierId, req.body);
+        res.status(201).json({
+            success: true,
+            message: 'Đã gửi yêu cầu kiểm duyệt sản phẩm.',
+            data: audit,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function getProductAudits(req, res, next) {
+    try {
+        const productId = Number(req.params.id);
+        const audits = await productService.getProductAudits(productId);
+        res.status(200).json({
+            success: true,
+            data: audits,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function reviewProductAudit(req, res, next) {
+    try {
+        const productId = Number(req.params.id);
+        const auditId = Number(req.params.auditId);
+        const reviewerId = req.user.userId;
+        const audits = await productService.reviewProductAudit(productId, auditId, reviewerId, req.body);
+        res.status(200).json({
+            success: true,
+            message: 'Đã cập nhật trạng thái kiểm duyệt.',
+            data: audits,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function listPendingAudits(req, res, next) {
+    try {
+        const audits = await productService.listPendingAudits();
+        res.status(200).json({
+            success: true,
+            data: audits,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function listMyProducts(req, res) {
+    const supplierId = req.user.userId;
+    const products = await productService.getProductsBySupplier(supplierId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Lấy danh sách sản phẩm của bạn thành công',
+        products,
+    });
+}

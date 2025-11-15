@@ -1,15 +1,29 @@
 import pool from "../../configs/mysql.js"; 
+import ApiError from "../../utils/classes/api-error.js";
 
+async function ensureProductOwner(productId, supplierId) {
+    const [rows] = await pool.query(
+        `
+        select productId
+        from Product
+        where productId = ? and supplierId = ?
+        `,
+        [productId, supplierId]
+    );
+    if (rows.length === 0) {
+        throw ApiError.forbidden('Bạn không có quyền thao tác sản phẩm này');
+    }
+}
 // Đăng bài
 export async function createProduct(productData, supplierId) {
-    const { productName, description, imageURL, unitPrice, categoryId, size, status, discount } = productData;
+    const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
 
     const sql = `
         insert into Product (
             supplierId, categoryId, productName, description, imageURL,
-            unitPrice, size, status, discount
+            unitPrice, size, status, discount, complianceDocs
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [results] = await pool.query(sql, [
@@ -21,7 +35,8 @@ export async function createProduct(productData, supplierId) {
         unitPrice,
         size || null,
         status || 'Draft',
-        discount || 0
+        discount || 0,
+        complianceDocs ? JSON.stringify(complianceDocs) : null
     ]);
 
     const insertId = results.insertId;
@@ -77,6 +92,58 @@ export async function searchProducts(searchTerm, categoryId = null) {
     
     const [rows] = await pool.query(finalSql, params);
     return rows;
+}
+
+export async function getProductsBySupplier(supplierId) {
+    const [rows] = await pool.query(
+        `
+        select 
+            p.*,
+            c.categoryName,
+            coalesce(inv.totalQuantity, 0) as totalQuantity,
+            coalesce(stats.totalOrders, 0) as totalOrders,
+            coalesce(stats.totalSold, 0) as totalSold,
+            coalesce(stats.totalRevenue, 0) as totalRevenue,
+            latest.status as latestAuditStatus,
+            latest.note as latestAuditNote,
+            latest.createdAt as latestAuditCreatedAt,
+            latest.reviewedAt as latestAuditReviewedAt,
+            latest.reviewerId as latestAuditReviewerId
+        from Product p
+        left join Category c on p.categoryId = c.categoryId
+        left join (
+            select 
+                od.productId,
+                count(distinct od.salesOrderId) as totalOrders,
+                sum(od.quantity) as totalSold,
+                sum(od.quantity * od.unitPrice) as totalRevenue
+            from OrderDetail od
+            join SalesOrder so on so.salesOrderId = od.salesOrderId and so.status <> 'Cancelled'
+            group by od.productId
+        ) stats on stats.productId = p.productId
+        left join (
+            select productId, sum(quantity) as totalQuantity
+            from Store
+            group by productId
+        ) inv on inv.productId = p.productId
+        left join (
+            select pa.*
+            from ProductAudit pa
+            join (
+                select productId, max(createdAt) as createdAt
+                from ProductAudit
+                group by productId
+            ) x on x.productId = pa.productId and x.createdAt = pa.createdAt
+        ) latest on latest.productId = p.productId
+        where p.supplierId = ?
+        order by p.createdAt desc
+        `,
+        [supplierId]
+    );
+    return rows.map((row) => ({
+        ...row,
+        complianceDocs: row.complianceDocs ? JSON.parse(row.complianceDocs) : [],
+    }));
 }
 
 export async function updateProduct(productId, supplierId, updateData) {
@@ -232,4 +299,106 @@ export async function activateProduct(productId) {
         set status = 'Active'
         where productId = ?
     `, [productId]);
+}
+
+export async function requestProductAudit(productId, supplierId, { note = '', attachments = [] }) {
+    await ensureProductOwner(productId, supplierId);
+    const serializedAttachments = attachments?.length ? JSON.stringify(attachments) : null;
+    const [result] = await pool.query(
+        `
+        insert into ProductAudit (productId, status, note, attachments)
+        values (?, 'PENDING', ?, ?)
+        `,
+        [productId, note || null, serializedAttachments]
+    );
+
+    await pool.query(
+        `
+        update Product
+        set status = 'Pending', complianceDocs = ?
+        where productId = ?
+        `,
+        [serializedAttachments, productId]
+    );
+
+    const [rows] = await pool.query('select * from ProductAudit where auditId = ?', [result.insertId]);
+    return rows[0];
+}
+
+export async function getProductAudits(productId) {
+    const [rows] = await pool.query(
+        `
+        select pa.*, u.userName as reviewerName
+        from ProductAudit pa
+        left join User u on u.userId = pa.reviewerId
+        where pa.productId = ?
+        order by pa.createdAt desc
+        `,
+        [productId]
+    );
+    return rows;
+}
+
+export async function reviewProductAudit(productId, auditId, reviewerId, { status, note }) {
+    const [audits] = await pool.query(
+        `
+        select *
+        from ProductAudit
+        where auditId = ? and productId = ?
+        `,
+        [auditId, productId]
+    );
+    if (audits.length === 0) {
+        throw ApiError.notFound('Không tìm thấy yêu cầu kiểm duyệt');
+    }
+
+    await pool.query(
+        `
+        update ProductAudit
+        set status = ?, note = coalesce(?, note), reviewerId = ?, reviewedAt = now()
+        where auditId = ?
+        `,
+        [status, note || audits[0].note, reviewerId, auditId]
+    );
+
+    const productStatus = status === 'APPROVED' ? 'Active' : 'Draft';
+  await pool.query(
+    `
+    update Product
+    set status = ?
+    where productId = ?
+    `,
+    [productStatus, productId]
+  );
+
+  return getProductAudits(productId);
+}
+
+export async function listPendingAudits() {
+  const [rows] = await pool.query(
+    `
+    select
+      pa.auditId,
+      pa.productId,
+      pa.status,
+      pa.note,
+      pa.attachments,
+      pa.createdAt,
+      p.productName,
+      p.status as productStatus,
+      p.unitPrice,
+      u.userName as sellerName,
+      u.email as sellerEmail
+    from ProductAudit pa
+    join Product p on p.productId = pa.productId
+    join User u on u.userId = p.supplierId
+    where pa.status = 'PENDING'
+    order by pa.createdAt asc
+    `
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    attachments: row.attachments ? JSON.parse(row.attachments) : [],
+  }));
 }
