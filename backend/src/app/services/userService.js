@@ -1,6 +1,20 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
+
+const WALLET_ENCRYPTION_KEY = crypto
+  .createHash('sha256')
+  .update(process.env.WALLET_ENCRYPTION_KEY || process.env.SECRET_KEY || 'pmarket-wallet-secret')
+  .digest();
+
+function encryptPrivateKey(value) {
+  if (!value) return null;
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-ctr', WALLET_ENCRYPTION_KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+}
 
 export async function createUser({
     firstName,
@@ -200,10 +214,63 @@ export async function getUserDashboardData(userId) {
             greenCredit: user.greenCredit,
             isPTIT,
             isCustomer: user.isCustomer > 0,
-            isSupplier: user.isSupplier > 0
+            isSupplier: user.isSupplier > 0,
+            walletAddress: user.walletAddress || null,
+            walletConnectedAt: user.walletConnectedAt || null
         },
         soldProducts,
         purchasedProducts
         
+    };
+}
+
+export async function connectWallet(userId, { walletAddress, privateKey }) {
+    if (!walletAddress || !privateKey) {
+        throw ApiError.badRequest('Thiếu thông tin ví HScoin');
+    }
+
+    const encryptedKey = encryptPrivateKey(privateKey.trim());
+    await pool.query(
+        `
+        update User
+        set walletAddress = ?, walletEncryptedKey = ?, walletConnectedAt = now()
+        where userId = ?
+        `,
+        [walletAddress.trim(), encryptedKey, userId]
+    );
+
+    return getWalletInfo(userId);
+}
+
+export async function disconnectWallet(userId) {
+    await pool.query(
+        `
+        update User
+        set walletAddress = null, walletEncryptedKey = null, walletConnectedAt = null
+        where userId = ?
+        `,
+        [userId]
+    );
+}
+
+export async function getWalletInfo(userId) {
+    const [rows] = await pool.query(
+        `
+        select walletAddress, walletConnectedAt
+        from User
+        where userId = ?
+        limit 1
+        `,
+        [userId]
+    );
+
+    if (rows.length === 0) {
+        throw ApiError.notFound('Không tìm thấy người dùng');
+    }
+
+    return {
+        walletAddress: rows[0].walletAddress || null,
+        connectedAt: rows[0].walletConnectedAt || null,
+        isConnected: Boolean(rows[0].walletAddress),
     };
 }

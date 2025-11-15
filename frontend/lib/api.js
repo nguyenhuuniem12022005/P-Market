@@ -216,6 +216,39 @@ export async function updateUserDateOfBirth(dateOfBirth) {
   }
 }
 
+export async function fetchWalletInfo() {
+  try {
+    const res = await axios.get(`${API_URL}/users/me/wallet`, {
+      headers: authHeader(),
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function connectHsWallet(payload) {
+  try {
+    const res = await axios.post(`${API_URL}/users/me/wallet/connect`, payload, {
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function disconnectHsWallet() {
+  try {
+    const res = await axios.delete(`${API_URL}/users/me/wallet/connect`, {
+      headers: authHeader(),
+    });
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function adjustReputationScore(amount) {
   try {
     const res = await axios.patch(

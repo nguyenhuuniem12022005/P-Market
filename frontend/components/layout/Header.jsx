@@ -15,6 +15,7 @@ import {
   Wallet,
   PlusSquare,
   LogOut,
+  Slash,
 } from 'lucide-react';
 import { useWallet } from '../../context/WalletContext';
 import { useAuth } from '../../context/AuthContext'; // ? import AuthContext
@@ -54,7 +55,7 @@ const FALLBACK_PRODUCT_IMAGE = 'https://placehold.co/80x60?text=P-Market';
 
 export default function Header() {
   const router = useRouter();
-  const { isConnected, walletAddress, connectWallet } = useWallet();
+  const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
   const { user, isAuthenticated, logout } = useAuth(); // ✅ lấy user từ context
   const { cartItems = [] } = useCart();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -128,23 +129,39 @@ export default function Header() {
 
           {/* --- ICONS & USER --- */}
           <div className="flex-shrink-0 flex items-center gap-1 md:gap-2">
-            {/* --- V� (Wallet) --- */}
+            {/* --- Ví (Wallet) --- */}
             {isConnected ? (
-              <div className="hidden lg:flex items-center text-xs font-medium bg-primary-hover p-2 rounded-full">
-                <Wallet size={18} className="mr-1" />
-                <span>
-                  {walletAddress.substring(0, 6)}...
-                  {walletAddress.substring(walletAddress.length - 4)}
-                </span>
+              <div className="hidden lg:flex items-center gap-2 rounded-full bg-primary-hover pl-3 pr-1 py-1 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={connectWallet}
+                  className="inline-flex items-center gap-1"
+                  title="Nhấn để thay đổi ví HScoin"
+                >
+                  <Wallet size={16} />
+                  <span>
+                    {walletAddress.substring(0, 6)}…
+                    {walletAddress.substring(walletAddress.length - 4)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={disconnectWallet}
+                  className="rounded-full p-1 text-white/80 hover:bg-white/20"
+                  aria-label="Hủy liên kết ví"
+                >
+                  <Slash size={14} />
+                </button>
               </div>
             ) : (
               <Button
                 onClick={connectWallet}
                 variant="outline"
                 size="sm"
+                disabled={isLoadingWallet}
                 className="hidden lg:block bg-white text-primary hover:bg-gray-100 border-white font-semibold"
               >
-                Connect Wallet
+                {isLoadingWallet ? 'Đang tải ví…' : 'Connect Wallet'}
               </Button>
             )}
 

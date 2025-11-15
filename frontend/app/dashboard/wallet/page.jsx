@@ -4,8 +4,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
 import { fetchEscrowEvents } from '../../../lib/api';
-import { ShieldCheck, TrendingUp, History, Loader2, Copy } from 'lucide-react';
+import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
+import { useWallet } from '../../../context/WalletContext';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 
@@ -13,6 +15,7 @@ export default function WalletPage() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
 
   useEffect(() => {
     async function load() {
@@ -58,6 +61,41 @@ export default function WalletPage() {
           lock/release trước khi đồng bộ lên mạng blockchain thật.
         </p>
       </header>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase text-emerald-600 font-semibold">Trạng thái ví HScoin</p>
+            {isConnected && walletAddress ? (
+              <div>
+                <p className="text-sm text-gray-600">Địa chỉ đã liên kết:</p>
+                <p className="font-mono text-sm text-gray-900 break-all">{walletAddress}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Bạn chưa liên kết ví HScoin. Liên kết ví để thực hiện ký quỹ escrow và xem số dư blockchain.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {isConnected ? (
+              <>
+                <Button variant="secondary" onClick={connectWallet}>
+                  Thay đổi ví
+                </Button>
+                <Button variant="ghost" onClick={disconnectWallet}>
+                  Hủy liên kết
+                </Button>
+              </>
+            ) : (
+              <Button onClick={connectWallet} disabled={isLoadingWallet}>
+                <WalletIcon size={16} className="mr-2" />
+                {isLoadingWallet ? 'Đang kiểm tra…' : 'Liên kết ví HScoin'}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>

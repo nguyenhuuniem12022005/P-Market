@@ -104,3 +104,40 @@ export async function getDashboardData(req, res) {
         data: dashboardData
     });
 }
+
+export async function getWalletInfo(req, res, next) {
+  try {
+    const data = await userService.getWalletInfo(req.user.userId);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function connectWallet(req, res, next) {
+  try {
+    const data = await userService.connectWallet(req.user.userId, req.body);
+    return res.status(200).json({
+      success: true,
+      message: 'Liên kết ví thành công!',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function disconnectWallet(req, res, next) {
+  try {
+    await userService.disconnectWallet(req.user.userId);
+    return res.status(200).json({
+      success: true,
+      message: 'Đã hủy liên kết ví HScoin.',
+    });
+  } catch (error) {
+    return next(error);
+  }
+}

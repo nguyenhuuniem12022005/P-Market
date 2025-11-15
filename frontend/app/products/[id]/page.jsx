@@ -89,10 +89,10 @@ export default function ProductDetailPage() {
     handleContactSeller();
   };
   
-  const handleEscrowPurchase = async () => {
+  const handleEscrowPurchase = () => {
     if (!isConnected) {
       alert("Vui lòng kết nối ví để sử dụng Mua an toàn!");
-      await connectWallet();
+      connectWallet();
       return;
     }
     alert(`Đang tiến hành Mua an toàn (Ký quỹ Escrow) cho sản phẩm "${title}"...\n\nChức năng này sẽ được phát triển với smart contract.`);

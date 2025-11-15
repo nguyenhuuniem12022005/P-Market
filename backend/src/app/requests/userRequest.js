@@ -99,3 +99,18 @@ export const updateDateOfBirth = Joi.object({
         .required()
         .label('Ngày sinh')
 });
+
+export const connectWallet = Joi.object({
+    walletAddress: Joi.string()
+        .trim()
+        .min(10)
+        .max(255)
+        .required()
+        .label('Địa chỉ ví'),
+    privateKey: Joi.string()
+        .trim()
+        .min(32)
+        .max(512)
+        .required()
+        .label('Private key')
+});

@@ -66,4 +66,20 @@ userRouter.get(
     userController.getDashboardData
 );
 
+userRouter.get(
+    '/me/wallet',
+    userController.getWalletInfo
+);
+
+userRouter.post(
+    '/me/wallet/connect',
+    validate(userRequest.connectWallet),
+    userController.connectWallet
+);
+
+userRouter.delete(
+    '/me/wallet/connect',
+    userController.disconnectWallet
+);
+
 export default userRouter;
