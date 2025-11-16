@@ -30,4 +30,24 @@ blockchainRouter.post(
   blockchainController.executeSimpleToken
 );
 
+blockchainRouter.get(
+  '/simple-token/history',
+  (req, res, next) => {
+    req.body = { ...req.query };
+    return next();
+  },
+  validate(blockchainRequest.listSimpleTokenHistory),
+  blockchainController.listSimpleTokenHistory
+);
+
+blockchainRouter.get(
+  '/simple-token/alerts',
+  (req, res, next) => {
+    req.body = { ...req.query };
+    return next();
+  },
+  validate(blockchainRequest.listSimpleTokenAlerts),
+  blockchainController.listSimpleTokenAlerts
+);
+
 export default blockchainRouter;

@@ -20,3 +20,13 @@ export const executeSimpleToken = Joi.object({
     args: Joi.array().default([]),
   }).optional(),
 });
+
+export const listSimpleTokenHistory = Joi.object({
+  caller: Joi.string().trim().required().label('Caller address'),
+  limit: Joi.number().integer().min(1).max(100).default(20).label('Số bản ghi'),
+});
+
+export const listSimpleTokenAlerts = Joi.object({
+  severity: Joi.string().valid('info', 'warning', 'critical').label('Mức cảnh báo'),
+  limit: Joi.number().integer().min(1).max(200).default(50).label('Số bản ghi'),
+});

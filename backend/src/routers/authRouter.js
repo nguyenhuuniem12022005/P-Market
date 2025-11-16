@@ -32,4 +32,16 @@ authRouter.patch(
     authController.resetPassword
 );
 
+authRouter.post(
+    '/password-reset/request',
+    validate(authRequest.requestPasswordReset),
+    authController.requestPasswordReset
+);
+
+authRouter.post(
+    '/password-reset/confirm',
+    validate(authRequest.confirmPasswordReset),
+    authController.confirmPasswordReset
+);
+
 export default authRouter;

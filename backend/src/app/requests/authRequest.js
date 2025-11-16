@@ -61,3 +61,12 @@ export const resetPassword = Joi.object({
         .required()
         .label('Mật khẩu mới')
 })
+
+export const requestPasswordReset = Joi.object({
+    email: Joi.string().trim().lowercase().email().max(255).required().label('Email')
+})
+
+export const confirmPasswordReset = Joi.object({
+    token: Joi.string().trim().required().label('Mã xác nhận'),
+    password: Joi.string().min(6).max(255).required().label('Mật khẩu mới')
+})

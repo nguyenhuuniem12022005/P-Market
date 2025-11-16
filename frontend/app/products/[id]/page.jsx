@@ -10,7 +10,8 @@ import ReviewCard from '../../../components/product/ReviewCard';
 import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle, Loader2 } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
-import { getProductById, getReviewsByProductId, buildAvatarUrl, executeSimpleToken } from '../../../lib/api';
+import { useAuth } from '../../../context/AuthContext';
+import { getProductById, getReviewsByProductId, buildAvatarUrl, createEscrowOrder } from '../../../lib/api';
 import { resolveProductImage } from '../../../lib/image';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
@@ -26,6 +27,7 @@ export default function ProductDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
   const { isConnected, connectWallet, walletAddress } = useWallet();
+  const { user } = useAuth();
   const [isEscrowProcessing, setIsEscrowProcessing] = useState(false);
 
   // --- Fetch dữ liệu ---
@@ -97,19 +99,24 @@ export default function ProductDetailPage() {
       connectWallet();
       return;
     }
-    const burnAmount = Math.max(1, Math.round(Number(priceValue) || 1));
+    if (!user?.address) {
+      toast.error('Vui lòng cập nhật địa chỉ giao hàng trong dashboard trước khi mua.');
+      router.push('/dashboard');
+      return;
+    }
     setIsEscrowProcessing(true);
     try {
-      await executeSimpleToken({
-        caller: walletAddress,
-        method: 'burn',
-        args: [burnAmount],
-        value: 0,
-      });
-      toast.success('Đã khóa HScoin cho giao dịch escrow!');
-      // TODO: gọi API tạo đơn hàng thật sau khi tích hợp hoàn chỉnh
+      const payload = {
+        productId: product?.productId || product?.id,
+        quantity: 1,
+        walletAddress,
+        shippingAddress: user.address,
+      };
+      const response = await createEscrowOrder(payload);
+      toast.success(response?.message || 'Đã tạo đơn hàng escrow thành công!');
+      router.push('/dashboard/orders');
     } catch (error) {
-      console.error('Escrow burn error:', error);
+      console.error('Escrow order error:', error);
       toast.error(error.message || 'Không thể thực hiện giao dịch HScoin.');
     } finally {
       setIsEscrowProcessing(false);

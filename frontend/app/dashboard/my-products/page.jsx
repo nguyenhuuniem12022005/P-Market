@@ -5,9 +5,27 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { ClipboardList, MoveRight, PackageCheck, ShieldCheck, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
-import { fetchMyProducts, requestProductAudit, deleteProduct } from '../../../lib/api';
+import {
+  ClipboardList,
+  MoveRight,
+  PackageCheck,
+  ShieldCheck,
+  Clock,
+  Loader2,
+  Pencil,
+  Trash2,
+  Link2,
+} from 'lucide-react';
+import {
+  fetchMyProducts,
+  requestProductAudit,
+  deleteProduct,
+  fetchSimpleTokenHistory,
+  fetchSimpleTokenAlerts,
+} from '../../../lib/api';
 import { useRouter } from 'next/navigation';
+import { useWallet } from '../../../context/WalletContext';
+import ProductCardSkeleton from '../../../components/dashboard/ProductCardSkeleton';
 
 const MAX_PRODUCT_EDITS = 3;
 
@@ -35,6 +53,11 @@ export default function MyProductsPage() {
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [hscoinHistory, setHscoinHistory] = useState([]);
+  const [hscoinAlerts, setHscoinAlerts] = useState([]);
+  const [hscoinLoading, setHscoinLoading] = useState(false);
+  const [hscoinError, setHscoinError] = useState('');
+  const { walletAddress, isConnected, connectWallet } = useWallet();
   const router = useRouter();
 
   useEffect(() => {
@@ -51,6 +74,57 @@ export default function MyProductsPage() {
     loadProducts();
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    async function loadAlerts() {
+      try {
+        const data = await fetchSimpleTokenAlerts({ severity: 'warning', limit: 10 });
+        if (!ignore) {
+          setHscoinAlerts(data || []);
+        }
+      } catch (err) {
+        console.warn('Không thể tải cảnh báo HScoin:', err.message);
+      }
+    }
+    loadAlerts();
+    const timer = setInterval(loadAlerts, 60 * 1000);
+    return () => {
+      ignore = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    if (!walletAddress) {
+      setHscoinHistory([]);
+      return () => {};
+    }
+
+    async function loadHistory() {
+      setHscoinLoading(true);
+      setHscoinError('');
+      try {
+        const data = await fetchSimpleTokenHistory(walletAddress, 10);
+        if (!ignore) {
+          setHscoinHistory(data || []);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setHscoinError(err.message || 'Không thể tải lịch sử HScoin.');
+        }
+      } finally {
+        if (!ignore) {
+          setHscoinLoading(false);
+        }
+      }
+    }
+    loadHistory();
+    return () => {
+      ignore = true;
+    };
+  }, [walletAddress]);
+
   const stats = useMemo(() => {
     const result = { total: products.length, Draft: 0, Pending: 0, Active: 0 };
     products.forEach((item) => {
@@ -58,6 +132,27 @@ export default function MyProductsPage() {
     });
     return result;
   }, [products]);
+
+  const hscoinStatusChips = hscoinHistory.slice(0, 4).map((item) => {
+    const colorMap = {
+      SUCCESS: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+      PROCESSING: 'text-blue-600 bg-blue-50 border-blue-200',
+      QUEUED: 'text-amber-600 bg-amber-50 border-amber-200',
+      FAILED: 'text-rose-600 bg-rose-50 border-rose-200',
+      PENDING: 'text-gray-600 bg-gray-50 border-gray-200',
+    };
+    const cls = colorMap[item.status] || colorMap.PENDING;
+    return (
+      <div key={item.callId} className={`rounded-lg border px-3 py-2 text-xs flex flex-col gap-1 ${cls}`}>
+        <div className="flex items-center justify-between">
+          <span className="font-semibold uppercase">{item.status}</span>
+          <span>{item.createdAt ? new Date(item.createdAt).toLocaleTimeString('vi-VN') : ''}</span>
+        </div>
+        {item.lastError && <p>Lỗi: {item.lastError}</p>}
+        {item.nextRunAt && <p>Lần thử tiếp: {new Date(item.nextRunAt).toLocaleString('vi-VN')}</p>}
+      </div>
+    );
+  });
 
   const handleSubmitForReview = async (productId) => {
     try {
@@ -122,6 +217,63 @@ export default function MyProductsPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
 
+      <Card>
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck size={18} /> Trạng thái HScoin
+          </CardTitle>
+          <div className="text-sm text-gray-600 flex items-center gap-2">
+            <span>
+              Ví HScoin:{' '}
+              {walletAddress ? (
+                <code className="font-semibold">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </code>
+              ) : (
+                'Chưa kết nối'
+              )}
+            </span>
+            <Button size="sm" variant="outline" onClick={connectWallet}>
+              <Link2 size={14} className="mr-1" /> {isConnected ? 'Kết nối lại' : 'Kết nối ví'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hscoinError && (
+            <div className="border border-red-200 bg-red-50 px-3 py-2 rounded text-sm text-red-600">{hscoinError}</div>
+          )}
+          {hscoinLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Loader2 className="animate-spin" size={16} /> Đang tải lịch sử burn token...
+            </div>
+          ) : hscoinHistory.length === 0 ? (
+            <p className="text-sm text-gray-600">
+              Chưa có giao dịch HScoin nào gần đây. Khi đăng bài, hệ thống sẽ burn phí và hiển thị trạng thái tại đây.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">{hscoinStatusChips}</div>
+          )}
+          <div className="rounded-md border border-dashed border-gray-200 p-4 text-sm text-gray-600 space-y-2">
+            <p className="font-semibold text-gray-800">Gợi ý xử lý nhanh:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>Yêu cầu burn sẽ tự động thử lại tối đa 5 lần nếu HScoin quá tải.</li>
+              <li>Trạng thái QUEUED quá 10 phút? Kiểm tra ví được phép và kết nối lại.</li>
+              <li>Mọi lỗi chi tiết được ghi lại để đội kỹ thuật hỗ trợ khi cần.</li>
+            </ul>
+            {hscoinAlerts.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="font-semibold text-gray-800">Cảnh báo mới nhất:</p>
+                {hscoinAlerts.slice(0, 3).map((alert) => (
+                  <div key={alert.alertId} className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded px-2 py-1">
+                    {alert.createdAt ? new Date(alert.createdAt).toLocaleTimeString('vi-VN') : ''} · {alert.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 py-5">
@@ -159,11 +311,9 @@ export default function MyProductsPage() {
       </div>
 
       {loading ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-gray-600 flex items-center gap-2">
-            <Loader2 className="animate-spin" size={16} /> Đang tải danh sách sản phẩm…
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <ProductCardSkeleton count={2} />
+        </div>
       ) : products.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center text-gray-500">Bạn chưa đăng sản phẩm nào.</CardContent>

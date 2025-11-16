@@ -18,6 +18,10 @@ const ESCROW_STATUS_MAP = {
 };
 
 const SIMPLE_TOKEN_ADDRESS = (process.env.HSCOIN_SIMPLE_TOKEN_ADDRESS || '').trim().toLowerCase();
+const HSCOIN_CONTRACT_ENDPOINT = (process.env.HSCOIN_CONTRACT_ENDPOINT || '/contract').trim() || '/contract';
+const HSCOIN_MAX_RETRY = Math.max(1, Number(process.env.HSCOIN_MAX_RETRY || 5) || 5);
+const HSCOIN_RETRY_DELAY_MS = Math.max(5_000, Number(process.env.HSCOIN_RETRY_DELAY_MS || 60_000) || 60_000);
+const HSCOIN_WORKER_INTERVAL_MS = Math.max(5_000, Number(process.env.HSCOIN_WORKER_INTERVAL_MS || 60_000) || 60_000);
 const HSCOIN_ALLOWED_CALLERS = (process.env.HSCOIN_ALLOWED_CALLERS || '')
   .split(',')
   .map((addr) => addr.trim().toLowerCase())
@@ -25,6 +29,9 @@ const HSCOIN_ALLOWED_CALLERS = (process.env.HSCOIN_ALLOWED_CALLERS || '')
 
 let hscoinTokenCache = { token: null, expiresAt: 0 };
 let chainCache = { blocks: [], fetchedAt: 0 };
+let hasHscoinCallTable = false;
+let hscoinWorkerTimer = null;
+let hasHscoinAlertTable = false;
 
 function normalizeAddress(address) {
   return String(address || '').trim().toLowerCase();
@@ -244,6 +251,7 @@ async function callHscoin(path, { method = 'GET', body, headers = {}, requireAut
     const message = data?.message || `HScoin API ${response.status}`;
     const error = new Error(message);
     error.response = data;
+    error.status = response.status;
     throw error;
   }
 
@@ -614,10 +622,410 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     value: Number(value) || 0,
   };
 
-  const response = await callHscoin('/contract', {
+  const callId = await recordHscoinContractCall({
+    method,
+    caller: normalizedCaller,
+    payload,
+  });
+
+  try {
+    const response = await invokeHscoinContract(payload);
+    await markHscoinCallSuccess(callId, response);
+    return {
+      callId,
+      status: 'SUCCESS',
+      result: response?.data || response,
+    };
+  } catch (error) {
+    const retryable = shouldRetryHscoinError(error);
+    await markHscoinCallFailure(callId, error, {
+      retryable,
+      currentRetries: 0,
+      maxRetries: HSCOIN_MAX_RETRY,
+    });
+    if (retryable) {
+      const apiError = ApiError.serviceUnavailable(
+        'HScoin đang tạm gián đoạn. Yêu cầu burn đã được xếp hàng để thử lại tự động.'
+      );
+      apiError.hscoinCallId = callId;
+      apiError.hscoinStatus = 'QUEUED';
+      throw apiError;
+    }
+    const apiError = ApiError.badRequest(error.message || 'Không thể thực thi hợp đồng HScoin.');
+    apiError.hscoinCallId = callId;
+    apiError.hscoinStatus = 'FAILED';
+    throw apiError;
+  }
+}
+
+export async function listHscoinContractCalls({ caller, limit = 20 }) {
+  if (!caller) {
+    throw ApiError.badRequest('Thiếu caller');
+  }
+  const normalizedCaller = normalizeAddress(caller);
+  await ensureHscoinCallTable();
+  const [rows] = await pool.query(
+    `
+    select callId, method, callerAddress, status, retries, maxRetries, lastError, lastResponse, nextRunAt, createdAt, updatedAt
+    from HscoinContractCall
+    where callerAddress = ?
+    order by createdAt desc
+    limit ?
+    `,
+    [normalizedCaller, Math.max(1, Math.min(Number(limit) || 20, 100))]
+  );
+  return rows.map((row) => ({
+    ...row,
+    callerAddress: row.callerAddress?.toLowerCase(),
+    nextRunAt: row.nextRunAt ? new Date(row.nextRunAt).toISOString() : null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+  }));
+}
+
+export async function listHscoinAlerts({ severity, limit = 50 }) {
+  await ensureHscoinAlertTable();
+  const params = [];
+  let where = '';
+  if (severity) {
+    where = 'where severity = ?';
+    params.push(severity);
+  }
+  params.push(Math.max(1, Math.min(Number(limit) || 50, 200)));
+  const [rows] = await pool.query(
+    `
+    select alertId, callId, severity, message, metadata, acknowledged, createdAt
+    from HscoinAlertLog
+    ${where}
+    order by createdAt desc
+    limit ?
+    `,
+    params
+  );
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    metadata: row.metadata ? safeJsonParse(row.metadata) : null,
+  }));
+}
+
+function safeJsonParse(payload) {
+  if (!payload) return null;
+  if (typeof payload === 'object') return payload;
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return null;
+  }
+}
+
+async function findOrderIdForCall(callId) {
+  const [rows] = await pool.query(
+    `
+    select orderId
+    from HscoinContractCall
+    where callId = ?
+    limit 1
+    `,
+    [callId]
+  );
+  return rows[0]?.orderId || null;
+}
+
+async function getOrderParticipants(orderId) {
+  const [rows] = await pool.query(
+    `
+    select so.customerId, p.supplierId as sellerId
+    from SalesOrder so
+    join OrderDetail od on od.salesOrderId = so.salesOrderId
+    join Product p on p.productId = od.productId
+    where so.salesOrderId = ?
+    limit 1
+    `,
+    [orderId]
+  );
+  return rows[0] || null;
+}
+
+async function insertNotificationEntry({ userId, content, relatedId }) {
+  if (!userId || !content) return;
+  await pool.query(
+    `
+    insert into Notification (userId, content, type, isRead, relatedId)
+    values (?, ?, 'hscoin', 0, ?)
+    `,
+    [userId, content, relatedId || null]
+  );
+}
+
+async function notifyHscoinParticipants(orderId, status, { callId, error } = {}) {
+  if (!orderId) return;
+  const participants = await getOrderParticipants(orderId);
+  if (!participants) return;
+  const baseMessage =
+    status === 'SUCCESS'
+      ? `Đơn #${orderId}: phí HScoin đã được burn thành công.`
+      : `Đơn #${orderId}: burn HScoin thất bại. ${error ? `Chi tiết: ${error}` : ''}`;
+  await Promise.all(
+    [participants.customerId, participants.sellerId].filter(Boolean).map((userId) =>
+      insertNotificationEntry({ userId, content: baseMessage, relatedId: orderId })
+    )
+  );
+}
+
+export async function attachOrderToHscoinCall(callId, orderId) {
+  if (!callId || !orderId) return;
+  await ensureHscoinCallTable();
+  await pool.query(
+    `
+    update HscoinContractCall
+    set orderId = ?
+    where callId = ?
+    `,
+    [orderId, callId]
+  );
+}
+
+async function ensureHscoinCallTable() {
+  if (hasHscoinCallTable) return;
+  await pool.query(
+    `
+    create table if not exists HscoinContractCall (
+      callId int primary key auto_increment,
+      method varchar(64) not null,
+      callerAddress varchar(66) not null,
+      payload longtext not null,
+      status enum('PENDING','PROCESSING','SUCCESS','FAILED','QUEUED') not null default 'PENDING',
+      retries int not null default 0,
+      maxRetries int not null default ${HSCOIN_MAX_RETRY},
+      lastError text null,
+      lastResponse longtext null,
+      nextRunAt datetime null,
+      orderId int null,
+      createdAt timestamp default current_timestamp,
+      updatedAt timestamp default current_timestamp on update current_timestamp
+    ) engine=InnoDB
+    `
+  );
+  await pool
+    .query(
+      `
+      alter table HscoinContractCall
+      add column orderId int null
+      `
+    )
+    .catch((error) => {
+      if (error.code !== 'ER_DUP_FIELDNAME') {
+        throw error;
+      }
+    });
+  hasHscoinCallTable = true;
+}
+
+async function ensureHscoinAlertTable() {
+  if (hasHscoinAlertTable) return;
+  await pool.query(
+    `
+    create table if not exists HscoinAlertLog (
+      alertId int primary key auto_increment,
+      callId int null,
+      severity enum('info','warning','critical') not null default 'info',
+      message text not null,
+      metadata json null,
+      acknowledged tinyint(1) not null default 0,
+      createdAt timestamp default current_timestamp
+    ) engine=InnoDB
+    `
+  );
+  hasHscoinAlertTable = true;
+}
+
+async function recordHscoinAlert({ callId, severity, message, metadata }) {
+  await ensureHscoinAlertTable();
+  await pool.query(
+    `
+    insert into HscoinAlertLog (callId, severity, message, metadata)
+    values (?, ?, ?, ?)
+    `,
+    [callId || null, severity || 'info', message, metadata ? JSON.stringify(metadata) : null]
+  );
+}
+
+async function recordHscoinContractCall({ method, caller, payload }) {
+  await ensureHscoinCallTable();
+  const [result] = await pool.query(
+    `
+    insert into HscoinContractCall (method, callerAddress, payload, status, maxRetries)
+    values (?, ?, ?, 'PROCESSING', ?)
+    `,
+    [method, caller, JSON.stringify(payload), HSCOIN_MAX_RETRY]
+  );
+  return result.insertId;
+}
+
+async function markHscoinCallSuccess(callId, response, { orderId } = {}) {
+  await pool.query(
+    `
+    update HscoinContractCall
+    set status = 'SUCCESS',
+        lastResponse = ?
+    where callId = ?
+    `,
+    [response ? JSON.stringify(response) : null, callId]
+  );
+  const resolvedOrderId = orderId || (await findOrderIdForCall(callId));
+  if (resolvedOrderId) {
+    await notifyHscoinParticipants(resolvedOrderId, 'SUCCESS', {
+      callId,
+    });
+  }
+}
+
+function shouldRetryHscoinError(error) {
+  if (!error) return true;
+  const retryableStatus = new Set([0, 405, 408, 425, 429, 500, 502, 503, 504]);
+  if (error.status == null) return true;
+  return retryableStatus.has(Number(error.status));
+}
+
+function computeRetryDelayMs(attempt) {
+  const capped = Math.min(Number(attempt) || 1, 5);
+  return HSCOIN_RETRY_DELAY_MS * Math.pow(2, capped - 1);
+}
+
+async function markHscoinCallFailure(
+  callId,
+  error,
+  { retryable, currentRetries, maxRetries = HSCOIN_MAX_RETRY, orderId } = {}
+) {
+  const message = error?.message || 'HScoin contract call failed';
+  const nextRetryCount = (Number(currentRetries) || 0) + 1;
+  const retryLimit = Math.max(1, Number(maxRetries) || HSCOIN_MAX_RETRY);
+  const canRetry = retryable && nextRetryCount < retryLimit;
+  const nextRunAt = canRetry ? new Date(Date.now() + computeRetryDelayMs(nextRetryCount)) : null;
+  await pool.query(
+    `
+    update HscoinContractCall
+    set status = ?,
+        retries = ?,
+        lastError = ?,
+        nextRunAt = ?
+    where callId = ?
+    `,
+    [canRetry ? 'QUEUED' : 'FAILED', nextRetryCount, message, nextRunAt, callId]
+  );
+
+  if (!canRetry) {
+    await recordHscoinAlert({
+      callId,
+      severity: 'critical',
+      message: `HScoin call #${callId} thất bại hoàn toàn: ${message}`,
+      metadata: { retries: nextRetryCount, errorStatus: error?.status ?? null },
+    });
+    const resolvedOrderId = orderId || (await findOrderIdForCall(callId));
+    if (resolvedOrderId) {
+      await notifyHscoinParticipants(resolvedOrderId, 'FAILED', {
+        callId,
+        error: message,
+      });
+    }
+  } else if (nextRetryCount === retryLimit - 1) {
+    await recordHscoinAlert({
+      callId,
+      severity: 'warning',
+      message: `HScoin call #${callId} sắp vượt ngưỡng retry (${nextRetryCount}/${retryLimit})`,
+      metadata: { nextRunAt, error: message },
+    });
+  }
+}
+
+async function invokeHscoinContract(payload) {
+  return callHscoin(HSCOIN_CONTRACT_ENDPOINT, {
     method: 'POST',
     body: payload,
     requireAuth: true,
   });
-  return response?.data || response;
 }
+
+async function fetchPendingHscoinCalls(limit = 5) {
+  await ensureHscoinCallTable();
+  const [rows] = await pool.query(
+    `
+    select *
+    from HscoinContractCall
+    where status in ('PENDING','QUEUED')
+      and retries < maxRetries
+      and (nextRunAt is null or nextRunAt <= now())
+    order by createdAt asc
+    limit ?
+    `,
+    [limit]
+  );
+  return rows;
+}
+
+async function processHscoinQueueBatch() {
+  const jobs = await fetchPendingHscoinCalls();
+  for (const job of jobs) {
+    const [lock] = await pool.query(
+      `
+      update HscoinContractCall
+      set status = 'PROCESSING'
+      where callId = ? and status in ('PENDING','QUEUED')
+      `,
+      [job.callId]
+    );
+    if (lock.affectedRows === 0) {
+      continue;
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(job.payload);
+    } catch {
+      payload = null;
+    }
+
+    if (!payload) {
+      await markHscoinCallFailure(job.callId, new Error('Payload không hợp lệ'), {
+        retryable: false,
+        currentRetries: job.retries,
+        maxRetries: job.maxRetries,
+      });
+      continue;
+    }
+
+    try {
+      const response = await invokeHscoinContract(payload);
+      await markHscoinCallSuccess(job.callId, response, { orderId: job.orderId });
+    } catch (error) {
+      const retryable = shouldRetryHscoinError(error);
+      await markHscoinCallFailure(job.callId, error, {
+        retryable,
+        currentRetries: job.retries,
+        maxRetries: job.maxRetries,
+        orderId: job.orderId,
+      });
+    }
+  }
+}
+
+function startHscoinQueueWorker() {
+  if (hscoinWorkerTimer || HSCOIN_WORKER_INTERVAL_MS <= 0) {
+    return;
+  }
+  const runner = async () => {
+    try {
+      await processHscoinQueueBatch();
+    } catch (error) {
+      console.error('[HScoin] Queue worker error:', error);
+    }
+  };
+  hscoinWorkerTimer = setInterval(runner, HSCOIN_WORKER_INTERVAL_MS);
+  if (typeof hscoinWorkerTimer.unref === 'function') {
+    hscoinWorkerTimer.unref();
+  }
+  runner().catch((error) => console.error('[HScoin] Initial queue run error:', error));
+}
+
+startHscoinQueueWorker();

@@ -87,3 +87,35 @@ export async function executeSimpleToken(req, res, next) {
     return next(error);
   }
 }
+
+export async function listSimpleTokenHistory(req, res, next) {
+  try {
+    const caller = req.body.caller || req.query.caller;
+    const limit = req.body.limit || req.query.limit;
+    const data = await blockchainService.listHscoinContractCalls({ caller, limit });
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy lịch sử HScoin thành công',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listSimpleTokenAlerts(req, res, next) {
+  try {
+    const payload = {
+      severity: req.body.severity || req.query.severity,
+      limit: req.body.limit || req.query.limit,
+    };
+    const data = await blockchainService.listHscoinAlerts(payload);
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách cảnh báo HScoin thành công',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}

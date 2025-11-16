@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
 import { fetchMyOrders } from '../../../lib/api';
-import { Package, Truck, ExternalLink, Loader2, Shield } from 'lucide-react';
+import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lucide-react';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const HSCOIN_CONTRACT_URL = 'https://hsc-w3oq.onrender.com/auth/contract.html';
@@ -87,6 +87,11 @@ export default function OrdersPage() {
             ) : (
               <Truck size={16} className="inline mr-1" />
             );
+          const hscoinCall = order.hscoinCall;
+          const hscoinStatus = hscoinCall?.status || order.escrow?.status || 'LOCKED';
+          const nextRunText = hscoinCall?.nextRunAt
+            ? new Date(hscoinCall.nextRunAt).toLocaleString('vi-VN')
+            : 'Đang chờ HScoin';
 
           return (
             <Card key={order.orderId}>
@@ -144,21 +149,42 @@ export default function OrdersPage() {
                       <Shield size={14} /> Escrow HScoin
                     </div>
                     <p>
-                      Trạng thái: <strong>{order.escrow?.status || 'LOCKED'}</strong>
+                      Trạng thái: <strong>{hscoinStatus}</strong>
                     </p>
-                    <p>
-                      Tx Hash:{' '}
-                      <button
-                        type="button"
-                        onClick={() => copyHash(order.escrow?.txHash)}
-                        className="font-mono text-xs text-primary underline"
-                      >
-                        {order.escrow?.txHash?.slice(0, 12)}…
-                      </button>
-                    </p>
-                    <p>
-                      Block #{order.escrow?.blockNumber} · {order.escrow?.network}
-                    </p>
+                    {hscoinCall?.status === 'QUEUED' && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertTriangle size={12} /> Lần thử tiếp: {nextRunText}
+                      </p>
+                    )}
+                    {hscoinCall?.status === 'FAILED' && (
+                      <p className="text-xs text-rose-600 flex items-center gap-1">
+                        <AlertTriangle size={12} /> Lỗi: {hscoinCall.lastError || 'HScoin từ chối giao dịch.'}
+                      </p>
+                    )}
+                    {hscoinCall?.callId && (
+                      <p className="text-xs">HScoin call ID: #{hscoinCall.callId}</p>
+                    )}
+                    {order.escrow?.txHash ? (
+                      <>
+                        <p>
+                          Tx Hash:{' '}
+                          <button
+                            type="button"
+                            onClick={() => copyHash(order.escrow?.txHash)}
+                            className="font-mono text-xs text-primary underline"
+                          >
+                            {order.escrow?.txHash?.slice(0, 12)}…
+                          </button>
+                        </p>
+                        <p>
+                          Block #{order.escrow?.blockNumber || '—'} · {order.escrow?.network || 'HScoin'}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-600">
+                        Chưa có hash on-chain. Lệnh burn sẽ tự cập nhật khi HScoin xử lý xong.
+                      </p>
+                    )}
                     <Link
                       href={HSCOIN_CONTRACT_URL}
                       target="_blank"

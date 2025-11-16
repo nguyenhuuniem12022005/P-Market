@@ -3,6 +3,11 @@ import crypto from 'crypto';
 import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
 
+const PASSWORD_RESET_TOKEN_EXPIRES_MINUTES = Math.max(
+  5,
+  Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES || 30)
+);
+
 const WALLET_ENCRYPTION_KEY = crypto
   .createHash('sha256')
   .update(process.env.WALLET_ENCRYPTION_KEY || process.env.SECRET_KEY || 'pmarket-wallet-secret')
@@ -103,6 +108,79 @@ export async function resetPassword(email, password) {
         set passwordHash = ?
         where email = ?
     `, [passwordHash, email]);
+}
+
+export async function setPasswordForUser(userId, password) {
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
+  await pool.query(
+    `
+    update User
+    set passwordHash = ?
+    where userId = ?
+    `,
+    [passwordHash, userId]
+  );
+}
+
+export async function createPasswordResetRequest(email) {
+  const [users] = await pool.query(
+    `
+    select userId, email, firstName, lastName
+    from User
+    where email = ?
+    limit 1
+    `,
+    [email]
+  );
+  if (users.length === 0) {
+    throw ApiError.notFound('Email chưa được đăng ký');
+  }
+  const user = users[0];
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRES_MINUTES * 60 * 1000);
+  await pool.query(
+    `
+    insert into PasswordResetToken (userId, token, expiresAt)
+    values (?, ?, ?)
+    `,
+    [user.userId, token, expiresAt]
+  );
+  return { token, user, expiresAt };
+}
+
+export async function verifyPasswordResetToken(token) {
+  const [rows] = await pool.query(
+    `
+    select *
+    from PasswordResetToken
+    where token = ?
+    limit 1
+    `,
+    [token]
+  );
+  const entry = rows[0];
+  if (!entry) {
+    throw ApiError.badRequest('Mã xác nhận không hợp lệ');
+  }
+  if (entry.usedAt) {
+    throw ApiError.badRequest('Mã xác nhận đã được sử dụng');
+  }
+  if (entry.expiresAt && new Date(entry.expiresAt) < new Date()) {
+    throw ApiError.badRequest('Mã xác nhận đã hết hạn');
+  }
+  return entry;
+}
+
+export async function markPasswordResetUsed(resetId) {
+  await pool.query(
+    `
+    update PasswordResetToken
+    set usedAt = now()
+    where resetId = ?
+    `,
+    [resetId]
+  );
 }
 
 export async function updateUserName(userId, userName) {

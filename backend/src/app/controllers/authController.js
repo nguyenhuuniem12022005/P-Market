@@ -1,5 +1,6 @@
 import * as authService from '../services/authService.js';
 import * as userService from '../services/userService.js';
+import * as passwordResetService from '../services/passwordResetService.js';
 
 // ======================= ĐĂNG KÝ =======================
 export async function register(req, res) {
@@ -115,5 +116,32 @@ export async function resetPassword(req, res) {
       success: false,
       message: error.message || 'Không thể thay đổi mật khẩu!',
     });
+  }
+}
+
+export async function requestPasswordReset(req, res, next) {
+  try {
+    const { email } = req.body;
+    const data = await passwordResetService.requestPasswordReset(email);
+    return res.status(200).json({
+      success: true,
+      message: 'Đã gửi hướng dẫn đặt lại mật khẩu qua email.',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function confirmPasswordReset(req, res, next) {
+  try {
+    const { token, password } = req.body;
+    await passwordResetService.confirmPasswordReset(token, password);
+    return res.status(200).json({
+      success: true,
+      message: 'Đã cập nhật mật khẩu mới. Vui lòng đăng nhập lại.',
+    });
+  } catch (error) {
+    return next(error);
   }
 }

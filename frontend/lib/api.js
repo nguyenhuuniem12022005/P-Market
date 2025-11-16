@@ -260,6 +260,41 @@ export async function executeSimpleToken(payload) {
   }
 }
 
+export async function createEscrowOrder(payload) {
+  try {
+    const res = await axios.post(`${API_URL}/orders`, payload, {
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+    });
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchSimpleTokenHistory(caller, limit = 20) {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/simple-token/history`, {
+      params: { caller, limit },
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchSimpleTokenAlerts(params = {}) {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/simple-token/alerts`, {
+      params,
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function adjustReputationScore(amount) {
   try {
     const res = await axios.patch(
