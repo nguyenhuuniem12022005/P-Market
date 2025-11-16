@@ -15,8 +15,8 @@ const removeAccents = (str = "") =>
   str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/?/g, "d")
-    .replace(/?/g, "D");
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
 
 const sanitizeSlug = (str = "") =>
   removeAccents(str)
