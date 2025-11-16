@@ -16,7 +16,7 @@ productRouter.get(
 );
 
 productRouter.get(
-    '/:id',
+    '/:id(\\d+)',
     productController.getProductById
 );
 
