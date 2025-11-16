@@ -598,12 +598,18 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
   }
 
+  const normalizedArgs = Array.isArray(args) ? args : [args];
+  let finalArgs = normalizedArgs;
+  if (method?.toLowerCase() === 'burn' && normalizedArgs.length === 1) {
+    finalArgs = [normalizedCaller, normalizedArgs[0]];
+  }
+
   const payload = {
     contractAddress: SIMPLE_TOKEN_ADDRESS,
     callerAddress: normalizedCaller,
     inputData: {
       function: method,
-      args: Array.isArray(args) ? args : [args],
+      args: finalArgs,
     },
     value: Number(value) || 0,
   };
