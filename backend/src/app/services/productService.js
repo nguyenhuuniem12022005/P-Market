@@ -17,6 +17,32 @@ async function ensureProductOwner(productId, supplierId) {
     }
 }
 
+
+async function ensureProductNotTransacted(productId) {
+    const [rows] = await pool.query(
+        `
+        select
+            exists(
+                select 1
+                from OrderDetail od
+                join SalesOrder so on so.salesOrderId = od.salesOrderId
+                where od.productId = ? and so.status <> 'Cancelled'
+            ) as hasOrders,
+            exists(
+                select 1
+                from Review r
+                join OrderDetail od2 on od2.orderDetailId = r.orderDetailId
+                where od2.productId = ?
+            ) as hasReviews
+        `,
+        [productId, productId]
+    );
+    const { hasOrders = 0, hasReviews = 0 } = rows[0] || {};
+    if (hasOrders || hasReviews) {
+        throw ApiError.badRequest('Sản phẩm đã có giao dịch hoặc phản hồi, không thể chỉnh sửa hay xóa.');
+    }
+}
+
 async function ensureEditAvailability(productId, supplierId) {
     const [rows] = await pool.query(
         `
@@ -126,6 +152,7 @@ export async function getProductsBySupplier(supplierId) {
             coalesce(stats.totalOrders, 0) as totalOrders,
             coalesce(stats.totalSold, 0) as totalSold,
             coalesce(stats.totalRevenue, 0) as totalRevenue,
+            coalesce(rev.reviewCount, 0) as reviewCount,
             latest.status as latestAuditStatus,
             latest.note as latestAuditNote,
             latest.createdAt as latestAuditCreatedAt,
@@ -149,6 +176,14 @@ export async function getProductsBySupplier(supplierId) {
             group by productId
         ) inv on inv.productId = p.productId
         left join (
+            select 
+                od.productId, 
+                count(distinct r.reviewId) as reviewCount
+            from Review r
+            join OrderDetail od on od.orderDetailId = r.orderDetailId
+            group by od.productId
+        ) rev on rev.productId = p.productId
+        left join (
             select pa.*
             from ProductAudit pa
             join (
@@ -162,13 +197,25 @@ export async function getProductsBySupplier(supplierId) {
         `,
         [supplierId]
     );
-    return rows.map((row) => ({
-        ...row,
-        complianceDocs: row.complianceDocs ? JSON.parse(row.complianceDocs) : [],
-    }));
+    return rows.map((row) => {
+        const totalOrders = Number(row.totalOrders || 0);
+        const reviewCount = Number(row.reviewCount || 0);
+        const editCount = Number(row.editCount || 0);
+        const canModify = totalOrders === 0 && reviewCount === 0;
+        return {
+            ...row,
+            complianceDocs: row.complianceDocs ? JSON.parse(row.complianceDocs) : [],
+            reviewCount,
+            editCount,
+            canEdit: canModify && editCount < MAX_PRODUCT_EDITS,
+            canDelete: canModify,
+        };
+    });
 }
 
 export async function updateProduct(productId, supplierId, updateData) {
+    await ensureProductOwner(productId, supplierId);
+    await ensureProductNotTransacted(productId);
     await ensureEditAvailability(productId, supplierId);
     // Tạo mảng 'fields' chứa các phần của câu lệnh SET 
     const fields = [];
@@ -250,6 +297,9 @@ export async function updateProductStatus(productId, supplierId, status) {
 }
 
 export async function deleteProduct(productId, supplierId) {
+    await ensureProductOwner(productId, supplierId);
+    await ensureProductNotTransacted(productId);
+    await pool.query(`delete from Store where productId = ?`, [productId]);
     const sql = `
         delete from Product 
         where productId = ? and supplierId = ?
@@ -315,6 +365,16 @@ export async function getProductById(productId) {
         stores: stocks,
         totalQuantity: totalRows[0]?.totalQuantity || 0
     };
+}
+
+export async function getProductForManagement(productId, supplierId) {
+    await ensureProductOwner(productId, supplierId);
+    const products = await getProductsBySupplier(supplierId);
+    const product = products.find((item) => item.productId === Number(productId));
+    if (!product) {
+        throw ApiError.notFound('Không tìm thấy sản phẩm');
+    }
+    return product;
 }
 
 export async function activateProduct(productId) {

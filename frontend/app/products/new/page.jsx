@@ -10,12 +10,17 @@ import ConnectWalletButton from '../../../components/blockchain/ConnectWalletBut
 import { useWallet } from '../../../context/WalletContext';
 import { UploadCloud, Loader2, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
-import { createProduct, updateProduct, addProductToStore, fetchWarehouses, fetchCategories, executeSimpleToken } from '../../../lib/api';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createProduct, updateProduct, addProductToStore, fetchWarehouses, fetchCategories, executeSimpleToken, fetchMyProductDetail } from '../../../lib/api';
+
+const MAX_PRODUCT_EDITS = 3;
 
 export default function CreateProductPage() {
   const { isConnected, walletAddress, connectWallet } = useWallet();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editingProductId = searchParams.get('productId');
+  const isEditing = Boolean(editingProductId);
   
   // Step 1: Product info
   const [images, setImages] = useState([]);
@@ -42,6 +47,12 @@ export default function CreateProductPage() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingStepOne, setIsSavingStepOne] = useState(false);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  const [editMeta, setEditMeta] = useState({
+    editCount: 0,
+    remainingEdits: MAX_PRODUCT_EDITS,
+    canEdit: true,
+  });
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -83,6 +94,42 @@ export default function CreateProductPage() {
     loadCategories();
     loadWarehouses();
   }, []);
+
+  useEffect(() => {
+    if (!editingProductId) return;
+    setIsLoadingProduct(true);
+    (async () => {
+      try {
+        const detail = await fetchMyProductDetail(editingProductId);
+        if (!detail) {
+          throw new Error('Không tìm thấy sản phẩm để chỉnh sửa.');
+        }
+        if (detail.canEdit === false) {
+          toast.error('Sản phẩm này không thể chỉnh sửa sau khi đã có giao dịch/đánh giá.');
+          router.replace('/dashboard/my-products');
+          return;
+        }
+        setCreatedProductId(detail.productId);
+        setTitle(detail.productName || '');
+        setDescription(detail.description || '');
+        setPrice(detail.unitPrice != null ? String(detail.unitPrice) : '');
+        setCategory(detail.categoryId ? String(detail.categoryId) : '');
+        setSize(detail.size || '');
+        setDiscount(detail.discount != null ? String(detail.discount) : '0');
+        setImages(detail.imageURL ? [detail.imageURL] : []);
+        setEditMeta({
+          editCount: Number(detail.editCount || 0),
+          remainingEdits: Math.max(0, MAX_PRODUCT_EDITS - Number(detail.editCount || 0)),
+          canEdit: detail.canEdit !== false,
+        });
+      } catch (error) {
+        toast.error(error.message || 'Không thể tải dữ liệu sản phẩm.');
+        router.replace('/dashboard/my-products');
+      } finally {
+        setIsLoadingProduct(false);
+      }
+    })();
+  }, [editingProductId, router]);
 
   const validateStep1 = () => {
     const newErrors = {};
@@ -136,6 +183,10 @@ export default function CreateProductPage() {
       toast.error('Vui lòng kiểm tra lại thông tin sản phẩm.');
       return;
     }
+    if (isEditing && editMeta.remainingEdits <= 0) {
+      toast.error('Bạn đã hết lượt chỉnh sửa cho sản phẩm này.');
+      return;
+    }
 
     setIsSavingStepOne(true);
     try {
@@ -144,6 +195,13 @@ export default function CreateProductPage() {
       if (createdProductId) {
         await updateProduct(createdProductId, formData);
         toast.success('Đã cập nhật thông tin sản phẩm!');
+        if (isEditing) {
+          setEditMeta((prev) => ({
+            ...prev,
+            editCount: prev.editCount + 1,
+            remainingEdits: Math.max(0, prev.remainingEdits - 1),
+          }));
+        }
       } else {
         const result = await createProduct(formData);
         const newProductId = result?.product?.productId;
@@ -221,6 +279,19 @@ export default function CreateProductPage() {
 
   return (
     <Container className="py-8">
+      {isEditing && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Đang chỉnh sửa sản phẩm #{editingProductId}</p>
+          <p>Còn {editMeta.remainingEdits} / {MAX_PRODUCT_EDITS} lượt cập nhật nội dung.</p>
+        </div>
+      )}
+      {isEditing && isLoadingProduct ? (
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="p-6 flex items-center gap-2 text-sm text-gray-600">
+            <Loader2 className="animate-spin" size={16} /> Đang tải dữ liệu sản phẩm...
+          </CardContent>
+        </Card>
+      ) : (
       <form onSubmit={step === 2 ? handleSubmit : (e) => e.preventDefault()}>
         <Card className="max-w-2xl mx-auto shadow-lg">
           <CardHeader>
@@ -434,6 +505,7 @@ export default function CreateProductPage() {
           </CardFooter>
         </Card>
       </form>
+      )}
     </Container>
   );
 }

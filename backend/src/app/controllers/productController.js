@@ -35,25 +35,29 @@ export async function searchProducts(req, res) {
     });
 }
 
-export async function updateProduct(req, res) {
-    const productId = req.params.id;
-    const supplierId = req.user.userId;
-    const imageURL = req.file ? `/uploads/${req.file.filename}` : undefined;
+export async function updateProduct(req, res, next) {
+    try {
+        const productId = req.params.id;
+        const supplierId = req.user.userId;
+        const imageURL = req.file ? `/uploads/${req.file.filename}` : undefined;
 
-    const updatePayload = {
-        ...req.body
-    };
+        const updatePayload = {
+            ...req.body
+        };
 
-    if (imageURL !== undefined) {
-        updatePayload.imageURL = imageURL;
+        if (imageURL !== undefined) {
+            updatePayload.imageURL = imageURL;
+        }
+
+        await productService.updateProduct(productId, supplierId, updatePayload);
+
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật sản phẩm thành công!'
+        });
+    } catch (error) {
+        next(error);
     }
-
-    await productService.updateProduct(productId, supplierId, updatePayload);
-
-    res.status(200).json({
-        success: true,
-        message: 'Cập nhật sản phẩm thành công!'
-    });
 }
 
 export async function updateProductStatus(req, res) {
@@ -68,16 +72,20 @@ export async function updateProductStatus(req, res) {
     });
 }
 
-export async function deleteProduct(req, res) {
-    const productId = req.params.id;
-    const supplierId = req.user.userId;
+export async function deleteProduct(req, res, next) {
+    try {
+        const productId = req.params.id;
+        const supplierId = req.user.userId;
 
-    await productService.deleteProduct(productId, supplierId);
+        await productService.deleteProduct(productId, supplierId);
 
-    res.status(200).json({
-        success: true,
-        message: 'Xóa sản phẩm thành công!'
-    });
+        res.status(200).json({
+            success: true,
+            message: 'Xóa sản phẩm thành công!'
+        });
+    } catch (error) {
+        next(error);
+    }
 }
 
 export async function getProductById(req, res) {
@@ -162,4 +170,18 @@ export async function listMyProducts(req, res) {
         message: 'Lấy danh sách sản phẩm của bạn thành công',
         products,
     });
+}
+
+export async function getProductManagementDetail(req, res, next) {
+    try {
+        const supplierId = req.user.userId;
+        const productId = Number(req.params.id);
+        const product = await productService.getProductForManagement(productId, supplierId);
+        res.status(200).json({
+            success: true,
+            data: product,
+        });
+    } catch (error) {
+        next(error);
+    }
 }

@@ -29,6 +29,12 @@ productRouter.get(
 );
 
 productRouter.get(
+    '/:id/manage',
+    checkProductIdExists,
+    productController.getProductManagementDetail
+);
+
+productRouter.get(
     '/audits/pending',
     productController.listPendingAudits
 );

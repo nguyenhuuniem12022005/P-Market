@@ -5,8 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { ClipboardList, MoveRight, PackageCheck, ShieldCheck, Clock, Loader2 } from 'lucide-react';
-import { fetchMyProducts, requestProductAudit } from '../../../lib/api';
+import { ClipboardList, MoveRight, PackageCheck, ShieldCheck, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { fetchMyProducts, requestProductAudit, deleteProduct } from '../../../lib/api';
+import { useRouter } from 'next/navigation';
+
+const MAX_PRODUCT_EDITS = 3;
 
 const statusConfig = {
   Draft: { label: 'Nháp', className: 'bg-gray-100 text-gray-700' },
@@ -31,6 +34,8 @@ export default function MyProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const router = useRouter();
 
   useEffect(() => {
     async function loadProducts() {
@@ -79,6 +84,26 @@ export default function MyProductsPage() {
       toast.error(err.message || 'Không thể cập nhật trạng thái.');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleEditProduct = (productId) => {
+    router.push(`/products/new?productId=${productId}`);
+  };
+
+  const handleDeleteProduct = async (product) => {
+    if (!window.confirm('Bạn chắc chắn muốn xóa bài đăng này? Hành động không thể hoàn tác.')) {
+      return;
+    }
+    try {
+      setDeletingId(product.productId);
+      await deleteProduct(product.productId);
+      toast.success('Đã xóa sản phẩm khỏi marketplace.');
+      setProducts((prev) => prev.filter((item) => item.productId !== product.productId));
+    } catch (err) {
+      toast.error(err.message || 'Không thể xóa sản phẩm.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -164,12 +189,17 @@ export default function MyProductsPage() {
                   className="h-24 w-24 rounded-lg object-cover border border-gray-100"
                 />
                 <div className="flex-1 space-y-2">
-                  <div className="text-sm text-gray-600">
-                    <p>Giá niêm yết: <span className="font-semibold text-gray-900">{currency.format(product.unitPrice || 0)}</span></p>
-                    <p>Kho hiện có: <span className="font-semibold">{numberFormat.format(product.totalQuantity || 0)} đơn vị</span></p>
-                    <p>Đã bán: <span className="font-semibold">{numberFormat.format(product.totalSold || 0)} sản phẩm</span></p>
-                    <p>Doanh thu ước tính: <span className="font-semibold text-primary">{currency.format(product.totalRevenue || 0)}</span></p>
-                  </div>
+                <div className="text-sm text-gray-600">
+                  <p>Giá niêm yết: <span className="font-semibold text-gray-900">{currency.format(product.unitPrice || 0)}</span></p>
+                  <p>Kho hiện có: <span className="font-semibold">{numberFormat.format(product.totalQuantity || 0)} đơn vị</span></p>
+                  <p>Đã bán: <span className="font-semibold">{numberFormat.format(product.totalSold || 0)} sản phẩm</span></p>
+                  <p>Doanh thu ước tính: <span className="font-semibold text-primary">{currency.format(product.totalRevenue || 0)}</span></p>
+                  <p>
+                    Đã chỉnh sửa: <span className="font-semibold">{product.editCount || 0}/{MAX_PRODUCT_EDITS}</span> ·
+                    Đơn hàng: <span className="font-semibold">{numberFormat.format(product.totalOrders || 0)}</span> ·
+                    Đánh giá: <span className="font-semibold">{numberFormat.format(product.reviewCount || 0)}</span>
+                  </p>
+                </div>
                   {product.latestAuditStatus && (
                     <div className="text-xs rounded-md border border-dashed border-gray-200 p-3 text-gray-600 bg-gray-50">
                       <p className="font-semibold text-gray-800">
@@ -200,6 +230,45 @@ export default function MyProductsPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 w-full md:w-auto">
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditProduct(product.productId)}
+                      disabled={!product.canEdit || deletingId === product.productId}
+                    >
+                      <Pencil size={14} className="mr-2" />{' '}
+                      {product.canEdit
+                        ? `Chỉnh sửa (còn ${Math.max(0, MAX_PRODUCT_EDITS - Number(product.editCount || 0))}/3)`
+                        : 'Không thể chỉnh sửa'}
+                    </Button>
+                    {!product.canEdit && (
+                      <p className="text-xs text-gray-500">
+                        Đã hết lượt chỉnh sửa hoặc sản phẩm đã phát sinh giao dịch.
+                      </p>
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDeleteProduct(product)}
+                      disabled={!product.canDelete || deletingId === product.productId}
+                    >
+                      {deletingId === product.productId ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="animate-spin" size={14} /> Đang xóa...
+                        </span>
+                      ) : (
+                        <>
+                          <Trash2 size={14} className="mr-1" /> Xóa bài đăng
+                        </>
+                      )}
+                    </Button>
+                    {!product.canDelete && (
+                      <p className="text-xs text-gray-500">
+                        Sản phẩm đã có đơn hàng/đánh giá nên không thể xóa.
+                      </p>
+                    )}
+                  </div>
                   {product.status === 'Draft' && (
                     <Button
                       size="sm"

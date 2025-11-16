@@ -427,6 +427,17 @@ export async function fetchMyProducts() {
   }
 }
 
+export async function fetchMyProductDetail(productId) {
+  try {
+    const res = await axios.get(`${API_URL}/products/${productId}/manage`, {
+      headers: authHeader(),
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function updateProductStatus(productId, status) {
   try {
     const res = await axios.patch(
