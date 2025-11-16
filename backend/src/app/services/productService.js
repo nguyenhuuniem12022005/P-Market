@@ -2,6 +2,31 @@ import pool from "../../configs/mysql.js";
 import ApiError from "../../utils/classes/api-error.js";
 
 const MAX_PRODUCT_EDITS = 3;
+let hasEnsuredStatusEnum = false;
+
+async function ensureProductStatusEnum() {
+    if (hasEnsuredStatusEnum) return;
+    const [rows] = await pool.query(
+        `
+        select column_type
+        from information_schema.columns
+        where table_schema = database()
+          and table_name = 'Product'
+          and column_name = 'status'
+        limit 1
+        `
+    );
+    const columnType = rows[0]?.column_type?.toLowerCase?.() || rows[0]?.COLUMN_TYPE?.toLowerCase?.() || '';
+    if (!columnType.includes("'draft'") || !columnType.includes("'pending'")) {
+        await pool.query(
+            `
+            alter table Product
+            modify column status enum('Draft','Pending','Active','Sold') not null default 'Draft'
+            `
+        );
+    }
+    hasEnsuredStatusEnum = true;
+}
 
 async function ensureProductOwner(productId, supplierId) {
     const [rows] = await pool.query(
@@ -63,6 +88,7 @@ async function ensureEditAvailability(productId, supplierId) {
 }
 // Đăng bài
 export async function createProduct(productData, supplierId) {
+    await ensureProductStatusEnum();
     const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
 
     const sql = `
@@ -287,6 +313,7 @@ export async function updateProduct(productId, supplierId, updateData) {
 }
 
 export async function updateProductStatus(productId, supplierId, status) {
+    await ensureProductStatusEnum();
     const sql = `
         update Product 
         set status = ?
@@ -378,6 +405,7 @@ export async function getProductForManagement(productId, supplierId) {
 }
 
 export async function activateProduct(productId) {
+    await ensureProductStatusEnum();
     await pool.query(`
         update Product
         set status = 'Active'
@@ -386,6 +414,7 @@ export async function activateProduct(productId) {
 }
 
 export async function requestProductAudit(productId, supplierId, { note = '', attachments = [] }) {
+    await ensureProductStatusEnum();
     await ensureProductOwner(productId, supplierId);
     const serializedAttachments = attachments?.length ? JSON.stringify(attachments) : null;
     const [result] = await pool.query(
@@ -424,6 +453,7 @@ export async function getProductAudits(productId) {
 }
 
 export async function reviewProductAudit(productId, auditId, reviewerId, { status, note }) {
+    await ensureProductStatusEnum();
     const [audits] = await pool.query(
         `
         select *
