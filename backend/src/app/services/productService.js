@@ -2,6 +2,33 @@ import pool from "../../configs/mysql.js";
 import ApiError from "../../utils/classes/api-error.js";
 
 const MAX_PRODUCT_EDITS = 3;
+let hasPatchedEditColumn = false;
+
+async function ensureEditCountColumn() {
+    if (hasPatchedEditColumn) {
+        return;
+    }
+    const [rows] = await pool.query(
+        `
+        select 1
+        from information_schema.columns
+        where table_schema = database()
+          and table_name = 'Product'
+          and column_name = 'editCount'
+        limit 1
+        `
+    );
+    if (rows.length === 0) {
+        await pool.query(
+            `
+            alter table Product
+            add column editCount tinyint unsigned not null default 0
+            after complianceDocs
+            `
+        );
+    }
+    hasPatchedEditColumn = true;
+}
 
 async function ensureProductOwner(productId, supplierId) {
     const [rows] = await pool.query(
@@ -63,6 +90,7 @@ async function ensureEditAvailability(productId, supplierId) {
 }
 // Đăng bài
 export async function createProduct(productData, supplierId) {
+    await ensureEditCountColumn();
     const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
 
     const sql = `
@@ -143,6 +171,7 @@ export async function searchProducts(searchTerm, categoryId = null) {
 }
 
 export async function getProductsBySupplier(supplierId) {
+    await ensureEditCountColumn();
     const [rows] = await pool.query(
         `
         select 
@@ -214,6 +243,7 @@ export async function getProductsBySupplier(supplierId) {
 }
 
 export async function updateProduct(productId, supplierId, updateData) {
+    await ensureEditCountColumn();
     await ensureProductOwner(productId, supplierId);
     await ensureProductNotTransacted(productId);
     await ensureEditAvailability(productId, supplierId);
@@ -297,6 +327,7 @@ export async function updateProductStatus(productId, supplierId, status) {
 }
 
 export async function deleteProduct(productId, supplierId) {
+    await ensureEditCountColumn();
     await ensureProductOwner(productId, supplierId);
     await ensureProductNotTransacted(productId);
     await pool.query(`delete from Store where productId = ?`, [productId]);
