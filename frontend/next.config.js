@@ -16,6 +16,16 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'p-market.onrender.com',
+        pathname: '/uploads/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'p-market-1.onrender.com',
+        pathname: '/uploads/**', // phòng trường hợp ảnh nằm ngay frontend
+      },
     ],
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
