@@ -1,14 +1,22 @@
-﻿import axios from "axios";
+import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "http://localhost:3001";
+const API_URL = RAW_API_URL.replace(/\/$/, "");
+
+function resolveBrowserBaseUrl() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+  return null;
+}
 
 // ===================== CATEGORY HELPERS =====================
 const removeAccents = (str = "") =>
   str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
+    .replace(/�/g, "d")
+    .replace(/�/g, "D");
 
 const sanitizeSlug = (str = "") =>
   removeAccents(str)
@@ -35,11 +43,11 @@ export const buildAvatarUrl = (src) => {
   if (/^(https?:|data:)/i.test(trimmed) || trimmed.startsWith("//")) return trimmed;
 
   const cleaned = trimmed.replace(/^public\//i, "").replace(/^\/+/, "");
-  const base = API_URL.replace(/\/$/, "");
+    const base = resolveBrowserBaseUrl() || API_URL;
   return `${base}/${cleaned}`;
 };
 
-// ===================== TOKEN QUẢN LÝ =====================
+// ===================== TOKEN QU?N L? =====================
 export const setAuthToken = (token) => {
   if (typeof window !== "undefined") {
     localStorage.setItem("pmarket_token", token);
@@ -65,13 +73,13 @@ function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ===================== XỬ LÝ LỖI AXIOS =====================
+// ===================== X? L? L?I AXIOS =====================
 function handleAxiosError(error) {
   if (error.response) {
-    const message = error.response.data.message || `Lỗi API (${error.response.status})`;
+    const message = error.response.data.message || `L?i API (${error.response.status})`;
     throw new Error(message);
   }
-  throw new Error("Yêu cầu mạng thất bại hoặc lỗi không xác định.");
+  throw new Error("Y�u c?u m?ng th?t b?i ho?c l?i kh�ng x�c �?nh.");
 }
 
 // ===================== AUTH API =====================
@@ -177,12 +185,12 @@ export async function updateUserProfile(profileData = {}) {
     }
 
     if (results.length === 0) {
-      return { success: false, message: "Không có dữ liệu nào để cập nhật." };
+      return { success: false, message: "Kh�ng c� d? li?u n�o �? c?p nh?t." };
     }
 
     return {
       success: true,
-      message: "Cập nhật thông tin cá nhân thành công!",
+      message: "C?p nh?t th�ng tin c� nh�n th�nh c�ng!",
       results,
     };
   } catch (error) {
@@ -362,17 +370,17 @@ export async function getReviewsByProductId(productId) {
   return [
     {
       id: 1,
-      userName: 'Nguyễn Văn A',
+      userName: 'Nguy?n V�n A',
       rating: 5,
-      comment: 'Sản phẩm rất tốt, đúng như mô tả!',
+      comment: 'S?n ph?m r?t t?t, ��ng nh� m� t?!',
       createdAt: '2024-01-15',
       avatar: '/avatar.png'
     },
     {
       id: 2,
-      userName: 'Trần Thị B',
+      userName: 'Tr?n Th? B',
       rating: 4,
-      comment: 'Chất lượng ổn, giao hàng nhanh.',
+      comment: 'Ch?t l�?ng ?n, giao h�ng nhanh.',
       createdAt: '2024-01-10',
       avatar: '/avatar.png'
     }
@@ -707,12 +715,12 @@ export async function fetchCategories() {
     return {
       success: true,
       categories: [
-        { categoryId: 1, categoryName: 'Sách & Văn phòng phẩm' },
-        { categoryId: 2, categoryName: 'Đồ điện tử' },
-        { categoryId: 3, categoryName: 'Thời trang' },
-        { categoryId: 4, categoryName: 'Đồ gia dụng' },
-        { categoryId: 5, categoryName: 'Thể thao & Sức khỏe' },
-        { categoryId: 6, categoryName: 'Khác' }
+        { categoryId: 1, categoryName: 'S�ch & V�n ph?ng ph?m' },
+        { categoryId: 2, categoryName: '�? �i?n t?' },
+        { categoryId: 3, categoryName: 'Th?i trang' },
+        { categoryId: 4, categoryName: '�? gia d?ng' },
+        { categoryId: 5, categoryName: 'Th? thao & S?c kh?e' },
+        { categoryId: 6, categoryName: 'Kh�c' }
       ]
     };
   }

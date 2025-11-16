@@ -4,13 +4,13 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { resolveProductImage } from '../../../lib/image';
 import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
 import { fetchMyOrders } from '../../../lib/api';
 import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lucide-react';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const HSCOIN_CONTRACT_URL = 'https://hsc-w3oq.onrender.com/auth/contract.html';
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 const statusBadge = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -18,11 +18,7 @@ const statusBadge = {
   Cancelled: 'bg-gray-100 text-gray-600',
 };
 
-const buildProductImage = (src) => {
-  if (!src) return '/placeholder.png';
   if (/^(https?:|data:)/i.test(src)) return src;
-  const cleaned = src.replace(/^public\//i, '').replace(/^\/+/, '');
-  return `${API_BASE}/${cleaned}`;
 };
 
 export default function OrdersPage() {

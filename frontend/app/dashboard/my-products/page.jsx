@@ -23,6 +23,7 @@ import {
   fetchSimpleTokenHistory,
   fetchSimpleTokenAlerts,
 } from '../../../lib/api';
+import { resolveProductImage } from '../../../lib/image';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '../../../context/WalletContext';
 import ProductCardSkeleton from '../../../components/dashboard/ProductCardSkeleton';
@@ -35,17 +36,9 @@ const statusConfig = {
   Active: { label: 'Đang bán', className: 'bg-emerald-100 text-emerald-700' },
   Sold: { label: 'Đã bán hết', className: 'bg-primary/10 text-primary' },
 };
-
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const numberFormat = new Intl.NumberFormat('vi-VN');
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 
-const buildProductImage = (src) => {
-  if (!src) return '/placeholder.png';
-  if (/^(https?:|data:)/i.test(src)) return src;
-  const cleaned = src.replace(/^public\//i, '').replace(/^\/+/, '');
-  return `${API_BASE}/${cleaned}`;
-};
 
 export default function MyProductsPage() {
   const [products, setProducts] = useState([]);
@@ -334,7 +327,7 @@ export default function MyProductsPage() {
               </CardHeader>
               <CardContent className="p-4 flex flex-col gap-4 md:flex-row md:items-center">
                 <img
-                  src={buildProductImage(product.imageURL)}
+                  src={resolveProductImage(product)}
                   alt={product.productName}
                   className="h-24 w-24 rounded-lg object-cover border border-gray-100"
                 />

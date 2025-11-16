@@ -1,5 +1,12 @@
-const API_BASE =
+const ENV_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3001';
+
+const getBrowserBase = () => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return null;
+};
 
 const DEFAULT_FALLBACK = 'https://placehold.co/600x400/eee/31343C?text=P-Market';
 
@@ -16,7 +23,8 @@ export const buildAbsoluteImageUrl = (src) => {
 
   const cleaned = trimmed.replace(/^public\//i, '').replace(/\\/g, '/');
   const withLeadingSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
-  return `${API_BASE}${withLeadingSlash}`;
+  const base = getBrowserBase() || ENV_API_BASE;
+  return `${base}${withLeadingSlash}`;
 };
 
 const normalizeImageCandidate = (value) => {
