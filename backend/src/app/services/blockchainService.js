@@ -614,7 +614,7 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     value: Number(value) || 0,
   };
 
-  const response = await callHscoin('/contracts/execute', {
+  const response = await callHscoin('/contract', {
     method: 'POST',
     body: payload,
     requireAuth: true,
