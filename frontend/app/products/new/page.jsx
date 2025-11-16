@@ -199,7 +199,7 @@ export default function CreateProductPage() {
           await executeSimpleToken({
             caller: walletAddress,
             method: 'burn',
-            args: [walletAddress, burnAmount],
+            args: [burnAmount],
             value: 0,
           });
           toast.success('Đã trừ phí đăng bài trên HScoin.');

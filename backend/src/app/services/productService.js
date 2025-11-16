@@ -1,6 +1,8 @@
 import pool from "../../configs/mysql.js"; 
 import ApiError from "../../utils/classes/api-error.js";
 
+const MAX_PRODUCT_EDITS = 3;
+
 async function ensureProductOwner(productId, supplierId) {
     const [rows] = await pool.query(
         `
@@ -14,6 +16,25 @@ async function ensureProductOwner(productId, supplierId) {
         throw ApiError.forbidden('Bạn không có quyền thao tác sản phẩm này');
     }
 }
+
+async function ensureEditAvailability(productId, supplierId) {
+    const [rows] = await pool.query(
+        `
+        select coalesce(editCount, 0) as editCount
+        from Product
+        where productId = ? and supplierId = ?
+        `,
+        [productId, supplierId]
+    );
+    if (rows.length === 0) {
+        throw ApiError.forbidden('Bạn không có quyền thao tác sản phẩm này');
+    }
+    const editCount = Number(rows[0].editCount || 0);
+    if (editCount >= MAX_PRODUCT_EDITS) {
+        throw ApiError.badRequest('Bạn đã đạt giới hạn 3 lần chỉnh sửa cho sản phẩm này');
+    }
+    return editCount;
+}
 // Đăng bài
 export async function createProduct(productData, supplierId) {
     const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
@@ -21,9 +42,9 @@ export async function createProduct(productData, supplierId) {
     const sql = `
         insert into Product (
             supplierId, categoryId, productName, description, imageURL,
-            unitPrice, size, status, discount, complianceDocs
+            unitPrice, size, status, discount, complianceDocs, editCount
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [results] = await pool.query(sql, [
@@ -36,7 +57,8 @@ export async function createProduct(productData, supplierId) {
         size || null,
         status || 'Draft',
         discount || 0,
-        complianceDocs ? JSON.stringify(complianceDocs) : null
+        complianceDocs ? JSON.stringify(complianceDocs) : null,
+        0
     ]);
 
     const insertId = results.insertId;
@@ -147,6 +169,7 @@ export async function getProductsBySupplier(supplierId) {
 }
 
 export async function updateProduct(productId, supplierId, updateData) {
+    await ensureEditAvailability(productId, supplierId);
     // Tạo mảng 'fields' chứa các phần của câu lệnh SET 
     const fields = [];
     // Tạo mảng 'params' chứa các giá trị tương ứng
@@ -198,6 +221,7 @@ export async function updateProduct(productId, supplierId, updateData) {
         console.log("Không có trường nào để cập nhật.");
         return;
     }
+    fields.push("editCount = editCount + 1");
 
     // Thêm các tham số cho WHERE (productId và supplierId)
     params.push(productId);

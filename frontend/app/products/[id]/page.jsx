@@ -103,7 +103,7 @@ export default function ProductDetailPage() {
       await executeSimpleToken({
         caller: walletAddress,
         method: 'burn',
-        args: [walletAddress, burnAmount],
+        args: [burnAmount],
         value: 0,
       });
       toast.success('Đã khóa HScoin cho giao dịch escrow!');
