@@ -18,9 +18,6 @@ const statusBadge = {
   Cancelled: 'bg-gray-100 text-gray-600',
 };
 
-  if (/^(https?:|data:)/i.test(src)) return src;
-};
-
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +110,7 @@ export default function OrdersPage() {
                 {order.items?.map((item) => (
                   <div key={item.orderDetailId} className="flex items-center gap-4">
                     <img
-                      src={buildProductImage(item.imageURL)}
+                      src={resolveProductImage(item)}
                       alt={item.productName}
                       className="h-20 w-20 rounded-md object-cover border border-gray-100"
                     />

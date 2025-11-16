@@ -1,4 +1,4 @@
-import axios from "axios";
+ï»¿import axios from "axios";
 
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "http://localhost:3001";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
@@ -15,8 +15,8 @@ const removeAccents = (str = "") =>
   str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ð/g, "d")
-    .replace(/Ð/g, "D");
+    .replace(/ï¿½/g, "d")
+    .replace(/ï¿½/g, "D");
 
 const sanitizeSlug = (str = "") =>
   removeAccents(str)
@@ -43,7 +43,7 @@ export const buildAvatarUrl = (src) => {
   if (/^(https?:|data:)/i.test(trimmed) || trimmed.startsWith("//")) return trimmed;
 
   const cleaned = trimmed.replace(/^public\//i, "").replace(/^\/+/, "");
-    const base = resolveBrowserBaseUrl() || API_URL;
+  const base = resolveBrowserBaseUrl() || API_URL;
   return `${base}/${cleaned}`;
 };
 
@@ -79,7 +79,7 @@ function handleAxiosError(error) {
     const message = error.response.data.message || `L?i API (${error.response.status})`;
     throw new Error(message);
   }
-  throw new Error("Yêu c?u m?ng th?t b?i ho?c l?i không xác ð?nh.");
+  throw new Error("Yï¿½u c?u m?ng th?t b?i ho?c l?i khï¿½ng xï¿½c ï¿½?nh.");
 }
 
 // ===================== AUTH API =====================
@@ -185,12 +185,12 @@ export async function updateUserProfile(profileData = {}) {
     }
 
     if (results.length === 0) {
-      return { success: false, message: "Không có d? li?u nào ð? c?p nh?t." };
+      return { success: false, message: "Khï¿½ng cï¿½ d? li?u nï¿½o ï¿½? c?p nh?t." };
     }
 
     return {
       success: true,
-      message: "C?p nh?t thông tin cá nhân thành công!",
+      message: "C?p nh?t thï¿½ng tin cï¿½ nhï¿½n thï¿½nh cï¿½ng!",
       results,
     };
   } catch (error) {
@@ -370,9 +370,9 @@ export async function getReviewsByProductId(productId) {
   return [
     {
       id: 1,
-      userName: 'Nguy?n Vãn A',
+      userName: 'Nguy?n Vï¿½n A',
       rating: 5,
-      comment: 'S?n ph?m r?t t?t, ðúng nhý mô t?!',
+      comment: 'S?n ph?m r?t t?t, ï¿½ï¿½ng nhï¿½ mï¿½ t?!',
       createdAt: '2024-01-15',
       avatar: '/avatar.png'
     },
@@ -380,7 +380,7 @@ export async function getReviewsByProductId(productId) {
       id: 2,
       userName: 'Tr?n Th? B',
       rating: 4,
-      comment: 'Ch?t lý?ng ?n, giao hàng nhanh.',
+      comment: 'Ch?t lï¿½?ng ?n, giao hï¿½ng nhanh.',
       createdAt: '2024-01-10',
       avatar: '/avatar.png'
     }
@@ -715,12 +715,12 @@ export async function fetchCategories() {
     return {
       success: true,
       categories: [
-        { categoryId: 1, categoryName: 'Sách & Vãn ph?ng ph?m' },
-        { categoryId: 2, categoryName: 'Ð? ði?n t?' },
+        { categoryId: 1, categoryName: 'Sï¿½ch & Vï¿½n ph?ng ph?m' },
+        { categoryId: 2, categoryName: 'ï¿½? ï¿½i?n t?' },
         { categoryId: 3, categoryName: 'Th?i trang' },
-        { categoryId: 4, categoryName: 'Ð? gia d?ng' },
+        { categoryId: 4, categoryName: 'ï¿½? gia d?ng' },
         { categoryId: 5, categoryName: 'Th? thao & S?c kh?e' },
-        { categoryId: 6, categoryName: 'Khác' }
+        { categoryId: 6, categoryName: 'Khï¿½c' }
       ]
     };
   }
@@ -857,3 +857,4 @@ export async function rewardReferral(payload) {
     handleAxiosError(error);
   }
 }
+
