@@ -60,3 +60,4 @@ export const resolveProductImage = (product, fallback = DEFAULT_FALLBACK) => {
 
   return fallback;
 };
+

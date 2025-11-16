@@ -1,6 +1,6 @@
-﻿import axios from "axios";
+import axios from "axios";
 
-const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "http://localhost:3001";
+const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "https://p-market.onrender.com";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
 
 function resolveBrowserBaseUrl() {
@@ -15,8 +15,8 @@ const removeAccents = (str = "") =>
   str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/�/g, "d")
-    .replace(/�/g, "D");
+    .replace(/?/g, "d")
+    .replace(/?/g, "D");
 
 const sanitizeSlug = (str = "") =>
   removeAccents(str)
@@ -79,7 +79,7 @@ function handleAxiosError(error) {
     const message = error.response.data.message || `L?i API (${error.response.status})`;
     throw new Error(message);
   }
-  throw new Error("Y�u c?u m?ng th?t b?i ho?c l?i kh�ng x�c �?nh.");
+  throw new Error("Y?u c?u m?ng th?t b?i ho?c l?i kh?ng x?c ??nh.");
 }
 
 // ===================== AUTH API =====================
@@ -185,12 +185,12 @@ export async function updateUserProfile(profileData = {}) {
     }
 
     if (results.length === 0) {
-      return { success: false, message: "Kh�ng c� d? li?u n�o �? c?p nh?t." };
+      return { success: false, message: "Kh?ng c? d? li?u n?o ?? c?p nh?t." };
     }
 
     return {
       success: true,
-      message: "C?p nh?t th�ng tin c� nh�n th�nh c�ng!",
+      message: "C?p nh?t th?ng tin c? nh?n th?nh c?ng!",
       results,
     };
   } catch (error) {
@@ -370,9 +370,9 @@ export async function getReviewsByProductId(productId) {
   return [
     {
       id: 1,
-      userName: 'Nguy?n V�n A',
+      userName: 'Nguy?n V?n A',
       rating: 5,
-      comment: 'S?n ph?m r?t t?t, ��ng nh� m� t?!',
+      comment: 'S?n ph?m r?t t?t, ??ng nh? m? t?!',
       createdAt: '2024-01-15',
       avatar: '/avatar.png'
     },
@@ -380,7 +380,7 @@ export async function getReviewsByProductId(productId) {
       id: 2,
       userName: 'Tr?n Th? B',
       rating: 4,
-      comment: 'Ch?t l�?ng ?n, giao h�ng nhanh.',
+      comment: 'Ch?t l??ng ?n, giao h?ng nhanh.',
       createdAt: '2024-01-10',
       avatar: '/avatar.png'
     }
@@ -715,12 +715,12 @@ export async function fetchCategories() {
     return {
       success: true,
       categories: [
-        { categoryId: 1, categoryName: 'S�ch & V�n ph?ng ph?m' },
-        { categoryId: 2, categoryName: '�? �i?n t?' },
+        { categoryId: 1, categoryName: 'S?ch & V?n ph?ng ph?m' },
+        { categoryId: 2, categoryName: '?? ?i?n t?' },
         { categoryId: 3, categoryName: 'Th?i trang' },
-        { categoryId: 4, categoryName: '�? gia d?ng' },
+        { categoryId: 4, categoryName: '?? gia d?ng' },
         { categoryId: 5, categoryName: 'Th? thao & S?c kh?e' },
-        { categoryId: 6, categoryName: 'Kh�c' }
+        { categoryId: 6, categoryName: 'Kh?c' }
       ]
     };
   }
@@ -857,4 +857,6 @@ export async function rewardReferral(payload) {
     handleAxiosError(error);
   }
 }
+
+
 
