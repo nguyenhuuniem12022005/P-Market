@@ -3,13 +3,6 @@ import axios from "axios";
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "https://p-market.onrender.com";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
 
-function resolveBrowserBaseUrl() {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin.replace(/\/$/, "");
-  }
-  return null;
-}
-
 // ===================== CATEGORY HELPERS =====================
 const removeAccents = (str = "") =>
   str
@@ -43,8 +36,7 @@ export const buildAvatarUrl = (src) => {
   if (/^(https?:|data:)/i.test(trimmed) || trimmed.startsWith("//")) return trimmed;
 
   const cleaned = trimmed.replace(/^public\//i, "").replace(/^\/+/, "");
-  const base = resolveBrowserBaseUrl() || API_URL;
-  return `${base}/${cleaned}`;
+  return `${API_URL}/${cleaned}`;
 };
 
 // ===================== TOKEN QU?N L? =====================

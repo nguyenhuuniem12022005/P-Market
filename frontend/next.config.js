@@ -11,11 +11,6 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'p-market-1.onrender.com',
-        pathname: '/uploads/**'
-      },
-      {
-        protocol: 'https',
         hostname: 'placehold.co',
         pathname: '/**'
       }
