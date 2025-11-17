@@ -18,7 +18,8 @@ const ESCROW_STATUS_MAP = {
 };
 
 const SIMPLE_TOKEN_ADDRESS = (process.env.HSCOIN_SIMPLE_TOKEN_ADDRESS || '').trim().toLowerCase();
-const HSCOIN_CONTRACT_ENDPOINT = (process.env.HSCOIN_CONTRACT_ENDPOINT || '/contract').trim() || '/contract';
+const HSCOIN_CONTRACT_ENDPOINT =
+  (process.env.HSCOIN_CONTRACT_ENDPOINT || '/contracts').trim() || '/contracts';
 const HSCOIN_MAX_RETRY = Math.max(1, Number(process.env.HSCOIN_MAX_RETRY || 5) || 5);
 const HSCOIN_RETRY_DELAY_MS = Math.max(5_000, Number(process.env.HSCOIN_RETRY_DELAY_MS || 60_000) || 60_000);
 const HSCOIN_WORKER_INTERVAL_MS = Math.max(5_000, Number(process.env.HSCOIN_WORKER_INTERVAL_MS || 60_000) || 60_000);
@@ -26,6 +27,23 @@ const HSCOIN_ALLOWED_CALLERS = (process.env.HSCOIN_ALLOWED_CALLERS || '')
   .split(',')
   .map((addr) => addr.trim().toLowerCase())
   .filter(Boolean);
+
+function resolveHscoinContractEndpoint(address) {
+  const normalizedAddress = normalizeAddress(address || '');
+  if (!normalizedAddress) {
+    throw ApiError.badRequest('Thiếu contract address');
+  }
+
+  const configured = HSCOIN_CONTRACT_ENDPOINT;
+  if (configured.includes('{address}')) {
+    return configured.replace('{address}', normalizedAddress);
+  }
+  if (configured.includes('{contractAddress}')) {
+    return configured.replace('{contractAddress}', normalizedAddress);
+  }
+  const base = configured.replace(/\/$/, '');
+  return `${base}/${normalizedAddress}/execute`;
+}
 
 let hscoinTokenCache = { token: null, expiresAt: 0 };
 let chainCache = { blocks: [], fetchedAt: 0 };
@@ -1004,7 +1022,8 @@ async function markHscoinCallFailure(
 }
 
 async function invokeHscoinContract(payload) {
-  return callHscoin(HSCOIN_CONTRACT_ENDPOINT, {
+  const endpoint = resolveHscoinContractEndpoint(payload?.contractAddress);
+  return callHscoin(endpoint, {
     method: 'POST',
     body: payload,
     requireAuth: true,
