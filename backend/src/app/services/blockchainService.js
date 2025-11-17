@@ -702,7 +702,7 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
   let finalArgs = normalizedArgs;
   if (method?.toLowerCase() === 'burn') {
     const amount = Number(normalizedArgs[0]) || 0;
-    finalArgs = [normalizedCaller, amount];
+    finalArgs = [amount];
   }
 
   const requestPayload = {
