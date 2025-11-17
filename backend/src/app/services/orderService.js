@@ -3,6 +3,9 @@ import ApiError from '../../utils/classes/api-error.js';
 import { handleReferralAfterOrderCompleted } from './referralAutomationService.js';
 import { getEscrowSnapshot, executeSimpleToken, attachOrderToHscoinCall } from './blockchainService.js';
 
+const ESCROW_FEE_PERCENT = Number(process.env.ESCROW_FEE_PERCENT || 0.01); // 1% mặc định
+const ESCROW_FEE_MIN = Number(process.env.ESCROW_FEE_MIN || 1000); // tối thiểu 1.000 HScoin
+
 async function getOrderById(orderId) {
   const [rows] = await pool.query(
     `
@@ -78,6 +81,10 @@ export async function createEscrowOrder({
 
   const unitPrice = Number(product.unitPrice) || 0;
   const totalAmount = unitPrice * qty;
+  const burnAmount = Math.max(
+    ESCROW_FEE_MIN,
+    Math.round(totalAmount * ESCROW_FEE_PERCENT)
+  );
 
   let burnCallId = null;
   let burnStatus = 'SUCCESS';
@@ -85,7 +92,7 @@ export async function createEscrowOrder({
     const burnResult = await executeSimpleToken({
       caller: walletAddress,
       method: 'burn',
-      args: [totalAmount],
+      args: [burnAmount],
       value: 0,
     });
     burnCallId = burnResult?.callId || null;

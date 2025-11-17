@@ -39,8 +39,8 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 204
 };
-app.use(cors(corsOptions)); 
-
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // đảm bảo preflight trả header CORS
 // --- CẤU HÌNH PHỤC VỤ TỆP TĨNH (STATIC FILE) ---
 // 1. Tạo đường dẫn tuyệt đối an toàn
 // Dẫn đến: backend/src/public/uploads

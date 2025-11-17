@@ -706,13 +706,14 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
   }
 
   const requestPayload = {
-    caller: normalizedCaller,
-    inputData: {
-      function: method,
-      args: finalArgs,
-    },
-    value: Number(value) || 0,
-  };
+  caller: normalizedCaller,        // ví của người gọi, ví dụ 0xc839...
+  inputData: {
+    function: method,              // 'burn' / 'mint' / 'transfer'
+    args: finalArgs,               // với burn giờ chỉ còn [amount]
+  },
+  value: Number(value) || 0,
+};
+
 
   const callId = await recordHscoinContractCall({
     method,
