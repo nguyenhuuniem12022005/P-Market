@@ -692,12 +692,18 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
   }
 
   const normalizedArgs = Array.isArray(args) ? args : [args];
-  const calldata = buildSimpleTokenCalldata(method, normalizedArgs);
+  let finalArgs = normalizedArgs;
+  if (method?.toLowerCase() === 'burn') {
+    const amount = Number(normalizedArgs[0]) || 0;
+    finalArgs = [normalizedCaller, amount];
+  }
 
-  const payload = {
-    contractAddress: SIMPLE_TOKEN_ADDRESS,
-    callerAddress: normalizedCaller,
-    inputData: calldata,
+  const requestPayload = {
+    caller: normalizedCaller,
+    inputData: {
+      function: method,
+      args: finalArgs,
+    },
     value: Number(value) || 0,
   };
 
@@ -705,13 +711,17 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     method,
     caller: normalizedCaller,
     payload: {
-      ...payload,
+      contractAddress: SIMPLE_TOKEN_ADDRESS,
+      body: requestPayload,
       originalCall: { method, args: normalizedArgs },
     },
   });
 
   try {
-    const response = await invokeHscoinContract(payload);
+    const response = await invokeHscoinContract({
+      contractAddress: SIMPLE_TOKEN_ADDRESS,
+      body: requestPayload,
+    });
     await markHscoinCallSuccess(callId, response);
     return {
       callId,
@@ -1021,11 +1031,11 @@ async function markHscoinCallFailure(
   }
 }
 
-async function invokeHscoinContract(payload) {
-  const endpoint = resolveHscoinContractEndpoint(payload?.contractAddress);
+async function invokeHscoinContract({ contractAddress, body }) {
+  const endpoint = resolveHscoinContractEndpoint(contractAddress);
   return callHscoin(endpoint, {
     method: 'POST',
-    body: payload,
+    body,
     requireAuth: true,
   });
 }
@@ -1069,7 +1079,7 @@ async function processHscoinQueueBatch() {
       payload = null;
     }
 
-    if (!payload) {
+    if (!payload || !payload.contractAddress || !payload.body) {
       await markHscoinCallFailure(job.callId, new Error('Payload không hợp lệ'), {
         retryable: false,
         currentRetries: job.retries,
