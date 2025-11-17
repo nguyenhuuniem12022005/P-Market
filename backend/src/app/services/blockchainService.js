@@ -33,8 +33,75 @@ let hasHscoinCallTable = false;
 let hscoinWorkerTimer = null;
 let hasHscoinAlertTable = false;
 
+const SIMPLE_TOKEN_FUNCTIONS = {
+  burn: {
+    selector: '0x42966c68', // burn(uint256)
+    inputs: ['uint256'],
+  },
+  mint: {
+    selector: '0x40c10f19', // mint(address,uint256)
+    inputs: ['address', 'uint256'],
+  },
+  transfer: {
+    selector: '0xa9059cbb', // transfer(address,uint256)
+    inputs: ['address', 'uint256'],
+  },
+};
+
 function normalizeAddress(address) {
   return String(address || '').trim().toLowerCase();
+}
+
+function encodeUint256(value) {
+  try {
+    const normalized = BigInt(value);
+    if (normalized < 0n) {
+      throw new Error('Giá trị uint256 phải không âm');
+    }
+    return normalized.toString(16).padStart(64, '0');
+  } catch (error) {
+    throw ApiError.badRequest('Tham số kiểu uint256 không hợp lệ');
+  }
+}
+
+function encodeAddressParam(value) {
+  const normalized = normalizeAddress(value);
+  if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
+    throw ApiError.badRequest('Tham số địa chỉ không hợp lệ');
+  }
+  return normalized.replace(/^0x/, '').padStart(64, '0');
+}
+
+function encodeBoolParam(value) {
+  return (value ? '1' : '0').padStart(64, '0');
+}
+
+function encodeParameterByType(type, value) {
+  const normalizedType = String(type || '').toLowerCase();
+  if (normalizedType.startsWith('uint') || normalizedType.startsWith('int')) {
+    return encodeUint256(value);
+  }
+  if (normalizedType === 'address') {
+    return encodeAddressParam(value);
+  }
+  if (normalizedType === 'bool') {
+    return encodeBoolParam(Boolean(value));
+  }
+  throw ApiError.badRequest(`Không hỗ trợ encode tham số kiểu ${type}`);
+}
+
+function buildSimpleTokenCalldata(method, args = []) {
+  const fn = SIMPLE_TOKEN_FUNCTIONS[method?.toLowerCase()];
+  if (!fn) {
+    throw ApiError.badRequest(`Hàm ${method} chưa được hỗ trợ trên SimpleToken`);
+  }
+  if (args.length !== fn.inputs.length) {
+    throw ApiError.badRequest(
+      `Sai số lượng tham số cho hàm ${method}. Mong đợi ${fn.inputs.length}, nhận ${args.length}`
+    );
+  }
+  const encodedArgs = fn.inputs.map((type, idx) => encodeParameterByType(type, args[idx] ?? 0));
+  return fn.selector + encodedArgs.join('');
 }
 
 function defaultLedger() {
@@ -607,25 +674,22 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
   }
 
   const normalizedArgs = Array.isArray(args) ? args : [args];
-  let finalArgs = normalizedArgs;
-  if (method?.toLowerCase() === 'burn' && normalizedArgs.length === 1) {
-    finalArgs = [normalizedCaller, normalizedArgs[0]];
-  }
+  const calldata = buildSimpleTokenCalldata(method, normalizedArgs);
 
   const payload = {
     contractAddress: SIMPLE_TOKEN_ADDRESS,
     callerAddress: normalizedCaller,
-    inputData: {
-      function: method,
-      args: finalArgs,
-    },
+    inputData: calldata,
     value: Number(value) || 0,
   };
 
   const callId = await recordHscoinContractCall({
     method,
     caller: normalizedCaller,
-    payload,
+    payload: {
+      ...payload,
+      originalCall: { method, args: normalizedArgs },
+    },
   });
 
   try {
