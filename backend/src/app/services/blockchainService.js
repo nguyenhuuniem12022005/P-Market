@@ -334,6 +334,13 @@ async function callHscoin(path, { method = 'GET', body, headers = {}, requireAut
 
   if (!response.ok || data?.success === false) {
     const message = data?.message || `HScoin API ${response.status}`;
+    console.error('[HScoin] API error', {
+      url,
+      method,
+      status: response.status,
+      response: data,
+      raw: text,
+    });
     const error = new Error(message);
     error.response = data;
     error.status = response.status;
