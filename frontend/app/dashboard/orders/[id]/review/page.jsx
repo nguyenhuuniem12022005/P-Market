@@ -70,7 +70,7 @@ export default function ReviewPage() {
     if (!targetItem || !orderId) return;
     if (isAlreadyReviewed) {
       toast.success('Sản phẩm này đã có đánh giá.');
-      router.push(/dashboard/orders/);
+      router.push('/dashboard/orders');
       return;
     }
     setSubmitting(true);
@@ -81,7 +81,7 @@ export default function ReviewPage() {
         comment,
       });
       toast.success('Đã gửi đánh giá thành công!');
-      router.push(/dashboard/orders/);
+      router.push('/dashboard/orders');
     } catch (error) {
       toast.error(error.message || 'Không thể gửi đánh giá.');
     } finally {

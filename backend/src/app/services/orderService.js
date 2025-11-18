@@ -41,21 +41,6 @@ async function getOrderSellerIds(orderId) {
     .filter((supplierId) => Number.isFinite(supplierId));
 }
 
-async function getOrderSellerIds(orderId) {
-  const [rows] = await pool.query(
-    `
-    select distinct p.supplierId
-    from OrderDetail od
-    join Product p on p.productId = od.productId
-    where od.salesOrderId = ?
-    `,
-    [orderId]
-  );
-  return rows
-    .map((row) => Number(row.supplierId))
-    .filter((supplierId) => Number.isFinite(supplierId));
-}
-
 async function updateOrderStatus(orderId, status) {
   const [result] = await pool.query(
     `
