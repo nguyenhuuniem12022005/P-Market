@@ -114,3 +114,10 @@ export const connectWallet = Joi.object({
         .required()
         .label('Private key')
 });
+export const convertGreenCredit = Joi.object({
+    amount: Joi.number()
+        .integer()
+        .positive()
+        .required()
+        .label('Green Credit mu?n quy ð?i')
+});

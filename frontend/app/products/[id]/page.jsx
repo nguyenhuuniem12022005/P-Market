@@ -65,7 +65,7 @@ export default function ProductDetailPage() {
   const productImage = resolveProductImage(product, FALLBACK_IMAGE);
 
   // --- Các handler ---
-  const handleWriteReview = () => alert("Chức năng đánh giá sẽ có sau khi mua hàng thành công!");
+  const handleWriteReview = () => router.push('/dashboard/orders');
   const handleAddToCart = () => { 
     if (!product) return;
 

@@ -13,6 +13,8 @@ const HSCOIN_CONTRACT_ADDRESS = '0x0137ac70725cfa67af4f5180c41e0c60f36e9118';
 const HSCOIN_NETWORK = 'HScoin Devnet';
 const ESCROW_STATUS_MAP = {
   Pending: 'LOCKED',
+  SellerConfirmed: 'LOCKED',
+  BuyerConfirmed: 'LOCKED',
   Completed: 'RELEASED',
   Cancelled: 'REFUNDED',
 };
@@ -156,35 +158,69 @@ function defaultLedger() {
 }
 
 async function buildContributionsFromOrders(userId) {
+  if (!userId) return [];
   const [rows] = await pool.query(
     `
-    select so.salesOrderId, so.totalAmount, so.orderDate, so.status
-    from SalesOrder so
-    where so.customerId = ?
-    order by so.orderDate desc
+    select *
+    from (
+      select distinct
+        so.salesOrderId,
+        so.totalAmount,
+        so.orderDate,
+        so.status,
+        'BUYER' as role
+      from SalesOrder so
+      where so.customerId = ?
+      union all
+      select distinct
+        so.salesOrderId,
+        so.totalAmount,
+        so.orderDate,
+        so.status,
+        'SELLER' as role
+      from SalesOrder so
+      join OrderDetail od on od.salesOrderId = so.salesOrderId
+      join Product p on p.productId = od.productId
+      where p.supplierId = ?
+    ) combined
+    order by combined.orderDate desc
     limit 5
     `,
-    [userId]
+    [userId, userId]
   );
 
   if (rows.length === 0) {
-    return [
-      {
-        id: 'SIM-001',
-        type: 'Tham gia đào tạo HScoin',
-        carbon: -0.2,
-        tokens: 2,
-      },
-    ];
+    return [];
   }
 
-  return rows.map((row) => ({
-    id: `ORD-${row.salesOrderId}`,
-    type: row.status === 'Completed' ? 'Đơn escrow hoàn tất' : 'Đơn escrow đang khóa',
-    carbon: row.status === 'Completed' ? -1 : -0.3,
-    tokens: Math.max(1, Math.round(Number(row.totalAmount || 0) / 100000)),
-    orderDate: row.orderDate,
-  }));
+  return rows.map((row) => {
+    const normalizedAmount = Number(row.totalAmount) || 0;
+    const role = row.role === 'SELLER' ? 'SELLER' : 'BUYER';
+    const divisor = role === 'SELLER' ? 350000 : 250000;
+    const baseCarbon = normalizedAmount > 0 ? normalizedAmount / divisor : 0.5;
+    const carbon = -Number(baseCarbon.toFixed(2));
+    const orderDate =
+      row.orderDate instanceof Date ? row.orderDate.toISOString() : row.orderDate;
+
+    return {
+      id: `${role === 'SELLER' ? 'SLR' : 'ORD'}-${row.salesOrderId}`,
+      orderId: row.salesOrderId,
+      type:
+        role === 'SELLER'
+          ? row.status === 'Completed'
+            ? 'Shop giao thành công'
+            : 'Shop đang xử lý'
+          : row.status === 'Completed'
+          ? 'Đơn escrow hoàn tất'
+          : 'Đơn escrow đang khóa',
+      status: row.status,
+      role,
+      carbon,
+      tokens: Math.max(1, Math.round(normalizedAmount / 100000)),
+      amount: normalizedAmount,
+      orderDate,
+    };
+  });
 }
 
 function ensureLedger(userId) {
@@ -239,6 +275,75 @@ function resolveTier(score) {
   if (score >= 75) return 'Green Pioneer';
   if (score >= 60) return 'Seedling';
   return 'Newcomer';
+}
+
+const GREEN_PERK_LEVELS = [
+  {
+    min: 500,
+    perks: [
+      'Giảm 5% phí escrow khi tạo hợp đồng xanh',
+      'Whitelist ưu tiên cho các chương trình HScoin',
+    ],
+  },
+  {
+    min: 250,
+    perks: [
+      'Giảm 3% phí escrow cho các đơn mua bền vững',
+      'Được đề xuất trong danh mục Người bán Xanh',
+    ],
+  },
+  {
+    min: 100,
+    perks: [
+      'Giảm 1% phí escrow',
+      'Ưu tiên xét duyệt sản phẩm có chứng nhận tái chế',
+    ],
+  },
+];
+
+function resolveGreenPerks(score, fallback = []) {
+  for (const tier of GREEN_PERK_LEVELS) {
+    if (score >= tier.min) {
+      return tier.perks;
+    }
+  }
+  return fallback;
+}
+
+function buildAuditTimeline(contributions = [], fallbackAudits = []) {
+  if (!contributions.length) {
+    return fallbackAudits;
+  }
+  const completed = contributions.filter((item) => item.status === 'Completed').length;
+  const inProgress = contributions.length - completed;
+  return [
+    {
+      id: 'audit-completed',
+      title: 'Đơn escrow đã hoàn tất',
+      detail: `${completed} đơn đã xác nhận kết quả và burn phí HScoin.`,
+      status: completed > 0 ? 'Approved' : 'Pending',
+    },
+    {
+      id: 'audit-progress',
+      title: 'Đơn đang theo dõi',
+      detail: `${inProgress} đơn đang khóa escrow hoặc chuẩn bị giao.`,
+      status: inProgress > 0 ? 'In-progress' : 'Approved',
+    },
+    {
+      id: 'audit-sync',
+      title: 'Đồng bộ HScoin',
+      detail: 'Đợi kỳ đồng bộ kế tiếp để ghi nhận green credit on-chain.',
+      status: 'Pending',
+    },
+  ];
+}
+
+function sortContributions(contributions = []) {
+  return [...contributions].sort((a, b) => {
+    const aTime = a?.orderDate ? new Date(a.orderDate).getTime() : 0;
+    const bTime = b?.orderDate ? new Date(b.orderDate).getTime() : 0;
+    return bTime - aTime;
+  });
 }
 
 async function fetchUserProfile(userId) {
@@ -590,33 +695,50 @@ function buildFallbackEscrowSnapshot({ orderId, status = 'Pending', amount = 0 }
   };
 }
 
-export async function getGreenCreditSummary(userId = 'demo-user') {
+export async function getGreenCreditSummary(userId) {
+  if (!userId) {
+    throw ApiError.badRequest('Thiếu thông tin người dùng');
+  }
   const ledger = ensureLedger(userId);
   const profile = await fetchUserProfile(userId);
-  const donationFeed = await fetchDonationFeed();
-
-  let contributions = await buildContributionsFromOrders(userId);
-  if (donationFeed?.donations?.length) {
-    const remoteContributions = mapDonationsToContributions(donationFeed.donations, profile);
-    if (remoteContributions.length > 0) {
-      contributions = remoteContributions;
-      ledger.lastSyncedAt = remoteContributions[0]?.orderDate || ledger.lastSyncedAt;
-    }
+  if (!profile) {
+    throw ApiError.notFound('Không tìm thấy người dùng');
   }
 
-  const baselineScore = profile?.greenCredit ?? ledger.score;
-  const dynamicScore = baselineScore + contributions.length * 2;
+  const [orderContributions, donationFeed] = await Promise.all([
+    buildContributionsFromOrders(userId),
+    fetchDonationFeed(),
+  ]);
+
+  const remoteContributions =
+    donationFeed?.donations?.length && profile?.email
+      ? mapDonationsToContributions(donationFeed.donations, profile)
+      : [];
+
+  const contributions = sortContributions([
+    ...orderContributions,
+    ...remoteContributions,
+  ]).slice(0, 5);
+
+  const score = Number(profile.greenCredit) || 0;
+
   return {
     userId,
-    ...ledger,
-    score: dynamicScore,
-    tier: resolveTier(dynamicScore),
+    score,
+    tier: resolveTier(score),
+    perks: resolveGreenPerks(score, ledger.perks),
+    audits: buildAuditTimeline(contributions, ledger.audits),
     contributions,
+    lastSyncedAt: contributions[0]?.orderDate || ledger.lastSyncedAt,
+    nextWindow: ledger.nextWindow,
     hscoinStats: donationFeed?.stats || null,
   };
 }
 
-export async function requestGreenCreditSync(userId = 'demo-user', reason = '') {
+export async function requestGreenCreditSync(userId, reason = '') {
+  if (!userId) {
+    throw ApiError.badRequest('Thiếu thông tin người dùng');
+  }
   const ledger = ensureLedger(userId);
   ledger.lastSyncedAt = new Date().toISOString();
   ledger.nextWindow = new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString();

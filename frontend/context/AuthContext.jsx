@@ -47,6 +47,13 @@ export function AuthProvider({ children }) {
       const data = await loginUser(email, password);
       const apiUser = data.user || {};
 
+      const reputationSource =
+        apiUser.reputation ??
+        apiUser.reputationScore ??
+        apiUser.reputation_score ??
+        0;
+      const greenCreditSource = apiUser.greenCredit ?? apiUser.green_credit ?? 0;
+
       const userData = {
         userId: apiUser.userId,
         firstName: apiUser.firstName || '',
@@ -61,8 +68,8 @@ export function AuthProvider({ children }) {
         address: apiUser.address || '',
         avatar: buildAvatarUrl(apiUser.avatar),
         dateOfBirth: apiUser.dateOfBirth || '',
-        reputation: apiUser.reputation || 85,
-        greenCredit: apiUser.greenCredit || 0,
+        reputation: Number(reputationSource) || 0,
+        greenCredit: Number(greenCreditSource) || 0,
       };
 
       setUser(userData);
@@ -84,6 +91,13 @@ export function AuthProvider({ children }) {
     try {
       const data = await registerUser(formData);
       const apiUser = data.user || {};
+      const reputationSource =
+        apiUser.reputation ??
+        apiUser.reputationScore ??
+        apiUser.reputation_score ??
+        0;
+      const greenCreditSource = apiUser.greenCredit ?? apiUser.green_credit ?? 0;
+
       const userData = {
         userId: apiUser.userId,
         firstName: apiUser.firstName || '',
@@ -97,6 +111,8 @@ export function AuthProvider({ children }) {
         phone: apiUser.phone || '',
         address: apiUser.address || '',
         avatar: buildAvatarUrl(apiUser.avatar),
+        reputation: Number(reputationSource) || 0,
+        greenCredit: Number(greenCreditSource) || 0,
       };
 
       setUser(userData);

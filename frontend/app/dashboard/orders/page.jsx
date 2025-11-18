@@ -1,12 +1,17 @@
-/* eslint-disable @next/next/no-img-element */
+﻿/* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { resolveProductImage } from '../../../lib/image';
 import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
-import { fetchMyOrders } from '../../../lib/api';
+import {
+  fetchMyOrders,
+  fetchSellerOrders,
+  confirmOrderAsBuyer,
+  confirmOrderAsSeller,
+} from '../../../lib/api';
 import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lucide-react';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
@@ -14,28 +19,137 @@ const HSCOIN_CONTRACT_URL = 'https://hsc-w3oq.onrender.com/auth/contract.html';
 
 const statusBadge = {
   Pending: 'bg-amber-100 text-amber-700',
+  SellerConfirmed: 'bg-sky-100 text-sky-700',
+  BuyerConfirmed: 'bg-indigo-100 text-indigo-700',
   Completed: 'bg-emerald-100 text-emerald-700',
   Cancelled: 'bg-gray-100 text-gray-600',
 };
 
+const statusLabels = {
+  Pending: 'Chờ xác nhận',
+  SellerConfirmed: 'Người bán đã xác nhận',
+  BuyerConfirmed: 'Người mua đã xác nhận',
+  Completed: 'Hoàn tất',
+  Cancelled: 'Đã hủy',
+};
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [purchases, setPurchases] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(true);
+  const [loadingSales, setLoadingSales] = useState(true);
+  const [errorPurchases, setErrorPurchases] = useState('');
+  const [errorSales, setErrorSales] = useState('');
+  const [activeTab, setActiveTab] = useState('purchases');
+  const [actionOrderId, setActionOrderId] = useState(null);
+
+  const loadPurchases = useCallback(async () => {
+    setLoadingPurchases(true);
+    try {
+      const data = await fetchMyOrders();
+      setPurchases(data || []);
+      setErrorPurchases('');
+    } catch (err) {
+      setErrorPurchases(err.message || 'Không thể tải danh sách đơn mua.');
+    } finally {
+      setLoadingPurchases(false);
+    }
+  }, []);
+
+  const loadSales = useCallback(async () => {
+    setLoadingSales(true);
+    try {
+      const data = await fetchSellerOrders();
+      setSales(data || []);
+      setErrorSales('');
+    } catch (err) {
+      setErrorSales(err.message || 'Không thể tải danh sách đơn bán.');
+    } finally {
+      setLoadingSales(false);
+    }
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadPurchases(), loadSales()]);
+  }, [loadPurchases, loadSales]);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await fetchMyOrders();
-        setOrders(data || []);
-      } catch (err) {
-        setError(err.message || 'Không thể tải danh sách đơn hàng.');
-      } finally {
-        setLoading(false);
-      }
+    loadPurchases();
+    loadSales();
+  }, [loadPurchases, loadSales]);
+
+  const handleBuyerConfirm = async (orderId) => {
+    setActionOrderId(orderId);
+    try {
+      const response = await confirmOrderAsBuyer(orderId);
+      toast.success(response?.message || 'Đã ghi nhận xác nhận của bạn.');
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || 'Không thể xác nhận đơn hàng.');
+    } finally {
+      setActionOrderId(null);
     }
-    load();
-  }, []);
+  };
+
+  const handleSellerConfirm = async (orderId) => {
+    setActionOrderId(orderId);
+    try {
+      const response = await confirmOrderAsSeller(orderId);
+      toast.success(response?.message || 'Đã ghi nhận xác nhận của bạn.');
+      await refreshAll();
+    } catch (err) {
+      toast.error(err.message || 'Không thể xác nhận đơn hàng.');
+    } finally {
+      setActionOrderId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-sm text-primary font-semibold">Flow #3 · Escrow &amp; giao dịch</p>
+        <h1 className="text-2xl font-bold">Quản lý đơn hàng</h1>
+        <p className="text-sm text-gray-600">
+          Theo dõi cả đơn đã mua và đơn bạn bán ra. Escrow HScoin chỉ được giải phóng khi cả người mua và người bán xác nhận.
+        </p>
+      </header>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('purchases')}
+          className={`px-4 py-2 text-sm font-semibold rounded-full transition ${
+            activeTab === 'purchases' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Đơn đã mua
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('sales')}
+          className={`px-4 py-2 text-sm font-semibold rounded-full transition ${
+            activeTab === 'sales' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Đơn bán ra
+        </button>
+      </div>
+
+      <TabOrders
+        type={activeTab}
+        orders={activeTab === 'purchases' ? purchases : sales}
+        loading={activeTab === 'purchases' ? loadingPurchases : loadingSales}
+        error={activeTab === 'purchases' ? errorPurchases : errorSales}
+        onBuyerConfirm={handleBuyerConfirm}
+        onSellerConfirm={handleSellerConfirm}
+        actionOrderId={actionOrderId}
+      />
+    </div>
+  );
+}
+
+function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfirm, actionOrderId }) {
+  const isSellerView = type === 'sales';
 
   const copyHash = async (hash) => {
     if (!hash) return;
@@ -48,15 +162,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-sm text-primary font-semibold">Flow #3 · Escrow &amp; giao dịch</p>
-        <h1 className="text-2xl font-bold">Đơn mua của bạn</h1>
-        <p className="text-sm text-gray-600">
-          Mỗi đơn hàng đều giữ tiền trong escrow HScoin cho tới khi bạn xác nhận. Xem hash, block và hợp đồng ngay bên dưới.
-        </p>
-      </header>
-
+    <div className="space-y-4">
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
@@ -64,12 +170,14 @@ export default function OrdersPage() {
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-gray-600 flex items-center gap-2">
-            <Loader2 className="animate-spin" size={16} /> Đang tải danh sách đơn hàng…
+            <Loader2 className="animate-spin" size={16} /> Đang tải danh sách đơn {isSellerView ? 'bán' : 'mua'}…
           </CardContent>
         </Card>
       ) : orders.length === 0 ? (
         <Card>
-          <CardContent className="p-6 text-center text-gray-500">Bạn chưa có đơn hàng nào.</CardContent>
+          <CardContent className="p-6 text-center text-gray-500">
+            {isSellerView ? 'Bạn chưa có đơn bán nào.' : 'Bạn chưa có đơn mua nào.'}
+          </CardContent>
         </Card>
       ) : (
         orders.map((order) => {
@@ -99,12 +207,23 @@ export default function OrdersPage() {
                   </span>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClass}`}>
                     {icon}
-                    {order.status}
+                    {statusLabels[order.status] || order.status}
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">
-                  Người bán: <span className="font-semibold">{order.seller?.name || '—'}</span>
+                  {isSellerView ? (
+                    <>
+                      Người mua: <span className="font-semibold">{order.customer?.name || '—'}</span>
+                    </>
+                  ) : (
+                    <>
+                      Người bán: <span className="font-semibold">{order.seller?.name || '—'}</span>
+                    </>
+                  )}
                 </p>
+                {isSellerView && order.customer?.email && (
+                  <p className="text-xs text-gray-500">Email: {order.customer.email}</p>
+                )}
               </CardHeader>
               <CardContent className="p-4 space-y-4">
                 {order.items?.map((item) => (
@@ -154,9 +273,7 @@ export default function OrdersPage() {
                         <AlertTriangle size={12} /> Lỗi: {hscoinCall.lastError || 'HScoin từ chối giao dịch.'}
                       </p>
                     )}
-                    {hscoinCall?.callId && (
-                      <p className="text-xs">HScoin call ID: #{hscoinCall.callId}</p>
-                    )}
+                    {hscoinCall?.callId && <p className="text-xs">HScoin call ID: #{hscoinCall.callId}</p>}
                     {order.escrow?.txHash ? (
                       <>
                         <p>
@@ -185,12 +302,76 @@ export default function OrdersPage() {
                     >
                       Mở trên HScoin <ExternalLink size={12} />
                     </Link>
+                    {renderActionRow({
+                      order,
+                      isSellerView,
+                      onBuyerConfirm,
+                      onSellerConfirm,
+                      actionOrderId,
+                    })}
                   </div>
                 </div>
               </CardContent>
             </Card>
           );
         })
+      )}
+    </div>
+  );
+}
+
+function renderActionRow({ order, isSellerView, onBuyerConfirm, onSellerConfirm, actionOrderId }) {
+  const isCompleted = order.status === 'Completed' || order.status === 'Cancelled';
+  if (isCompleted) {
+    return null;
+  }
+
+  const waitingCounterparty = isSellerView
+    ? order.status === 'SellerConfirmed'
+    : order.status === 'BuyerConfirmed';
+
+  const canConfirm = isSellerView
+    ? order.status === 'Pending' || order.status === 'BuyerConfirmed'
+    : order.status === 'Pending' || order.status === 'SellerConfirmed';
+
+  if (!canConfirm && !waitingCounterparty) {
+    return null;
+  }
+
+  const actionLabel = isSellerView
+    ? order.status === 'BuyerConfirmed'
+      ? 'Hoàn tất giao dịch'
+      : 'Xác nhận đã giao hàng'
+    : order.status === 'SellerConfirmed'
+    ? 'Tôi đã nhận hàng'
+    : 'Xác nhận đã thanh toán';
+
+  return (
+    <div className="pt-2 border-t border-primary/10 mt-3 flex flex-col gap-2">
+      {canConfirm && (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
+          onClick={() =>
+            isSellerView ? onSellerConfirm?.(order.orderId) : onBuyerConfirm?.(order.orderId)
+          }
+          disabled={actionOrderId === order.orderId}
+        >
+          {actionOrderId === order.orderId ? (
+            <span className="flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" /> Đang xử lý...
+            </span>
+          ) : (
+            actionLabel
+          )}
+        </button>
+      )}
+      {waitingCounterparty && (
+        <p className="text-xs text-amber-600">
+          {isSellerView
+            ? 'Bạn đã xác nhận. Đang chờ người mua hoàn tất.'
+            : 'Bạn đã xác nhận. Đang chờ người bán.'}
+        </p>
       )}
     </div>
   );

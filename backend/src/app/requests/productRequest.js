@@ -112,3 +112,9 @@ export const reviewProductAudit = Joi.object({
     status: Joi.string().valid('APPROVED', 'REJECTED').required().label('Trạng thái kiểm duyệt'),
     note: Joi.string().trim().max(500).allow('', null).label('Ghi chú'),
 });
+
+export const createProductReview = Joi.object({
+    orderDetailId: Joi.number().integer().positive().required().label('Sản phẩm trong đơn'),
+    rating: Joi.number().integer().min(1).max(5).required().label('Đánh giá'),
+    comment: Joi.string().trim().max(1000).allow('', null).label('Nhận xét'),
+});

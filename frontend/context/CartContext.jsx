@@ -29,10 +29,13 @@ export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(getInitialCart);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('pmarket-cart', JSON.stringify(cartItems));
+    if (typeof window === 'undefined') return;
+    if (isAuthenticated) {
+      localStorage.removeItem('pmarket-cart');
+      return;
     }
-  }, [cartItems]);
+    localStorage.setItem('pmarket-cart', JSON.stringify(cartItems));
+  }, [cartItems, isAuthenticated]);
 
   const loadCartFromServer = useCallback(async () => {
     if (!isAuthenticated) {

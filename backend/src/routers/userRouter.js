@@ -54,6 +54,12 @@ userRouter.patch(
     userController.updateGreenCredit
 );
 
+userRouter.post(
+    '/me/convert-green-credit',
+    validate(userRequest.convertGreenCredit),
+    userController.convertGreenCredit
+);
+
 userRouter.patch(
     '/me/update-date-of-birth',
     validate(userRequest.updateDateOfBirth),

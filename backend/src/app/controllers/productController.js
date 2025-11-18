@@ -185,3 +185,37 @@ export async function getProductManagementDetail(req, res, next) {
         next(error);
     }
 }
+
+export async function listProductReviews(req, res, next) {
+    try {
+        const productId = Number(req.params.id);
+        const data = await productService.listProductReviews(productId);
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function createProductReview(req, res, next) {
+    try {
+        const productId = Number(req.params.id);
+        const customerId = req.user.userId;
+        const { orderDetailId, rating, comment } = req.body;
+        const data = await productService.createProductReview(
+            productId,
+            Number(orderDetailId),
+            customerId,
+            { rating, comment }
+        );
+        res.status(201).json({
+            success: true,
+            message: 'Đã ghi nhận đánh giá của bạn.',
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

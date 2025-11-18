@@ -1,65 +1,177 @@
 'use client';
-import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../../../../components/ui/Card'; // 5 dots
-import { Button } from '../../../../../components/ui/Button';      // 5 dots
-import { Textarea } from '../../../../../components/ui/Textarea';   // 5 dots
-import { Select } from '../../../../../components/ui/Select';      // 5 dots
-import Image from 'next/image';
-import { Star } from 'lucide-react';
 
-const getMockProductForReview = (orderId) => {
-  if (orderId === 'DH456') return { id: 2, title: 'Bàn phím cơ', imageUrl: 'https://placehold.co/100x100/bbf7d0/31343C?text=Keyboard' };
-  return null;
-};
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import toast from 'react-hot-toast';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../../../../components/ui/Card';
+import { Button } from '../../../../../components/ui/Button';
+import { Textarea } from '../../../../../components/ui/Textarea';
+import { Select } from '../../../../../components/ui/Select';
+import { fetchOrderDetail, createProductReview } from '../../../../../lib/api';
+import { resolveProductImage } from '../../../../../lib/image';
+
+const ratingOptions = [
+  { value: 5, label: '⭐⭐⭐⭐⭐ Rất hài lòng' },
+  { value: 4, label: '⭐⭐⭐⭐ Hài lòng' },
+  { value: 3, label: '⭐⭐⭐ Bình thường' },
+  { value: 2, label: '⭐⭐ Không hài lòng' },
+  { value: 1, label: '⭐ Rất không hài lòng' },
+];
 
 export default function ReviewPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const product = getMockProductForReview(params.id);
+  const orderId = params?.id;
+  const selectedItemId = Number(searchParams?.get('itemId')) || null;
+
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmitReview = (e) => {
+  useEffect(() => {
+    let isMounted = true;
+    async function loadOrder() {
+      if (!orderId) return;
+      setLoading(true);
+      try {
+        const data = await fetchOrderDetail(orderId);
+        if (isMounted) {
+          setOrder(data);
+        }
+      } catch (error) {
+        toast.error(error.message || 'Không thể tải thông tin đơn hàng.');
+        if (isMounted) setOrder(null);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadOrder();
+    return () => {
+      isMounted = false;
+    };
+  }, [orderId]);
+
+  const targetItem = useMemo(() => {
+    if (!order?.items?.length) return null;
+    if (selectedItemId) {
+      return order.items.find((item) => item.orderDetailId === selectedItemId) || null;
+    }
+    return order.items.find((item) => !item.review) || null;
+  }, [order, selectedItemId]);
+
+  const isAlreadyReviewed = Boolean(targetItem?.review);
+
+  const handleSubmitReview = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    console.log("Đang gửi đánh giá:", { orderId: params.id, rating, comment });
-    setTimeout(() => {
-      alert("Gửi đánh giá thành công!");
-      router.push('/dashboard/orders');
-    }, 1000);
+    if (!targetItem || !orderId) return;
+    if (isAlreadyReviewed) {
+      toast.success('Sản phẩm này đã có đánh giá.');
+      router.push(/dashboard/orders/);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createProductReview(targetItem.productId, {
+        orderDetailId: targetItem.orderDetailId,
+        rating,
+        comment,
+      });
+      toast.success('Đã gửi đánh giá thành công!');
+      router.push(/dashboard/orders/);
+    } catch (error) {
+      toast.error(error.message || 'Không thể gửi đánh giá.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (!product) return <p>Đơn hàng không hợp lệ hoặc đã đánh giá.</p>;
+  if (loading) {
+    return <p className="py-10 text-center text-gray-600">Đang tải thông tin đơn hàng...</p>;
+  }
+
+  if (!order || !targetItem) {
+    return (
+      <div className="space-y-4 py-10 text-center">
+        <p className="text-gray-700">Không tìm thấy sản phẩm có thể đánh giá trong đơn hàng này.</p>
+        <Button variant="secondary" onClick={() => router.push('/dashboard/orders')}>
+          Quay lại đơn hàng
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Viết đánh giá cho sản phẩm</h1>
-      <form onSubmit={handleSubmitReview}>
+      <h1 className="text-2xl font-bold">Đánh giá sản phẩm</h1>
+      <form onSubmit={handleSubmitReview} className="space-y-4">
         <Card>
           <CardHeader className="flex flex-row items-center gap-4 border-b pb-4">
-             <Image src={product.imageUrl} alt={product.title} width={60} height={60} className="rounded-md object-cover"/>
-             <CardTitle className="text-lg">{product.title}</CardTitle>
+            <Image
+              src={resolveProductImage(targetItem)}
+              alt={targetItem.productName}
+              width={60}
+              height={60}
+              className="rounded-md object-cover"
+            />
+            <div>
+              <CardTitle className="text-lg">{targetItem.productName}</CardTitle>
+              <p className="text-sm text-gray-500">Đơn #{order.orderId}</p>
+            </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div>
-              <label htmlFor="rating" className="block text-sm font-medium mb-1">Mức độ hài lòng?</label>
-              <Select id="rating" value={rating} onChange={(e) => setRating(Number(e.target.value))}>
-                <option value={5}>⭐⭐⭐⭐⭐ Rất hài lòng</option>
-                <option value={4}>⭐⭐⭐⭐ Hài lòng</option>
-                <option value={3}>⭐⭐⭐ Bình thường</option>
-                <option value={2}>⭐⭐ Không hài lòng</option>
-                <option value={1}>⭐ Rất không hài lòng</option>
-              </Select>
-            </div>
-            <div>
-               <label htmlFor="comment" className="block text-sm font-medium mb-1">Viết bình luận</label>
-               <Textarea id="comment" placeholder="Chia sẻ cảm nhận..." value={comment} onChange={(e) => setComment(e.target.value)} rows={5} />
-            </div>
+            {isAlreadyReviewed ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700">
+                Bạn đã đánh giá sản phẩm này với {targetItem.review.rating}/5 ★ vào{' '}
+                {targetItem.review.createdAt
+                  ? new Date(targetItem.review.createdAt).toLocaleString('vi-VN')
+                  : 'trước đó'}
+                .
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label htmlFor="rating" className="block text-sm font-medium mb-1">
+                    Mức độ hài lòng?
+                  </label>
+                  <Select
+                    id="rating"
+                    value={rating}
+                    onChange={(e) => setRating(Number(e.target.value))}
+                  >
+                    {ratingOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label htmlFor="comment" className="block text-sm font-medium mb-1">
+                    Viết bình luận
+                  </label>
+                  <Textarea
+                    id="comment"
+                    placeholder="Chia sẻ cảm nhận sau khi sử dụng sản phẩm..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={5}
+                  />
+                </div>
+              </>
+            )}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}</Button>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={submitting || isAlreadyReviewed}
+            >
+              {isAlreadyReviewed ? 'Đã đánh giá' : submitting ? 'Đang gửi...' : 'Gửi đánh giá'}
+            </Button>
           </CardFooter>
         </Card>
       </form>

@@ -21,6 +21,7 @@ import {
   updateUserDateOfBirth,
   adjustReputationScore,
   adjustGreenCredit,
+  convertGreenCredit,
 } from '../../lib/api';
 
 // ===================== Dashboard =====================
@@ -46,6 +47,8 @@ export default function DashboardPage() {
   });
 
   const [scoreDelta, setScoreDelta] = useState({ reputation: '', greenCredit: '' });
+  const [convertAmount, setConvertAmount] = useState('');
+  const [isConverting, setIsConverting] = useState(false);
 
   const [passwordFields, setPasswordFields] = useState({
     currentPassword: '',
@@ -76,13 +79,15 @@ export default function DashboardPage() {
       (async () => {
         try {
           const apiData = await getUserDashboard(token);
-          setDashboardData(apiData);
-          setProfileData(prev => ({
-            ...prev,
-            phone: apiData.phone || prev.phone,
-            address: apiData.address || prev.address,
-            dateOfBirth: apiData.dateOfBirth || prev.dateOfBirth,
-          }));
+          if (apiData) {
+            setDashboardData(apiData);
+            setProfileData(prev => ({
+              ...prev,
+              phone: apiData.phone ?? prev.phone,
+              address: apiData.address ?? prev.address,
+              dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
+            }));
+          }
         } catch (error) {
           toast.error('Không thể tải dữ liệu Dashboard.');
         } finally {
@@ -212,15 +217,54 @@ export default function DashboardPage() {
     try {
       if (type === 'reputation') {
         await adjustReputationScore(value);
-        setDashboardData(prev => ({ ...prev, reputation: (prev?.reputation ?? 0) + value }));
+        setDashboardData(prev => {
+          const current = prev ?? {};
+          return {
+            ...current,
+            reputation: (current.reputation ?? 0) + value,
+          };
+        });
       } else {
         await adjustGreenCredit(value);
-        setDashboardData(prev => ({ ...prev, greenCredit: (prev?.greenCredit ?? 0) + value }));
+        setDashboardData(prev => {
+          const current = prev ?? {};
+          return {
+            ...current,
+            greenCredit: (current.greenCredit ?? 0) + value,
+          };
+        });
       }
       setScoreDelta(prev => ({ ...prev, [type]: '' }));
       toast.success('Cập nhật thành công');
     } catch (error) {
       toast.error(error.message || 'Không cập nhật được');
+    }
+  };
+
+  const handleConvertGreenCredit = async () => {
+    const amount = Number(convertAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Nhập số green credit muốn quy đổi');
+      return;
+    }
+    setIsConverting(true);
+    try {
+      const response = await convertGreenCredit(amount);
+      const gained = response?.data?.reputationGain || 0;
+      toast.success(response?.message || 'Đã quy đổi green credit thành điểm uy tín.');
+      setDashboardData((prev) => {
+        const current = prev ?? {};
+        return {
+          ...current,
+          greenCredit: Math.max(0, (current.greenCredit ?? 0) - amount),
+          reputation: (current.reputation ?? 0) + gained,
+        };
+      });
+      setConvertAmount('');
+    } catch (error) {
+      toast.error(error.message || 'Không thể quy đổi.');
+    } finally {
+      setIsConverting(false);
     }
   };
 
@@ -420,6 +464,29 @@ export default function DashboardPage() {
                 <Button size="sm" onClick={() => handleScoreAdjust('greenCredit')}>
                   Cập nhật
                 </Button>
+              </div>
+              <div className="flex flex-col gap-2 border-t border-green-100 pt-3">
+                <p className="text-xs text-gray-500">
+                  Đổi Green Credit lấy điểm uy tín để tiếp tục mua/bán.
+                </p>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={convertAmount}
+                    onChange={(e) => setConvertAmount(e.target.value)}
+                    placeholder="Nhập GC muốn đổi"
+                    className="w-40"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleConvertGreenCredit}
+                    disabled={isConverting}
+                  >
+                    {isConverting ? 'Đang đổi...' : 'Quy đổi'}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>

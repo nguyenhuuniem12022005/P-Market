@@ -321,13 +321,26 @@ export async function adjustGreenCredit(amount) {
   }
 }
 
+export async function convertGreenCredit(amount) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/users/me/convert-green-credit`,
+      { amount },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function getUserDashboard() {
   try {
     const res = await axios.get(
       `${API_URL}/users/me/dashboard`,
       { headers: authHeader() }
     );
-    return res.data;
+    return res.data?.data;
   } catch (error) {
     handleAxiosError(error);
   }
@@ -359,24 +372,27 @@ export async function getProductById(productId) {
 }
 
 export async function getReviewsByProductId(productId) {
-  return [
-    {
-      id: 1,
-      userName: 'Nguy?n V?n A',
-      rating: 5,
-      comment: 'S?n ph?m r?t t?t, ??ng nh? m? t?!',
-      createdAt: '2024-01-15',
-      avatar: '/avatar.png'
-    },
-    {
-      id: 2,
-      userName: 'Tr?n Th? B',
-      rating: 4,
-      comment: 'Ch?t l??ng ?n, giao h?ng nhanh.',
-      createdAt: '2024-01-10',
-      avatar: '/avatar.png'
-    }
-  ];
+  try {
+    const res = await axios.get(`${API_URL}/products/${productId}/reviews`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function createProductReview(productId, payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/products/${productId}/reviews`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
 }
 
 export async function createProduct(productData) {
@@ -785,6 +801,54 @@ export async function fetchMyOrders() {
       headers: authHeader(),
     });
     return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchSellerOrders() {
+  try {
+    const res = await axios.get(`${API_URL}/orders/seller`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function confirmOrderAsBuyer(orderId) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/orders/${orderId}/confirm-buyer`,
+      {},
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function confirmOrderAsSeller(orderId) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/orders/${orderId}/confirm-seller`,
+      {},
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchOrderDetail(orderId) {
+  try {
+    const res = await axios.get(`${API_URL}/orders/${orderId}`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || null;
   } catch (error) {
     handleAxiosError(error);
   }

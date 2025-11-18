@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import * as productController from '../app/controllers/productController.js';
 import requireAuthentication from "../app/middleware/common/require-authentication.js";
 import validate from "../app/middleware/common/validate.js";
@@ -8,7 +8,7 @@ import { upload } from "../app/middleware/uploadMiddleware.js";
 
 const productRouter = Router();
 
-// Route c�ng khai - kh�ng y�u c?u x�c th?c
+// Route công khai - không yêu cầu xác thực
 productRouter.get(
     '/',
     validate(productRequest.searchProducts),
@@ -20,7 +20,12 @@ productRouter.get(
     productController.getProductById
 );
 
-// C�c route c?n l?i y�u c?u x�c th?c
+productRouter.get(
+    '/:id(\\d+)/reviews',
+    productController.listProductReviews
+);
+
+// Các route cần lại yêu cầu xác thực
 productRouter.use(requireAuthentication);
 
 productRouter.get(
@@ -59,6 +64,13 @@ productRouter.post(
     productController.createProduct
 );
 
+productRouter.post(
+    '/:id/reviews',
+    checkProductIdExists,
+    validate(productRequest.createProductReview),
+    productController.createProductReview
+);
+
 productRouter.put(
     '/:id/update-product',
     checkProductIdExists,
@@ -88,6 +100,4 @@ productRouter.delete(
 );
 
 export default productRouter;
-
-
 

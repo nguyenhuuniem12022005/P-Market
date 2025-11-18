@@ -23,6 +23,8 @@ export async function register(req, res) {
         avatar: newUser.avatar || '/avatar.png',
         referralToken: newUser.referralToken,
         referredByToken: newUser.referredByToken || '',
+        reputationScore: Number(newUser.reputationScore) || 100,
+        greenCredit: Number(newUser.greenCredit) || 0,
       },
       token: tokenInfo,
     });
@@ -66,6 +68,8 @@ export async function login(req, res) {
         avatar: validLogin.avatar || '/avatar.png',
         referralToken: validLogin.referralToken,
         referredByToken: validLogin.referredByToken || '',
+        reputationScore: Number(validLogin.reputationScore) || 0,
+        greenCredit: Number(validLogin.greenCredit) || 0,
       },
       token: tokenInfo,
     });

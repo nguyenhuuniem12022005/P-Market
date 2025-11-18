@@ -1,8 +1,15 @@
-import pool from "../../configs/mysql.js"; 
+import pool from "../../configs/mysql.js";
 import ApiError from "../../utils/classes/api-error.js";
+import * as userService from './userService.js';
+import * as supplierService from './supplierService.js';
 
 const MAX_PRODUCT_EDITS = 3;
+const MIN_SELLER_REPUTATION = Number(process.env.MIN_SELLER_REPUTATION || 65);
+const GREEN_CREDIT_REWARD_GREEN_PRODUCT = Number(
+  process.env.GREEN_CREDIT_REWARD_GREEN_PRODUCT || 25
+);
 let hasEnsuredStatusEnum = false;
+let hasEnsuredGreenCertificationLog = false;
 
 async function ensureProductStatusEnum() {
     if (hasEnsuredStatusEnum) return;
@@ -68,6 +75,20 @@ async function ensureProductNotTransacted(productId) {
     }
 }
 
+async function ensureGreenCertificationLog() {
+    if (hasEnsuredGreenCertificationLog) return;
+    await pool.query(`
+        create table if not exists GreenCertificationLog (
+            logId int auto_increment primary key,
+            productId int not null unique,
+            supplierId int not null,
+            credit int not null,
+            createdAt timestamp default current_timestamp
+        )
+    `);
+    hasEnsuredGreenCertificationLog = true;
+}
+
 async function ensureEditAvailability(productId, supplierId) {
     const [rows] = await pool.query(
         `
@@ -86,9 +107,69 @@ async function ensureEditAvailability(productId, supplierId) {
     }
     return editCount;
 }
+
+async function ensureSellerEligible(supplierId) {
+    if (!MIN_SELLER_REPUTATION) return;
+    const [rows] = await pool.query(
+        `
+        select reputationScore
+        from User
+        where userId = ?
+        limit 1
+        `,
+        [supplierId]
+    );
+    const reputation = Number(rows[0]?.reputationScore || 0);
+    if (reputation < MIN_SELLER_REPUTATION) {
+        throw ApiError.forbidden(
+            `Bạn cần tối thiểu ${MIN_SELLER_REPUTATION} điểm uy tín để đăng sản phẩm mới. Vui lòng tích lũy thêm trước khi đăng bài.`
+        );
+    }
+}
+
+async function rewardGreenCertification(productId) {
+    if (!GREEN_CREDIT_REWARD_GREEN_PRODUCT) {
+        return;
+    }
+    await ensureGreenCertificationLog();
+    const [existing] = await pool.query(
+        `
+        select logId
+        from GreenCertificationLog
+        where productId = ?
+        limit 1
+        `,
+        [productId]
+    );
+    if (existing.length) {
+        return;
+    }
+    const [products] = await pool.query(
+        `
+        select supplierId
+        from Product
+        where productId = ?
+        limit 1
+        `,
+        [productId]
+    );
+    const supplierId = products[0]?.supplierId;
+    if (!supplierId) {
+        return;
+    }
+    await userService.updateGreenCredit(supplierId, GREEN_CREDIT_REWARD_GREEN_PRODUCT);
+    await pool.query(
+        `
+        insert into GreenCertificationLog (productId, supplierId, credit)
+        values (?, ?, ?)
+        `,
+        [productId, supplierId, GREEN_CREDIT_REWARD_GREEN_PRODUCT]
+    );
+}
 // Đăng bài
 export async function createProduct(productData, supplierId) {
     await ensureProductStatusEnum();
+    await ensureSellerEligible(supplierId);
     const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
 
     const sql = `
@@ -485,6 +566,10 @@ export async function reviewProductAudit(productId, auditId, reviewerId, { statu
     [productStatus, productId]
   );
 
+  if (status === 'APPROVED') {
+    await rewardGreenCertification(productId);
+  }
+
   return getProductAudits(productId);
 }
 
@@ -515,4 +600,100 @@ export async function listPendingAudits() {
     ...row,
     attachments: row.attachments ? JSON.parse(row.attachments) : [],
   }));
+}
+
+export async function listProductReviews(productId) {
+  const [rows] = await pool.query(
+    `
+    select
+      r.reviewId,
+      r.orderDetailId,
+      r.starNumber,
+      r.comment,
+      r.createdAt,
+      so.customerId,
+      u.userName,
+      u.avatar
+    from Review r
+    join OrderDetail od on od.orderDetailId = r.orderDetailId
+    join SalesOrder so on so.salesOrderId = od.salesOrderId
+    join User u on u.userId = so.customerId
+    where od.productId = ?
+    order by r.createdAt desc
+    `,
+    [productId]
+  );
+
+  return rows.map((row) => ({
+    reviewId: row.reviewId,
+    orderDetailId: row.orderDetailId,
+    rating: Number(row.starNumber) || 0,
+    comment: row.comment || '',
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    userName: row.userName,
+    avatar: row.avatar || null,
+    isVerified: true,
+    reason: null,
+  }));
+}
+
+export async function createProductReview(productId, orderDetailId, customerId, { rating, comment }) {
+  const normalizedRating = Math.max(1, Math.min(5, Number(rating) || 1));
+  const [orderRows] = await pool.query(
+    `
+    select
+      od.orderDetailId,
+      od.productId,
+      so.salesOrderId,
+      so.status,
+      so.customerId,
+      p.supplierId
+    from OrderDetail od
+    join SalesOrder so on so.salesOrderId = od.salesOrderId
+    join Product p on p.productId = od.productId
+    where od.orderDetailId = ?
+    `,
+    [orderDetailId]
+  );
+
+  const orderRow = orderRows[0];
+  if (!orderRow || Number(orderRow.productId) !== Number(productId)) {
+    await userService.updateReputationScore(customerId, -10);
+    throw ApiError.forbidden('Bạn không thể đánh giá sản phẩm không thuộc đơn hàng của mình.');
+  }
+  if (orderRow.customerId !== customerId) {
+    await userService.updateReputationScore(customerId, -10);
+    throw ApiError.forbidden('Bạn không thể đánh giá đơn hàng của người khác.');
+  }
+  if (orderRow.status !== 'Completed') {
+    throw ApiError.badRequest('Đơn hàng chưa hoàn tất hoặc chưa đủ điều kiện đánh giá.');
+  }
+
+  const [existing] = await pool.query(
+    `
+    select reviewId
+    from Review
+    where orderDetailId = ?
+    limit 1
+    `,
+    [orderDetailId]
+  );
+  if (existing.length) {
+    throw ApiError.badRequest('Bạn đã đánh giá sản phẩm này.');
+  }
+
+  await pool.query(
+    `
+    insert into Review (orderDetailId, starNumber, comment, createdAt)
+    values (?, ?, ?, now())
+    `,
+    [orderDetailId, normalizedRating, comment || null]
+  );
+
+  if (normalizedRating <= 2) {
+    await userService.updateReputationScore(orderRow.supplierId, -5);
+  }
+  await supplierService.updateSellerRating(orderRow.supplierId);
+
+  return listProductReviews(productId);
 }

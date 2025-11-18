@@ -7,6 +7,7 @@ const PASSWORD_RESET_TOKEN_EXPIRES_MINUTES = Math.max(
   5,
   Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES || 30)
 );
+const GREEN_CREDIT_TO_REPUTATION_RATE = Number(process.env.GREEN_CREDIT_TO_REPUTATION_RATE || 1);
 
 const WALLET_ENCRYPTION_KEY = crypto
   .createHash('sha256')
@@ -49,7 +50,21 @@ export async function createUser({
 
     const insertId = results.insertId;
     const [rows] = await pool.query(`
-        select userId, firstName, lastName, userName, email, referralToken, referredByToken
+        select
+          userId,
+          firstName,
+          lastName,
+          userName,
+          email,
+          referralToken,
+          referredByToken,
+          phone,
+          address,
+          avatar,
+          reputationScore,
+          greenCredit,
+          dateOfBirth,
+          walletAddress
         from User where userId = ?`
         , [insertId]);
 
@@ -218,7 +233,7 @@ export async function uploadAvatar(userId, imagePath) {
 export async function updateReputationScore(userId, amount) {
     await pool.query(`
         update User 
-        set reputationScore = reputationScore + ?
+        set reputationScore = ifnull(reputationScore, 0) + ?
         where userId = ?    
         `, [amount, userId]);
 }
@@ -226,9 +241,45 @@ export async function updateReputationScore(userId, amount) {
 export async function updateGreenCredit(userId, amount) {
     await pool.query(`
         update User 
-        set greenCredit = greenCredit + ?
+        set greenCredit = ifnull(greenCredit, 0) + ?
         where userId = ?    
         `, [amount, userId]);
+}
+
+export async function convertGreenCreditToReputation(userId, greenCreditAmount) {
+    const amount = Math.max(1, Number(greenCreditAmount) || 0);
+    if (!GREEN_CREDIT_TO_REPUTATION_RATE) {
+        throw ApiError.badRequest('Chưa cấu hình tỷ lệ đổi Green Credit.');
+    }
+    const [rows] = await pool.query(
+        `
+        select greenCredit
+        from User
+        where userId = ?
+        limit 1
+        `,
+        [userId]
+    );
+    if (rows.length === 0) {
+        throw ApiError.notFound('Không tìm thấy người dùng');
+    }
+    const currentCredit = Number(rows[0].greenCredit || 0);
+    if (currentCredit < amount) {
+        throw ApiError.badRequest('Bạn không có đủ Green Credit để quy đổi.');
+    }
+    const reputationGain = Math.max(1, Math.floor(amount * GREEN_CREDIT_TO_REPUTATION_RATE));
+    await pool.query(
+        `
+        update User
+        set greenCredit = greenCredit - ?, reputationScore = reputationScore + ?
+        where userId = ?
+        `,
+        [amount, reputationGain, userId]
+    );
+    return {
+        reputationGain,
+        greenCreditSpent: amount,
+    };
 }
 
 export async function updateDateOfBirth(userId, dateOfBirth) {
@@ -251,7 +302,11 @@ export async function getUserDashboardData(userId) {
     `, [userId]);
     
     const user = userRows[0];
-    const isPTIT = user.email.endsWith('@stu.ptit.edu.vn') || user.email.endsWith('@ptit.edu.vn');
+    if (!user) {
+        throw ApiError.notFound('Không tìm thấy người dùng');
+    }
+    const email = user.email || '';
+    const isPTIT = email.endsWith('@stu.ptit.edu.vn') || email.endsWith('@ptit.edu.vn');
     
     // Lấy sản phẩm đã bán (nếu là Supplier)
     const [soldProducts] = await pool.query(`
@@ -283,22 +338,36 @@ export async function getUserDashboardData(userId) {
         purchasedProducts = purchased;
     }
     
+    const normalizedUser = {
+        userId: user.userId,
+        userName: user.userName,
+        email: user.email,
+        phone: user.phone || '',
+        address: user.address || '',
+        avatar: user.avatar || null,
+        dateOfBirth: user.dateOfBirth || null,
+        reputationScore: Number(user.reputationScore) || 0,
+        greenCredit: Number(user.greenCredit) || 0,
+        isPTIT,
+        isCustomer: user.isCustomer > 0,
+        isSupplier: user.isSupplier > 0,
+        walletAddress: user.walletAddress || null,
+        walletConnectedAt: user.walletConnectedAt || null
+    };
+
     return {
-        user: {
-            userId: user.userId,
-            userName: user.userName,
-            email: user.email,
-            reputationScore: user.reputationScore,
-            greenCredit: user.greenCredit,
-            isPTIT,
-            isCustomer: user.isCustomer > 0,
-            isSupplier: user.isSupplier > 0,
-            walletAddress: user.walletAddress || null,
-            walletConnectedAt: user.walletConnectedAt || null
-        },
+        user: normalizedUser,
+        reputation: normalizedUser.reputationScore,
+        greenCredit: normalizedUser.greenCredit,
+        phone: normalizedUser.phone,
+        address: normalizedUser.address,
+        dateOfBirth: normalizedUser.dateOfBirth,
+        avatar: normalizedUser.avatar,
+        isPTIT: normalizedUser.isPTIT,
+        isCustomer: normalizedUser.isCustomer,
+        isSupplier: normalizedUser.isSupplier,
         soldProducts,
         purchasedProducts
-        
     };
 }
 

@@ -54,7 +54,7 @@ export async function markCancelled(req, res, next) {
 export async function getOrder(req, res, next) {
   try {
     const orderId = Number(req.params.orderId);
-    const data = await orderService.getOrderDetail(orderId);
+    const data = await orderService.getOrderDetail(orderId, req.user?.userId);
     return res.status(200).json({
       success: true,
       data,
@@ -76,11 +76,57 @@ export async function listMyOrders(req, res, next) {
   }
 }
 
+export async function listMySalesOrders(req, res, next) {
+  try {
+    const data = await orderService.listOrdersForSeller(req.user?.userId);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function listMyEscrowEvents(req, res, next) {
   try {
     const data = await orderService.listEscrowEventsForUser(req.user?.userId);
     return res.status(200).json({
       success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function confirmAsBuyer(req, res, next) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const data = await orderService.confirmOrderAsBuyer(orderId, req.user?.userId);
+    const message = data.completed
+      ? 'Đơn hàng đã được hoàn tất và giải phóng escrow.'
+      : 'Đã ghi nhận xác nhận của bạn. Đang chờ phía người bán.';
+    return res.status(200).json({
+      success: true,
+      message,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function confirmAsSeller(req, res, next) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const data = await orderService.confirmOrderAsSeller(orderId, req.user?.userId);
+    const message = data.completed
+      ? 'Đơn hàng đã được xác nhận đầy đủ và escrow sẽ được giải phóng.'
+      : 'Đã ghi nhận xác nhận của bạn. Đang chờ người mua.';
+    return res.status(200).json({
+      success: true,
+      message,
       data,
     });
   } catch (error) {

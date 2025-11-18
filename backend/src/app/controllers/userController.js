@@ -86,6 +86,20 @@ export async function updateGreenCredit(req, res) {
     });
 }
 
+export async function convertGreenCredit(req, res, next) {
+    try {
+        const { amount } = req.body;
+        const data = await userService.convertGreenCreditToReputation(req.user.userId, amount);
+        res.status(200).json({
+            success: true,
+            message: 'Đã quy đổi green credit sang điểm uy tín.',
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 export async function updateDateOfBirth(req, res) {
     await userService.updateDateOfBirth(req.user.userId, req.body.dateOfBirth);
 
