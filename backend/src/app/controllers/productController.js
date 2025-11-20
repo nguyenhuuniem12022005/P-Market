@@ -219,3 +219,31 @@ export async function createProductReview(req, res, next) {
         next(error);
     }
 }
+
+export async function flagReview(req, res, next) {
+    try {
+        const reviewId = Number(req.params.reviewId);
+        const reporterId = req.user.userId;
+        const { reason } = req.body;
+        const data = await productService.flagReview(reviewId, reporterId, reason);
+        res.status(201).json({
+            success: true,
+            message: 'Đã gửi báo cáo review.',
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function listReviewFlags(req, res, next) {
+    try {
+        const data = await productService.listReviewFlags(req.query.limit);
+        res.status(200).json({
+            success: true,
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

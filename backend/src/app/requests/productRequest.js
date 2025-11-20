@@ -118,3 +118,7 @@ export const createProductReview = Joi.object({
     rating: Joi.number().integer().min(1).max(5).required().label('Đánh giá'),
     comment: Joi.string().trim().max(1000).allow('', null).label('Nhận xét'),
 });
+
+export const flagReview = Joi.object({
+    reason: Joi.string().trim().max(1000).allow('', null).label('Lý do báo cáo'),
+});

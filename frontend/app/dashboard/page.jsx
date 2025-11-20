@@ -488,6 +488,10 @@ export default function DashboardPage() {
                   </Button>
                 </div>
               </div>
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>Kiếm Green Credit bằng: sản phẩm được duyệt audit xanh, hoàn tất đơn escrow, vận chuyển xanh.</p>
+                <p>Lịch sử đổi điểm sẽ hiển thị ở đây sau khi đồng bộ on-chain.</p>
+              </div>
             </div>
           </CardContent>
         </Card>

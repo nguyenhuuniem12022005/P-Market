@@ -10,6 +10,7 @@ const GREEN_CREDIT_REWARD_GREEN_PRODUCT = Number(
 );
 let hasEnsuredStatusEnum = false;
 let hasEnsuredGreenCertificationLog = false;
+let hasEnsuredReviewFlagTable = false;
 
 async function ensureProductStatusEnum() {
     if (hasEnsuredStatusEnum) return;
@@ -87,6 +88,20 @@ async function ensureGreenCertificationLog() {
         )
     `);
     hasEnsuredGreenCertificationLog = true;
+}
+
+async function ensureReviewFlagTable() {
+    if (hasEnsuredReviewFlagTable) return;
+    await pool.query(`
+        create table if not exists ReviewFlag (
+            flagId int auto_increment primary key,
+            reviewId int not null,
+            reporterId int not null,
+            reason text null,
+            createdAt timestamp default current_timestamp
+        )
+    `);
+    hasEnsuredReviewFlagTable = true;
 }
 
 async function ensureEditAvailability(productId, supplierId) {
@@ -696,4 +711,45 @@ export async function createProductReview(productId, orderDetailId, customerId, 
   await supplierService.updateSellerRating(orderRow.supplierId);
 
   return listProductReviews(productId);
+}
+
+export async function flagReview(reviewId, reporterId, reason = '') {
+  await ensureReviewFlagTable();
+  await pool.query(
+    `
+    insert into ReviewFlag (reviewId, reporterId, reason)
+    values (?, ?, ?)
+    `,
+    [reviewId, reporterId, reason || null]
+  );
+  return { success: true };
+}
+
+export async function listReviewFlags(limit = 50) {
+  await ensureReviewFlagTable();
+  const [rows] = await pool.query(
+    `
+    select
+      rf.flagId,
+      rf.reviewId,
+      rf.reporterId,
+      rf.reason,
+      rf.createdAt,
+      r.orderDetailId,
+      r.starNumber,
+      r.comment,
+      so.salesOrderId
+    from ReviewFlag rf
+    left join Review r on r.reviewId = rf.reviewId
+    left join OrderDetail od on od.orderDetailId = r.orderDetailId
+    left join SalesOrder so on so.salesOrderId = od.salesOrderId
+    order by rf.createdAt desc
+    limit ?
+    `,
+    [Math.max(1, Math.min(Number(limit) || 50, 200))]
+  );
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+  }));
 }

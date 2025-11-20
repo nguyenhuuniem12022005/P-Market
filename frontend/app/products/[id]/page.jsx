@@ -63,6 +63,20 @@ export default function ProductDetailPage() {
   const sellerReputation = product?.seller?.reputationScore ?? product?.reputationScore ?? 'Chưa có';
   const sellerAvatar = buildAvatarUrl(product?.seller?.avatar);
   const productImage = resolveProductImage(product, FALLBACK_IMAGE);
+  const reviewCount = reviews.length;
+  const averageRating =
+    reviewCount > 0
+      ? (
+          reviews.reduce(
+            (sum, r) => sum + (Number(r.rating ?? r.starNumber ?? 0) || 0),
+            0
+          ) / reviewCount
+        ).toFixed(1)
+      : null;
+  const bucketData = [1, 2, 3, 4, 5].map((star) => ({
+    star,
+    count: reviews.filter((r) => Number(r.rating ?? r.starNumber ?? 0) === star).length,
+  }));
 
   // --- Các handler ---
   const handleWriteReview = () => router.push('/dashboard/orders');
@@ -209,23 +223,57 @@ export default function ProductDetailPage() {
               </div>
               
               {/* Hiển thị số sao trung bình */}
-              {reviews.length > 0 && (
-                <div className="mb-6 pb-6 border-b">
+              {reviewCount > 0 && (
+                <div className="mb-6 pb-6 border-b space-y-3">
                   <div className="flex items-center gap-4">
-                    <div className="text-4xl font-bold">
-                      {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
-                    </div>
+                    <div className="text-4xl font-bold">{averageRating}</div>
                     <div>
                       <div className="flex items-center gap-1 mb-1">
                         {[...Array(5)].map((_, i) => (
                           <Star
                             key={i}
                             size={20}
-                            className={i < Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
+                            className={
+                              i < Math.round(Number(averageRating))
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'text-gray-300'
+                            }
                           />
                         ))}
                       </div>
-                      <p className="text-sm text-gray-600">{reviews.length} đánh giá</p>
+                      <p className="text-sm text-gray-600">{reviewCount} đánh giá</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      {bucketData
+                        .slice()
+                        .reverse()
+                        .map((bucket) => {
+                          const pct = reviewCount
+                            ? Math.round((bucket.count / reviewCount) * 100)
+                            : 0;
+                          return (
+                            <div key={bucket.star} className="flex items-center gap-2 text-sm">
+                              <span className="w-14 text-right">{bucket.star} ★</span>
+                              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary/70"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="w-8 text-right text-gray-500">{pct}%</span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                    <div className="p-3 border rounded-lg bg-gray-50 text-sm text-gray-700">
+                      <p className="font-semibold text-gray-900 mb-1">Quy tắc đánh giá</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Chỉ đánh giá sau khi đã mua hàng.</li>
+                        <li>Đánh giá sai sản phẩm có thể bị trừ uy tín.</li>
+                        <li>Ảnh minh họa giúp đánh giá đáng tin cậy hơn.</li>
+                      </ul>
                     </div>
                   </div>
                 </div>

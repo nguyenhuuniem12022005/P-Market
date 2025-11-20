@@ -903,6 +903,33 @@ export async function listHscoinContractCalls({ caller, limit = 20 }) {
   }));
 }
 
+export async function listHscoinAdminCalls({ status, limit = 50 }) {
+  await ensureHscoinCallTable();
+  const params = [];
+  let where = '';
+  if (status) {
+    where = 'where status = ?';
+    params.push(status);
+  }
+  params.push(Math.max(1, Math.min(Number(limit) || 50, 200)));
+  const [rows] = await pool.query(
+    `
+    select callId, method, callerAddress, status, retries, maxRetries, lastError, nextRunAt, createdAt, updatedAt, orderId
+    from HscoinContractCall
+    ${where}
+    order by createdAt desc
+    limit ?
+    `,
+    params
+  );
+  return rows.map((row) => ({
+    ...row,
+    callerAddress: row.callerAddress?.toLowerCase(),
+    nextRunAt: row.nextRunAt ? new Date(row.nextRunAt).toISOString() : null,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+  }));
+}
 export async function listHscoinAlerts({ severity, limit = 50 }) {
   await ensureHscoinAlertTable();
   const params = [];

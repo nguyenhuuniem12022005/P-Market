@@ -119,3 +119,18 @@ export async function listSimpleTokenAlerts(req, res, next) {
     return next(error);
   }
 }
+
+export async function listHscoinAdminCalls(req, res, next) {
+  try {
+    const data = await blockchainService.listHscoinAdminCalls({
+      status: req.query.status || req.body.status,
+      limit: req.query.limit || req.body.limit,
+    });
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}

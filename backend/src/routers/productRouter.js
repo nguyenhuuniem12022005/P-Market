@@ -71,6 +71,17 @@ productRouter.post(
     productController.createProductReview
 );
 
+productRouter.post(
+    '/reviews/:reviewId/flag',
+    validate(productRequest.flagReview),
+    productController.flagReview
+);
+
+productRouter.get(
+    '/admin/review-flags',
+    productController.listReviewFlags
+);
+
 productRouter.put(
     '/:id/update-product',
     checkProductIdExists,

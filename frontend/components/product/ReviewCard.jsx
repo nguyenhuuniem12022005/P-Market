@@ -21,6 +21,11 @@ export default function ReviewCard({ review }) {
               <Star key={i} size={16} fill={i < rating ? 'currentColor' : 'none'} />
             ))}
           </div>
+          {review.isVerified ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full mt-1">
+              Verified purchase
+            </span>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent>

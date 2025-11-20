@@ -395,6 +395,19 @@ export async function createProductReview(productId, payload) {
   }
 }
 
+export async function flagReview(reviewId, reason = '') {
+  try {
+    const res = await axios.post(
+      `${API_URL}/products/reviews/${reviewId}/flag`,
+      { reason },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function createProduct(productData) {
   try {
     const isFormData = typeof FormData !== "undefined" && productData instanceof FormData;
@@ -789,6 +802,18 @@ export async function fetchDeveloperMetrics() {
       headers: authHeader()
     });
     return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchHscoinAdminCalls(params = {}) {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/simple-token/admin/calls`, {
+      params,
+      headers: authHeader()
+    });
+    return res.data?.data || [];
   } catch (error) {
     handleAxiosError(error);
   }

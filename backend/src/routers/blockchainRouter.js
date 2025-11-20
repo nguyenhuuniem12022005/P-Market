@@ -50,4 +50,9 @@ blockchainRouter.get(
   blockchainController.listSimpleTokenAlerts
 );
 
+blockchainRouter.get(
+  '/simple-token/admin/calls',
+  blockchainController.listHscoinAdminCalls
+);
+
 export default blockchainRouter;
