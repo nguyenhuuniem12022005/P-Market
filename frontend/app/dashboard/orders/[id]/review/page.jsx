@@ -31,6 +31,7 @@ export default function ReviewPage() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [attachmentUrls, setAttachmentUrls] = useState(['']);
 
   useEffect(() => {
     let isMounted = true;
@@ -68,6 +69,12 @@ export default function ReviewPage() {
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (!targetItem || !orderId) return;
+    const payload = {
+      orderDetailId: targetItem.orderDetailId,
+      rating,
+      comment,
+      attachments: attachmentUrls.filter(Boolean),
+    };
     if (isAlreadyReviewed) {
       toast.success('Sản phẩm này đã có đánh giá.');
       router.push('/dashboard/orders');
@@ -75,11 +82,7 @@ export default function ReviewPage() {
     }
     setSubmitting(true);
     try {
-      await createProductReview(targetItem.productId, {
-        orderDetailId: targetItem.orderDetailId,
-        rating,
-        comment,
-      });
+      await createProductReview(targetItem.productId, payload);
       toast.success('Đã gửi đánh giá thành công!');
       router.push('/dashboard/orders');
     } catch (error) {
@@ -149,18 +152,57 @@ export default function ReviewPage() {
                     ))}
                   </Select>
                 </div>
-                <div>
-                  <label htmlFor="comment" className="block text-sm font-medium mb-1">
-                    Viết bình luận
-                  </label>
-                  <Textarea
+            <div>
+              <label htmlFor="comment" className="block text-sm font-medium mb-1">
+                Viết bình luận
+              </label>
+              <Textarea
                     id="comment"
                     placeholder="Chia sẻ cảm nhận sau khi sử dụng sản phẩm..."
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    rows={5}
+                rows={5}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Ảnh minh họa (URL)</label>
+              {attachmentUrls.map((url, idx) => (
+                <div key={idx} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) =>
+                      setAttachmentUrls((prev) =>
+                        prev.map((item, i) => (i === idx ? e.target.value : item))
+                      )
+                    }
+                    className="flex-1 border rounded px-3 py-2 text-sm"
+                    placeholder="https://example.com/image.jpg"
                   />
+                  {attachmentUrls.length > 1 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setAttachmentUrls((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      Xóa
+                    </Button>
+                  )}
                 </div>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setAttachmentUrls((prev) => [...prev, ''])}
+              >
+                Thêm ảnh
+              </Button>
+              <p className="text-xs text-gray-500 mt-1">Tối đa 5 ảnh, dán URL công khai.</p>
+            </div>
               </>
             )}
           </CardContent>

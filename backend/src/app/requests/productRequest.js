@@ -117,6 +117,7 @@ export const createProductReview = Joi.object({
     orderDetailId: Joi.number().integer().positive().required().label('Sản phẩm trong đơn'),
     rating: Joi.number().integer().min(1).max(5).required().label('Đánh giá'),
     comment: Joi.string().trim().max(1000).allow('', null).label('Nhận xét'),
+    attachments: Joi.array().items(Joi.string().uri().trim()).max(5).default([]).label('Đính kèm'),
 });
 
 export const flagReview = Joi.object({

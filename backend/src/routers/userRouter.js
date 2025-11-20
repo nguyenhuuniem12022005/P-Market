@@ -60,6 +60,21 @@ userRouter.post(
     userController.convertGreenCredit
 );
 
+userRouter.get(
+    '/me/reputation-ledger',
+    userController.listReputationLedger
+);
+
+userRouter.get(
+    '/me/notifications',
+    userController.listNotifications
+);
+
+userRouter.patch(
+    '/me/notifications/read',
+    userController.markNotificationsRead
+);
+
 userRouter.patch(
     '/me/update-date-of-birth',
     validate(userRequest.updateDateOfBirth),

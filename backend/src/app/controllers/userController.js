@@ -119,6 +119,44 @@ export async function getDashboardData(req, res) {
     });
 }
 
+export async function listReputationLedger(req, res, next) {
+  try {
+    const data = await userService.listReputationLedger(req.user.userId, req.query.limit);
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listNotifications(req, res, next) {
+  try {
+    const data = await userService.listNotifications(req.user.userId, {
+      since: req.query.since,
+      limit: req.query.limit,
+    });
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function markNotificationsRead(req, res, next) {
+  try {
+    await userService.markNotificationsRead(req.user.userId, req.body.ids || []);
+    res.status(200).json({
+      success: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getWalletInfo(req, res, next) {
   try {
     const data = await userService.getWalletInfo(req.user.userId);

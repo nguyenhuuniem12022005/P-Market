@@ -11,6 +11,7 @@ const GREEN_CREDIT_REWARD_GREEN_PRODUCT = Number(
 let hasEnsuredStatusEnum = false;
 let hasEnsuredGreenCertificationLog = false;
 let hasEnsuredReviewFlagTable = false;
+let hasEnsuredReviewMedia = false;
 
 async function ensureProductStatusEnum() {
     if (hasEnsuredStatusEnum) return;
@@ -102,6 +103,20 @@ async function ensureReviewFlagTable() {
         )
     `);
     hasEnsuredReviewFlagTable = true;
+}
+
+async function ensureReviewMediaTable() {
+    if (hasEnsuredReviewMedia) return;
+    await pool.query(`
+        create table if not exists ReviewMedia (
+            mediaId int auto_increment primary key,
+            reviewId int not null,
+            url text not null,
+            type enum('image','video','other') not null default 'image',
+            createdAt timestamp default current_timestamp
+        )
+    `);
+    hasEnsuredReviewMedia = true;
 }
 
 async function ensureEditAvailability(productId, supplierId) {
@@ -618,6 +633,7 @@ export async function listPendingAudits() {
 }
 
 export async function listProductReviews(productId) {
+  await ensureReviewMediaTable();
   const [rows] = await pool.query(
     `
     select
@@ -639,6 +655,30 @@ export async function listProductReviews(productId) {
     [productId]
   );
 
+  const reviewIds = rows.map((row) => row.reviewId);
+  let mediaByReview = new Map();
+  if (reviewIds.length) {
+    const [mediaRows] = await pool.query(
+      `
+      select mediaId, reviewId, url, type, createdAt
+      from ReviewMedia
+      where reviewId in (?)
+      order by createdAt asc
+      `,
+      [reviewIds]
+    );
+    mediaByReview = mediaRows.reduce((map, item) => {
+      if (!map.has(item.reviewId)) map.set(item.reviewId, []);
+      map.get(item.reviewId).push({
+        mediaId: item.mediaId,
+        url: item.url,
+        type: item.type,
+        createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : item.createdAt,
+      });
+      return map;
+    }, new Map());
+  }
+
   return rows.map((row) => ({
     reviewId: row.reviewId,
     orderDetailId: row.orderDetailId,
@@ -649,11 +689,13 @@ export async function listProductReviews(productId) {
     avatar: row.avatar || null,
     isVerified: true,
     reason: null,
+    media: mediaByReview.get(row.reviewId) || [],
   }));
 }
 
-export async function createProductReview(productId, orderDetailId, customerId, { rating, comment }) {
+export async function createProductReview(productId, orderDetailId, customerId, { rating, comment, attachments = [] }) {
   const normalizedRating = Math.max(1, Math.min(5, Number(rating) || 1));
+  await ensureReviewMediaTable();
   const [orderRows] = await pool.query(
     `
     select
@@ -697,13 +739,25 @@ export async function createProductReview(productId, orderDetailId, customerId, 
     throw ApiError.badRequest('Bạn đã đánh giá sản phẩm này.');
   }
 
-  await pool.query(
+  const [reviewResult] = await pool.query(
     `
     insert into Review (orderDetailId, starNumber, comment, createdAt)
     values (?, ?, ?, now())
     `,
     [orderDetailId, normalizedRating, comment || null]
   );
+  const reviewId = reviewResult.insertId;
+
+  if (attachments && attachments.length) {
+    const mediaRows = attachments.slice(0, 5).map((url) => [reviewId, url, 'image']);
+    await pool.query(
+      `
+      insert into ReviewMedia (reviewId, url, type)
+      values ?
+      `,
+      [mediaRows]
+    );
+  }
 
   if (normalizedRating <= 2) {
     await userService.updateReputationScore(orderRow.supplierId, -5);

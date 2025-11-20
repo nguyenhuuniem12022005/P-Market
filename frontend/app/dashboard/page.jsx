@@ -22,6 +22,8 @@ import {
   adjustReputationScore,
   adjustGreenCredit,
   convertGreenCredit,
+  fetchReputationLedger,
+  fetchNotifications,
 } from '../../lib/api';
 
 // ===================== Dashboard =====================
@@ -49,6 +51,8 @@ export default function DashboardPage() {
   const [scoreDelta, setScoreDelta] = useState({ reputation: '', greenCredit: '' });
   const [convertAmount, setConvertAmount] = useState('');
   const [isConverting, setIsConverting] = useState(false);
+  const [reputationLedger, setReputationLedger] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   const [passwordFields, setPasswordFields] = useState({
     currentPassword: '',
@@ -87,6 +91,15 @@ export default function DashboardPage() {
               address: apiData.address ?? prev.address,
               dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
             }));
+          }
+          const ledger = await fetchReputationLedger();
+          setReputationLedger(ledger);
+          // simple polling notifications placeholder
+          try {
+            const noti = await fetchNotifications();
+            setNotifications(noti || []);
+          } catch (err) {
+            // ignore
           }
         } catch (error) {
           toast.error('Không thể tải dữ liệu Dashboard.');
@@ -493,6 +506,62 @@ export default function DashboardPage() {
                 <p>Lịch sử đổi điểm sẽ hiển thị ở đây sau khi đồng bộ on-chain.</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {reputationLedger.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lịch sử điểm uy tín / Green Credit</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-gray-700">
+            {reputationLedger.map((entry) => (
+              <div
+                key={entry.logId}
+                className="flex items-center justify-between border-b border-gray-100 py-2 last:border-b-0"
+              >
+                <div>
+                  <p className="font-semibold">{entry.type}</p>
+                  <p className="text-xs text-gray-500">
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString('vi-VN') : ''}
+                  </p>
+                  {entry.reason && <p className="text-xs text-gray-500">{entry.reason}</p>}
+                </div>
+                <div className="text-right text-sm">
+                  <p className={entry.deltaReputation >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                    Uy tín: {entry.deltaReputation > 0 ? '+' : ''}{entry.deltaReputation}
+                  </p>
+                  <p className={entry.deltaGreen >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                    Green: {entry.deltaGreen > 0 ? '+' : ''}{entry.deltaGreen}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {notifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Thông báo mới</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-gray-700">
+            {notifications.map((n) => (
+              <div
+                key={n.notificationId || n.createdAt}
+                className="flex items-center justify-between border-b border-gray-100 py-2 last:border-b-0"
+              >
+                <div>
+                  <p className="font-semibold">{n.content}</p>
+                  <p className="text-xs text-gray-500">
+                    {n.createdAt ? new Date(n.createdAt).toLocaleString('vi-VN') : ''}
+                  </p>
+                </div>
+                {!n.isRead && <span className="text-[10px] px-2 py-1 rounded-full bg-primary text-white">Mới</span>}
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

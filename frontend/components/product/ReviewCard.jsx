@@ -8,6 +8,7 @@ export default function ReviewCard({ review }) {
   const createdAt = review.createdAt
     ? new Date(review.createdAt).toLocaleDateString('vi-VN')
     : null;
+  const media = Array.isArray(review.media) ? review.media : [];
 
   return (
     <Card>
@@ -36,6 +37,25 @@ export default function ReviewCard({ review }) {
             <p className="text-sm">
               <strong>Đã trừ điểm:</strong> {review.reason || 'Đánh giá không hợp lệ.'}
             </p>
+          </div>
+        )}
+        {media.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {media.map((item) => (
+              <a
+                key={item.mediaId || item.url}
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+              >
+                <img
+                  src={item.url}
+                  alt="Review media"
+                  className="w-full h-24 object-cover rounded border"
+                />
+              </a>
+            ))}
           </div>
         )}
       </CardContent>

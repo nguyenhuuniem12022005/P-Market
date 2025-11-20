@@ -8,6 +8,7 @@ const PASSWORD_RESET_TOKEN_EXPIRES_MINUTES = Math.max(
   Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES || 30)
 );
 const GREEN_CREDIT_TO_REPUTATION_RATE = Number(process.env.GREEN_CREDIT_TO_REPUTATION_RATE || 1);
+let hasEnsuredReputationLedger = false;
 
 const WALLET_ENCRYPTION_KEY = crypto
   .createHash('sha256')
@@ -268,6 +269,7 @@ export async function convertGreenCreditToReputation(userId, greenCreditAmount) 
         throw ApiError.badRequest('Bạn không có đủ Green Credit để quy đổi.');
     }
     const reputationGain = Math.max(1, Math.floor(amount * GREEN_CREDIT_TO_REPUTATION_RATE));
+    await ensureReputationLedger();
     await pool.query(
         `
         update User
@@ -276,10 +278,103 @@ export async function convertGreenCreditToReputation(userId, greenCreditAmount) 
         `,
         [amount, reputationGain, userId]
     );
+    await pool.query(
+        `
+        insert into ReputationLedger (userId, type, deltaReputation, deltaGreen, reason)
+        values (?, 'CONVERT', ?, ?, ?)
+        `,
+        [userId, reputationGain, -amount, 'Quy đổi Green Credit sang điểm uy tín']
+    );
     return {
         reputationGain,
         greenCreditSpent: amount,
     };
+}
+
+async function ensureReputationLedger() {
+    if (hasEnsuredReputationLedger) return;
+    await pool.query(`
+        create table if not exists ReputationLedger (
+            logId int auto_increment primary key,
+            userId int not null,
+            type varchar(32) not null,
+            deltaReputation int not null default 0,
+            deltaGreen int not null default 0,
+            reason text null,
+            createdAt timestamp default current_timestamp
+        )
+    `);
+    hasEnsuredReputationLedger = true;
+}
+
+export async function listReputationLedger(userId, limit = 50) {
+    await ensureReputationLedger();
+    const [rows] = await pool.query(
+        `
+        select logId, type, deltaReputation, deltaGreen, reason, createdAt
+        from ReputationLedger
+        where userId = ?
+        order by createdAt desc
+        limit ?
+        `,
+        [userId, Math.max(1, Math.min(Number(limit) || 50, 200))]
+    );
+    return rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    }));
+}
+
+async function ensureNotificationTable() {
+    await pool.query(`
+        create table if not exists Notification (
+            notificationId int auto_increment primary key,
+            userId int not null,
+            content text not null,
+            type varchar(64) not null default 'system',
+            isRead tinyint(1) not null default 0,
+            relatedId int null,
+            createdAt timestamp default current_timestamp
+        )
+    `);
+}
+
+export async function listNotifications(userId, { since, limit = 50 } = {}) {
+    await ensureNotificationTable();
+    const params = [userId];
+    let where = 'userId = ?';
+    if (since) {
+        where += ' and createdAt > ?';
+        params.push(new Date(since));
+    }
+    params.push(Math.max(1, Math.min(Number(limit) || 50, 200)));
+    const [rows] = await pool.query(
+        `
+        select notificationId, content, type, isRead, relatedId, createdAt
+        from Notification
+        where ${where}
+        order by createdAt desc
+        limit ?
+        `,
+        params
+    );
+    return rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    }));
+}
+
+export async function markNotificationsRead(userId, ids = []) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    await ensureNotificationTable();
+    await pool.query(
+        `
+        update Notification
+        set isRead = 1
+        where userId = ? and notificationId in (?)
+        `,
+        [userId, ids]
+    );
 }
 
 export async function updateDateOfBirth(userId, dateOfBirth) {

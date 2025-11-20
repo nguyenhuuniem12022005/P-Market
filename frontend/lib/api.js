@@ -939,5 +939,29 @@ export async function rewardReferral(payload) {
   }
 }
 
+export async function fetchReputationLedger(limit = 50) {
+  try {
+    const res = await axios.get(`${API_URL}/users/me/reputation-ledger`, {
+      params: { limit },
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchNotifications(params = {}) {
+  try {
+    const res = await axios.get(`${API_URL}/users/me/notifications`, {
+      params,
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 
 
