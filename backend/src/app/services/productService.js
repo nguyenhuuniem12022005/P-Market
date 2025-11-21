@@ -12,6 +12,7 @@ let hasEnsuredStatusEnum = false;
 let hasEnsuredGreenCertificationLog = false;
 let hasEnsuredReviewFlagTable = false;
 let hasEnsuredReviewMedia = false;
+let hasEnsuredGreenFlag = false;
 
 async function ensureProductStatusEnum() {
     if (hasEnsuredStatusEnum) return;
@@ -35,6 +36,21 @@ async function ensureProductStatusEnum() {
         );
     }
     hasEnsuredStatusEnum = true;
+}
+
+async function ensureGreenFlagColumn() {
+    if (hasEnsuredGreenFlag) return;
+    await pool.query(
+        `
+        alter table Product
+        add column isGreen tinyint(1) not null default 0
+        `
+    ).catch((error) => {
+        if (error.code !== 'ER_DUP_FIELDNAME') {
+            throw error;
+        }
+    });
+    hasEnsuredGreenFlag = true;
 }
 
 async function ensureProductOwner(productId, supplierId) {
@@ -157,6 +173,23 @@ async function ensureSellerEligible(supplierId) {
     }
 }
 
+async function ensureDailyGreenLimit(supplierId) {
+    const [rows] = await pool.query(
+        `
+        select count(*) as greenCount
+        from Product
+        where supplierId = ?
+          and coalesce(isGreen,0) = 1
+          and date(createdAt) = current_date()
+        `,
+        [supplierId]
+    );
+    const count = Number(rows[0]?.greenCount || 0);
+    if (count >= 2) {
+        throw ApiError.forbidden('Bạn chỉ được đăng tối đa 2 sản phẩm xanh mỗi ngày.');
+    }
+}
+
 async function rewardGreenCertification(productId) {
     if (!GREEN_CREDIT_REWARD_GREEN_PRODUCT) {
         return;
@@ -199,15 +232,20 @@ async function rewardGreenCertification(productId) {
 // Đăng bài
 export async function createProduct(productData, supplierId) {
     await ensureProductStatusEnum();
+    await ensureGreenFlagColumn();
     await ensureSellerEligible(supplierId);
-    const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs } = productData;
+    const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs, isGreen } = productData;
+
+    if (isGreen) {
+        await ensureDailyGreenLimit(supplierId);
+    }
 
     const sql = `
         insert into Product (
             supplierId, categoryId, productName, description, imageURL,
-            unitPrice, size, status, discount, complianceDocs, editCount
+            unitPrice, size, status, discount, complianceDocs, editCount, isGreen
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [results] = await pool.query(sql, [
@@ -221,7 +259,8 @@ export async function createProduct(productData, supplierId) {
         status || 'Draft',
         discount || 0,
         complianceDocs ? JSON.stringify(complianceDocs) : null,
-        0
+        0,
+        isGreen ? 1 : 0
     ]);
 
     const insertId = results.insertId;

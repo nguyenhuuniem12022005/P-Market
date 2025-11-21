@@ -11,12 +11,13 @@ const REPUTATION_REWARD_SELLER = Number(process.env.REPUTATION_REWARD_SELLER || 
 const GREEN_CREDIT_REWARD_RATE_BUYER = Number(process.env.GREEN_CREDIT_REWARD_RATE_BUYER || 0.1);
 const GREEN_CREDIT_REWARD_RATE_SELLER = Number(process.env.GREEN_CREDIT_REWARD_RATE_SELLER || 0.05);
 const GREEN_CREDIT_MIN_REWARD = Math.max(0, Number(process.env.GREEN_CREDIT_MIN_REWARD || 1));
+const GREEN_CREDIT_GREEN_CONFIRM_BONUS = Number(process.env.GREEN_CREDIT_GREEN_CONFIRM_BONUS || 5);
 const MIN_REPUTATION_TO_BUY = Number(process.env.MIN_BUYER_REPUTATION || 65);
 
 async function getOrderById(orderId) {
   const [rows] = await pool.query(
     `
-    select salesOrderId, customerId, shipperId, status, totalAmount, shippingAddress, orderDate, deliveryDate
+    select salesOrderId, customerId, shipperId, status, totalAmount, shippingAddress, orderDate, deliveryDate, isGreen, isGreenConfirmed
     from SalesOrder
     where salesOrderId = ?
     limit 1
@@ -24,6 +25,10 @@ async function getOrderById(orderId) {
     [orderId]
   );
   return rows[0] || null;
+}
+
+function toBool(val) {
+  return String(val) === '1' || val === true;
 }
 
 async function getLatestEscrowState(orderId) {
@@ -91,6 +96,7 @@ export async function createEscrowOrder({
   quantity = 1,
   walletAddress,
   shippingAddress,
+  contractAddress,
 }) {
   if (!customerId) {
     throw ApiError.badRequest('Thiếu thông tin người mua');
@@ -101,7 +107,7 @@ export async function createEscrowOrder({
   const qty = Math.max(1, Number(quantity) || 1);
   const [products] = await pool.query(
     `
-    select productId, supplierId, productName, unitPrice, status, discount, imageURL
+    select productId, supplierId, productName, unitPrice, status, discount, imageURL, coalesce(isGreen, 0) as isGreen
     from Product
     where productId = ?
     limit 1
@@ -151,6 +157,8 @@ export async function createEscrowOrder({
       method: 'burn',
       args: [burnAmount],
       value: 0,
+      contractAddress,
+      userId: customerId,
     });
     burnCallId = burnResult?.callId || null;
     burnStatus = burnResult?.status || 'SUCCESS';
@@ -166,10 +174,10 @@ export async function createEscrowOrder({
   const paymentMethodId = 1;
   const [orderResult] = await pool.query(
     `
-    insert into SalesOrder (customerId, shipperId, paymentMethodId, feeShipping, shippingAddress, status, totalAmount)
-    values (?, null, ?, 0, ?, 'Pending', ?)
+    insert into SalesOrder (customerId, shipperId, paymentMethodId, feeShipping, shippingAddress, status, totalAmount, isGreen, isGreenConfirmed)
+    values (?, null, ?, 0, ?, 'Pending', ?, ?, 0)
     `,
-    [customerId, paymentMethodId, resolvedAddress, totalAmount]
+    [customerId, paymentMethodId, resolvedAddress, totalAmount, product.isGreen ? 1 : 0]
   );
   const orderId = orderResult.insertId;
 
@@ -226,7 +234,7 @@ function calculateGreenCreditReward(amount, rate) {
   return GREEN_CREDIT_MIN_REWARD;
 }
 
-export async function confirmOrderAsBuyer(orderId, buyerId) {
+export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = false } = {}) {
   const normalizedBuyerId = Number(buyerId);
   if (!orderId || !normalizedBuyerId) {
     throw ApiError.badRequest('Thiếu thông tin người dùng hoặc đơn hàng');
@@ -255,6 +263,20 @@ export async function confirmOrderAsBuyer(orderId, buyerId) {
   }
   if (order.status === 'Completed') {
     return { order, status: order.status, completed: true };
+  }
+
+  // Ghi nhận hành động xanh từ phía buyer (nếu sản phẩm là hành động xanh)
+  const shouldMarkGreen = order.isGreen && isGreenApproved;
+  if (shouldMarkGreen && !order.isGreenConfirmed) {
+    await pool.query(
+      `
+      update SalesOrder
+      set isGreenConfirmed = 1
+      where salesOrderId = ?
+      `,
+      [orderId]
+    );
+    order.isGreenConfirmed = true;
   }
 
   if (order.status === 'SellerConfirmed') {
@@ -326,6 +348,7 @@ export async function markOrderCompleted(orderId, { triggerReferral = true } = {
     order?.totalAmount,
     GREEN_CREDIT_REWARD_RATE_SELLER
   );
+  const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_GREEN_CONFIRM_BONUS : 0;
 
   let sellerIds = [];
   const shouldLoadSellerIds =
@@ -356,7 +379,12 @@ export async function markOrderCompleted(orderId, { triggerReferral = true } = {
 
   if (uniqueSellerIds.length && sellerGreenCredit > 0) {
     for (const supplierId of uniqueSellerIds) {
-      rewardTasks.push(userService.updateGreenCredit(supplierId, sellerGreenCredit));
+      rewardTasks.push(
+        userService.updateGreenCredit(
+          supplierId,
+          sellerGreenCredit + (greenBonus || 0)
+        )
+      );
     }
   }
 
@@ -404,7 +432,13 @@ export async function getOrderDetail(orderId, requesterId) {
       so.totalAmount,
       so.orderDate,
       so.shippingAddress,
+      so.isGreen,
+      so.isGreenConfirmed,
+      so.isGreen,
+      so.isGreenConfirmed,
       so.paymentMethodId,
+      so.isGreen,
+      so.isGreenConfirmed,
       buyer.userName as buyerName,
       buyer.email as buyerEmail,
       buyer.avatar as buyerAvatar,
@@ -552,6 +586,8 @@ export async function getOrderDetail(orderId, requesterId) {
   return {
     orderId: orderRow.salesOrderId,
     status: orderRow.status,
+    isGreen: toBool(orderRow.isGreen),
+    isGreenConfirmed: toBool(orderRow.isGreenConfirmed),
     totalAmount: Number(orderRow.totalAmount) || 0,
     orderDate: orderRow.orderDate instanceof Date ? orderRow.orderDate.toISOString() : orderRow.orderDate,
     shippingAddress: orderRow.shippingAddress,
@@ -676,7 +712,11 @@ export async function listOrdersForCustomer(customerId) {
         status: row.status,
         totalAmount: Number(row.totalAmount) || 0,
         orderDate: row.orderDate,
+        isGreen: toBool(row.isGreen),
+        isGreenConfirmed: toBool(row.isGreenConfirmed),
         shippingAddress: row.shippingAddress,
+        isGreen: toBool(row.isGreen),
+        isGreenConfirmed: toBool(row.isGreenConfirmed),
         seller: {
           supplierId: row.supplierId,
           name: row.sellerName,

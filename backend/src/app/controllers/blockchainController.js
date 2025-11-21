@@ -76,6 +76,8 @@ export async function executeSimpleToken(req, res, next) {
       method: req.body.method || req.body?.inputData?.function,
       args: req.body?.inputData?.args ?? req.body.args ?? [],
       value: req.body.value || 0,
+      contractAddress: req.body.contractAddress,
+      userId: req.user?.userId,
     };
     const data = await blockchainService.executeSimpleToken(payload);
     return res.status(200).json({
@@ -126,6 +128,35 @@ export async function listHscoinAdminCalls(req, res, next) {
       status: req.query.status || req.body.status,
       limit: req.query.limit || req.body.limit,
     });
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function saveUserContract(req, res, next) {
+  try {
+    const payload = {
+      ...req.body,
+      userId: req.user?.userId,
+    };
+    const data = await blockchainService.saveUserContract(payload);
+    return res.status(201).json({
+      success: true,
+      message: 'Đã lưu contract HScoin',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listUserContracts(req, res, next) {
+  try {
+    const data = await blockchainService.listUserContracts(req.user?.userId);
     return res.status(200).json({
       success: true,
       data,

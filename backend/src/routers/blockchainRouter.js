@@ -55,4 +55,12 @@ blockchainRouter.get(
   blockchainController.listHscoinAdminCalls
 );
 
+blockchainRouter.post(
+  '/contracts',
+  validate(blockchainRequest.saveUserContract),
+  blockchainController.saveUserContract
+);
+
+blockchainRouter.get('/contracts', blockchainController.listUserContracts);
+
 export default blockchainRouter;

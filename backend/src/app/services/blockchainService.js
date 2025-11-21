@@ -52,6 +52,7 @@ let chainCache = { blocks: [], fetchedAt: 0 };
 let hasHscoinCallTable = false;
 let hscoinWorkerTimer = null;
 let hasHscoinAlertTable = false;
+let hasUserContractTable = false;
 
 const SIMPLE_TOKEN_FUNCTIONS = {
   burn: {
@@ -70,6 +71,14 @@ const SIMPLE_TOKEN_FUNCTIONS = {
 
 function normalizeAddress(address) {
   return String(address || '').trim().toLowerCase();
+}
+
+function validateAddress(address) {
+  const normalized = normalizeAddress(address);
+  if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
+    throw ApiError.badRequest('Địa chỉ contract không hợp lệ');
+  }
+  return normalized;
 }
 
 function encodeUint256(value) {
@@ -804,10 +813,7 @@ export async function getEscrowSnapshot({ orderId, status = 'Pending', amount = 
   return remote || fallback;
 }
 
-export async function executeSimpleToken({ caller, method, args = [], value = 0 }) {
-  if (!SIMPLE_TOKEN_ADDRESS) {
-    throw ApiError.badRequest('Chưa cấu hình HSCOIN_SIMPLE_TOKEN_ADDRESS');
-  }
+export async function executeSimpleToken({ caller, method, args = [], value = 0, contractAddress, userId }) {
   if (!method) {
     throw ApiError.badRequest('Thiếu tên hàm (function)');
   }
@@ -827,6 +833,7 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     finalArgs = [amount];
   }
 
+  const resolvedContract = await resolveContractAddress({ userId, contractAddress });
   const encodedInput = buildSimpleTokenCalldata(method, finalArgs);
 
   const requestPayload = {
@@ -839,7 +846,7 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
     method,
     caller: normalizedCaller,
     payload: {
-      contractAddress: SIMPLE_TOKEN_ADDRESS,
+      contractAddress: resolvedContract,
       body: requestPayload,
       originalCall: { method, args: normalizedArgs },
     },
@@ -847,7 +854,7 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0 
 
   try {
     const response = await invokeHscoinContract({
-      contractAddress: SIMPLE_TOKEN_ADDRESS,
+      contractAddress: resolvedContract,
       body: requestPayload,
     });
     await markHscoinCallSuccess(callId, response);
@@ -1067,6 +1074,153 @@ async function ensureHscoinCallTable() {
       }
     });
   hasHscoinCallTable = true;
+}
+
+async function ensureUserContractTable() {
+  if (hasUserContractTable) return;
+  await pool.query(
+    `
+    create table if not exists UserContract (
+      contractId int primary key auto_increment,
+      userId int not null,
+      name varchar(120) not null,
+      address varchar(66) not null,
+      network varchar(60) default 'HScoin Devnet',
+      isDefault tinyint(1) not null default 0,
+      createdAt timestamp default current_timestamp,
+      unique key uniq_user_contract (userId, address),
+      foreign key (userId) references User(userId) on delete cascade
+    ) engine=InnoDB
+    `
+  );
+  hasUserContractTable = true;
+}
+
+export async function saveUserContract({ userId, name, address, network = 'HScoin Devnet', isDefault = false }) {
+  if (!userId) {
+    throw ApiError.badRequest('Thiếu thông tin người dùng');
+  }
+  const normalizedAddress = validateAddress(address);
+  await ensureUserContractTable();
+
+  if (isDefault) {
+    await pool.query(
+      `
+      update UserContract
+      set isDefault = 0
+      where userId = ?
+      `,
+      [userId]
+    );
+  }
+
+  await pool.query(
+    `
+    insert into UserContract (userId, name, address, network, isDefault)
+    values (?, ?, ?, ?, ?)
+    on duplicate key update
+      name = values(name),
+      network = values(network),
+      isDefault = values(isDefault)
+    `,
+    [userId, name || 'My Contract', normalizedAddress, network || 'HScoin Devnet', isDefault ? 1 : 0]
+  );
+
+  // nếu chưa có default thì đặt bản ghi này làm default
+  const [defaults] = await pool.query(
+    `
+    select contractId
+    from UserContract
+    where userId = ? and isDefault = 1
+    limit 1
+    `,
+    [userId]
+  );
+  if (!defaults.length) {
+    await pool.query(
+      `
+      update UserContract
+      set isDefault = 1
+      where userId = ? and address = ?
+      `,
+      [userId, normalizedAddress]
+    );
+  }
+
+  return getDefaultUserContract(userId);
+}
+
+export async function listUserContracts(userId) {
+  if (!userId) {
+    throw ApiError.badRequest('Thiếu thông tin người dùng');
+  }
+  await ensureUserContractTable();
+  const [rows] = await pool.query(
+    `
+    select contractId, name, address, network, isDefault, createdAt
+    from UserContract
+    where userId = ?
+    order by isDefault desc, createdAt desc
+    `,
+    [userId]
+  );
+  return rows.map((row) => ({
+    ...row,
+    isDefault: Boolean(row.isDefault),
+    address: normalizeAddress(row.address),
+  }));
+}
+
+async function getDefaultUserContract(userId) {
+  if (!userId) return null;
+  await ensureUserContractTable();
+  const [[preferred]] = await pool.query(
+    `
+    select contractId, name, address, network, isDefault, createdAt
+    from UserContract
+    where userId = ? and isDefault = 1
+    limit 1
+    `,
+    [userId]
+  );
+  if (preferred) {
+    return {
+      ...preferred,
+      isDefault: Boolean(preferred.isDefault),
+      address: normalizeAddress(preferred.address),
+    };
+  }
+  const [[any]] = await pool.query(
+    `
+    select contractId, name, address, network, isDefault, createdAt
+    from UserContract
+    where userId = ?
+    order by createdAt asc
+    limit 1
+    `,
+    [userId]
+  );
+  return any
+    ? {
+        ...any,
+        isDefault: Boolean(any.isDefault),
+        address: normalizeAddress(any.address),
+      }
+    : null;
+}
+
+async function resolveContractAddress({ userId, contractAddress }) {
+  if (contractAddress) {
+    return validateAddress(contractAddress);
+  }
+  const defaultContract = await getDefaultUserContract(userId);
+  if (defaultContract?.address) {
+    return defaultContract.address;
+  }
+  if (SIMPLE_TOKEN_ADDRESS) {
+    return SIMPLE_TOKEN_ADDRESS;
+  }
+  throw ApiError.badRequest('Chưa cấu hình địa chỉ contract HScoin');
 }
 
 async function ensureHscoinAlertTable() {

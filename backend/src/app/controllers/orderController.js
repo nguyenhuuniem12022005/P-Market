@@ -8,6 +8,7 @@ export async function createEscrowOrder(req, res, next) {
       quantity: req.body.quantity,
       walletAddress: req.body.walletAddress,
       shippingAddress: req.body.shippingAddress,
+      contractAddress: req.body.contractAddress,
     };
     const data = await orderService.createEscrowOrder(payload);
     return res.status(201).json({
@@ -103,7 +104,9 @@ export async function listMyEscrowEvents(req, res, next) {
 export async function confirmAsBuyer(req, res, next) {
   try {
     const orderId = Number(req.params.orderId);
-    const data = await orderService.confirmOrderAsBuyer(orderId, req.user?.userId);
+    const data = await orderService.confirmOrderAsBuyer(orderId, req.user?.userId, {
+      isGreenApproved: Boolean(req.body?.isGreenApproved),
+    });
     const message = data.completed
       ? 'Đơn hàng đã được hoàn tất và giải phóng escrow.'
       : 'Đã ghi nhận xác nhận của bạn. Đang chờ phía người bán.';
