@@ -26,6 +26,35 @@ async function getOrderById(orderId) {
   return rows[0] || null;
 }
 
+async function getLatestEscrowState(orderId) {
+  const [[ledgerRow]] = await pool.query(
+    `
+    select status
+    from EscrowLedger
+    where salesOrderId = ?
+    order by createdAt desc
+    limit 1
+    `,
+    [orderId]
+  );
+
+  const [[callRow]] = await pool.query(
+    `
+    select status
+    from HscoinContractCall
+    where orderId = ?
+    order by updatedAt desc
+    limit 1
+    `,
+    [orderId]
+  );
+
+  return {
+    ledgerStatus: ledgerRow?.status || null,
+    callStatus: callRow?.status || null,
+  };
+}
+
 async function getOrderSellerIds(orderId) {
   const [rows] = await pool.query(
     `
@@ -212,6 +241,15 @@ export async function confirmOrderAsBuyer(orderId, buyerId) {
   if (order.status === 'Cancelled') {
     throw ApiError.badRequest('Đơn hàng đã bị hủy');
   }
+
+  const escrowState = await getLatestEscrowState(orderId);
+  if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
+    throw ApiError.badRequest('Phí HScoin đang được xử lý, vui lòng đợi burn escrow hoàn tất rồi mới xác nhận.');
+  }
+  if (escrowState.ledgerStatus && escrowState.ledgerStatus !== 'LOCKED') {
+    throw ApiError.badRequest('Trạng thái escrow chưa sẵn sàng để xác nhận.');
+  }
+
   if (order.status === 'BuyerConfirmed') {
     throw ApiError.badRequest('Bạn đã xác nhận đơn hàng này trước đó');
   }
@@ -242,6 +280,15 @@ export async function confirmOrderAsSeller(orderId, sellerId) {
   if (order.status === 'Cancelled') {
     throw ApiError.badRequest('Đơn hàng đã bị hủy');
   }
+
+  const escrowState = await getLatestEscrowState(orderId);
+  if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
+    throw ApiError.badRequest('Phí HScoin đang được xử lý, vui lòng đợi burn escrow hoàn tất rồi mới xác nhận.');
+  }
+  if (escrowState.ledgerStatus && escrowState.ledgerStatus !== 'LOCKED') {
+    throw ApiError.badRequest('Trạng thái escrow chưa sẵn sàng để xác nhận.');
+  }
+
   if (order.status === 'SellerConfirmed') {
     throw ApiError.badRequest('Bạn đã xác nhận đơn hàng này trước đó');
   }
