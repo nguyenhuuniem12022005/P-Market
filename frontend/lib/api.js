@@ -963,5 +963,18 @@ export async function fetchNotifications(params = {}) {
   }
 }
 
+export async function markNotificationsRead(ids = []) {
+  try {
+    const res = await axios.patch(
+      `${API_URL}/users/me/notifications/read`,
+      { ids },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.success;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 
 

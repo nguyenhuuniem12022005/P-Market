@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Container } from '../ui/Container';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -22,34 +22,10 @@ import { useAuth } from '../../context/AuthContext'; // ? import AuthContext
 import { useCart } from '../../context/CartContext';
 import { buildAvatarUrl } from '../../lib/api';
 import { resolveProductImage } from '../../lib/image';
+import { fetchNotifications, markNotificationsRead } from '../../lib/api';
 import dynamic from 'next/dynamic';
 
 const ChatWidget = dynamic(() => import('../chat/ChatWidget'), { ssr: false });
-
-// --- D? li?u gi? l?p (mock) ---
-const mockNotifications = [
-  {
-    id: 1,
-    text: 'Khuyến mãi cực sốc! Giảm giá 50%...',
-    time: '15 phút trước',
-    read: false,
-    link: '/sale',
-  },
-  {
-    id: 2,
-    text: 'Đơn hàng DH456 đã được giao thành công.',
-    time: '2 giờ trước',
-    read: false,
-    link: '/dashboard/orders/DH456',
-  },
-  {
-    id: 3,
-    text: 'Bạn nhận được 5 Green Credit.',
-    time: '1 ngày trước',
-    read: true,
-    link: '/dashboard/rewards',
-  },
-];
 
 const FALLBACK_PRODUCT_IMAGE = 'https://placehold.co/80x60?text=P-Market';
 
@@ -61,6 +37,8 @@ export default function Header() {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [isNotiLoading, setIsNotiLoading] = useState(false);
 
   // X? l? t?m ki?m
   const handleSearch = () => {
@@ -81,7 +59,7 @@ export default function Header() {
   const userAvatarUrl = buildAvatarUrl(user?.avatar);
 
   // ? S? l�?ng th�ng b�o v� gi? h�ng
-  const notificationCount = mockNotifications.filter((n) => !n.read).length;
+  const notificationCount = notifications.filter((n) => !n.read).length;
   const cartCount = cartItems.reduce((sum, item) => sum + (item?.quantity || 1), 0);
 
   // ? H�m x? l? ��ng xu?t
@@ -89,6 +67,44 @@ export default function Header() {
     await logout(); // clear user + token
     router.push('/'); // quay l?i trang ��ng nh?p
   };
+
+  // fetch notifications when dropdown opened first time
+  useEffect(() => {
+    async function loadNotifications() {
+      if (!isAuthenticated || isNotiLoading || notifications.length) return;
+      setIsNotiLoading(true);
+      try {
+        const data = await fetchNotifications({ limit: 20 });
+        setNotifications(
+          (data || []).map((item) => ({
+            id: item.notificationId || item.id,
+            text: item.content || 'Thông báo',
+            time: item.createdAt || '',
+            read: Boolean(item.isRead),
+            link: item.relatedId ? `/orders/${item.relatedId}` : '#',
+          }))
+        );
+      } finally {
+        setIsNotiLoading(false);
+      }
+    }
+    if (isNotificationOpen) {
+      loadNotifications();
+    }
+  }, [isNotificationOpen, isAuthenticated, isNotiLoading, notifications.length]);
+
+  // mark read when open and has unread
+  useEffect(() => {
+    async function markRead() {
+      const unreadIds = notifications.filter((n) => !n.read && n.id).map((n) => n.id);
+      if (!unreadIds.length) return;
+      await markNotificationsRead(unreadIds).catch(() => {});
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    }
+    if (isNotificationOpen && notifications.some((n) => !n.read)) {
+      markRead();
+    }
+  }, [isNotificationOpen, notifications]);
 
   return (
     <>
@@ -199,26 +215,35 @@ export default function Header() {
                     Thông Báo Mới Nhận
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {mockNotifications.map((noti) => (
-                      <Link
-                        key={noti.id}
-                        href={noti.link}
-                        className={`block px-4 py-3 hover:bg-gray-100 border-b last:border-b-0 ${
-                          !noti.read ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <p
-                          className={`text-sm ${
-                            !noti.read ? 'font-semibold' : ''
+                    {isNotiLoading && (
+                      <div className="px-4 py-3 text-sm text-gray-500">Đang tải...</div>
+                    )}
+                    {!isNotiLoading && notifications.length === 0 && (
+                      <div className="px-4 py-3 text-sm text-gray-500">Chưa có thông báo.</div>
+                    )}
+                    {!isNotiLoading &&
+                      notifications.map((noti) => (
+                        <Link
+                          key={noti.id}
+                          href={noti.link || '#'}
+                          className={`block px-4 py-3 hover:bg-gray-100 border-b last:border-b-0 ${
+                            !noti.read ? 'bg-blue-50' : ''
                           }`}
                         >
-                          {noti.text}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {noti.time}
-                        </p>
-                      </Link>
-                    ))}
+                          <p
+                            className={`text-sm ${
+                              !noti.read ? 'font-semibold' : ''
+                            }`}
+                          >
+                            {noti.text}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {noti.time
+                              ? new Date(noti.time).toLocaleString('vi-VN')
+                              : ''}
+                          </p>
+                        </Link>
+                      ))}
                   </div>
                   <div className="py-2 px-4 border-t text-center">
                     <Link
