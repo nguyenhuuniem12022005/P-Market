@@ -819,6 +819,30 @@ export async function fetchHscoinAdminCalls(params = {}) {
   }
 }
 
+export async function saveUserContract(payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/contracts`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchUserContracts() {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/contracts`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 // ===================== ORDER API =====================
 export async function fetchMyOrders() {
   try {

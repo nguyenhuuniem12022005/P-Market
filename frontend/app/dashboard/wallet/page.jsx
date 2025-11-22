@@ -5,7 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { fetchEscrowEvents } from '../../../lib/api';
+import {
+  fetchEscrowEvents,
+  fetchUserContracts,
+  saveUserContract,
+} from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
 
@@ -16,12 +20,25 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
+  const [contracts, setContracts] = useState([]);
+  const [contractName, setContractName] = useState('SimpleToken');
+  const [contractAddress, setContractAddress] = useState('');
+  const [isDefault, setIsDefault] = useState(true);
+  const [savingContract, setSavingContract] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await fetchEscrowEvents();
         setEvents(data || []);
+        const cons = await fetchUserContracts();
+        setContracts(cons || []);
+        const def = (cons || []).find((c) => c.isDefault);
+        if (def) {
+          setContractAddress(def.address || '');
+          setContractName(def.name || 'SimpleToken');
+          setIsDefault(def.isDefault || false);
+        }
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu ví HScoin.');
       } finally {
@@ -48,6 +65,28 @@ export default function WalletPage() {
       toast.success('Đã sao chép TxHash');
     } catch {
       toast.error('Không thể sao chép');
+    }
+  };
+
+  const handleSaveContract = async () => {
+    if (!contractAddress.trim()) {
+      toast.error('Vui lòng nhập contract address');
+      return;
+    }
+    setSavingContract(true);
+    try {
+      const data = await saveUserContract({
+        name: contractName || 'SimpleToken',
+        address: contractAddress,
+        isDefault,
+      });
+      toast.success('Đã lưu contract mặc định');
+      const list = await fetchUserContracts();
+      setContracts(list || []);
+    } catch (err) {
+      toast.error(err.message || 'Không thể lưu contract');
+    } finally {
+      setSavingContract(false);
     }
   };
 
@@ -190,6 +229,73 @@ export default function WalletPage() {
                 </div>
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Hợp đồng HScoin của bạn</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-800">Tên hợp đồng</label>
+            <input
+              type="text"
+              value={contractName}
+              onChange={(e) => setContractName(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              placeholder="SimpleToken"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-800">Địa chỉ contract</label>
+            <input
+              type="text"
+              value={contractAddress}
+              onChange={(e) => setContractAddress(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+              placeholder="0x..."
+            />
+            <p className="text-xs text-gray-500">
+              Mỗi user dùng 1 contract. Nếu chưa có, hãy deploy trên HScoin rồi nhập địa chỉ vào đây.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
+            <input
+              type="checkbox"
+              checked={isDefault}
+              onChange={(e) => setIsDefault(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Đặt làm contract mặc định
+          </label>
+          <Button onClick={handleSaveContract} disabled={savingContract}>
+            {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+            Lưu contract
+          </Button>
+
+          {contracts.length > 0 && (
+            <div className="mt-4 space-y-2 text-sm text-gray-700">
+              <p className="font-semibold">Contract đã lưu:</p>
+              {contracts.map((c) => (
+                <div
+                  key={c.contractId}
+                  className="rounded-md border px-3 py-2 flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-semibold">{c.name}</p>
+                    <p className="font-mono text-xs break-all">{c.address}</p>
+                    <p className="text-xs text-gray-500">{c.network || 'HScoin Devnet'}</p>
+                  </div>
+                  {c.isDefault && (
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
+                      Mặc định
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

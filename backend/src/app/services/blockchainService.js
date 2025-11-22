@@ -1213,9 +1213,12 @@ async function resolveContractAddress({ userId, contractAddress }) {
   if (contractAddress) {
     return validateAddress(contractAddress);
   }
-  const defaultContract = await getDefaultUserContract(userId);
-  if (defaultContract?.address) {
-    return defaultContract.address;
+  if (userId) {
+    const defaultContract = await getDefaultUserContract(userId);
+    if (defaultContract?.address) {
+      return defaultContract.address;
+    }
+    throw ApiError.badRequest('Bạn chưa lưu contract HScoin. Vui lòng nhập hoặc deploy contract trước khi thực hiện giao dịch.');
   }
   if (SIMPLE_TOKEN_ADDRESS) {
     return SIMPLE_TOKEN_ADDRESS;
