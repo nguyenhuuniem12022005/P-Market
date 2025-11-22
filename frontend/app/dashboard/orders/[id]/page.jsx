@@ -64,6 +64,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [greenApproved, setGreenApproved] = useState(false);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -71,6 +72,7 @@ export default function OrderDetailPage() {
     try {
       const data = await fetchOrderDetail(orderId);
       setOrder(data);
+      setGreenApproved(Boolean(data?.isGreenConfirmed));
       setError('');
     } catch (err) {
       setError(err.message || 'Không thể tải chi tiết đơn hàng.');
@@ -88,7 +90,9 @@ export default function OrderDetailPage() {
     setActionLoading(true);
     try {
       if (type === 'buyer') {
-        const response = await confirmOrderAsBuyer(orderId);
+        const response = await confirmOrderAsBuyer(orderId, {
+          isGreenApproved: order?.isGreen ? greenApproved || order?.isGreenConfirmed : undefined,
+        });
         toast.success(response?.message || 'Đã xác nhận.');
       } else {
         const response = await confirmOrderAsSeller(orderId);
@@ -203,7 +207,16 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {renderActions({ actions, role, onConfirm: handleConfirm, loading: actionLoading })}
+            {renderActions({
+              actions,
+              role,
+              onConfirm: handleConfirm,
+              loading: actionLoading,
+              isGreen: Boolean(order.isGreen),
+              isGreenConfirmed: Boolean(order.isGreenConfirmed),
+              greenApproved,
+              onToggleGreen: setGreenApproved,
+            })}
           </CardContent>
         </Card>
 
@@ -317,7 +330,16 @@ export default function OrderDetailPage() {
   );
 }
 
-function renderActions({ actions, role, onConfirm, loading }) {
+function renderActions({
+  actions,
+  role,
+  onConfirm,
+  loading,
+  isGreen,
+  greenApproved,
+  onToggleGreen,
+  isGreenConfirmed,
+}) {
   const hasAction = actions.canConfirmAsBuyer || actions.canConfirmAsSeller;
   const waitingMessage = actions.waitingForBuyer
     ? 'Đang chờ người mua xác nhận.'
@@ -333,15 +355,40 @@ function renderActions({ actions, role, onConfirm, loading }) {
     <div className="border rounded-lg p-4 space-y-3">
       <p className="text-sm font-semibold text-gray-800">Xác nhận giao dịch</p>
       {actions.canConfirmAsBuyer && role.isBuyer && (
+        <>
+          {isGreen && (
+            <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+              <input
+                id="greenApproved"
+                type="checkbox"
+                checked={greenApproved || isGreenConfirmed}
+                onChange={(e) => onToggleGreen?.(e.target.checked)}
+                className="mt-1 h-4 w-4"
+                disabled={isGreenConfirmed}
+              />
+              <label htmlFor="greenApproved" className="text-sm text-gray-800">
+                Tôi xác nhận đây là hành động xanh. Người bán sẽ được cộng Green Credit.
+                {isGreenConfirmed && (
+                  <span className="block text-xs text-emerald-700">
+                    Đã xác nhận xanh trước đó.
+                  </span>
+                )}
+              </label>
+            </div>
+          )}
         <button
           type="button"
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
           onClick={() => onConfirm('buyer')}
-          disabled={loading}
+          disabled={
+            loading ||
+            (isGreen && !isGreenConfirmed && !greenApproved)
+          }
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <User size={16} />}
           Tôi đã nhận hàng
         </button>
+        </>
       )}
       {actions.canConfirmAsSeller && role.isSeller && (
         <button

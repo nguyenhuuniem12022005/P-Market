@@ -32,6 +32,7 @@ export default function CreateProductPage() {
   const [size, setSize] = useState('');
   const [discount, setDiscount] = useState('0');
   const [createdProductId, setCreatedProductId] = useState(null);
+  const [isGreen, setIsGreen] = useState(false);
   
   // Step 2: Store/Warehouse info
   const [step, setStep] = useState(1); // 1 = Product info, 2 = Store info
@@ -117,6 +118,7 @@ export default function CreateProductPage() {
         setSize(detail.size || '');
         setDiscount(detail.discount != null ? String(detail.discount) : '0');
         setImages(detail.imageURL ? [detail.imageURL] : []);
+        setIsGreen(Boolean(detail.isGreen));
         setEditMeta({
           editCount: Number(detail.editCount || 0),
           remainingEdits: Math.max(0, MAX_PRODUCT_EDITS - Number(detail.editCount || 0)),
@@ -170,6 +172,7 @@ export default function CreateProductPage() {
     formData.append('categoryId', category);
     formData.append('size', size || '');
     formData.append('discount', discount || '0');
+    formData.append('isGreen', isGreen ? '1' : '0');
 
     if ((!createdProductId || imageDirty) && images.length > 0) {
       formData.append('image', images[0]);
@@ -408,6 +411,24 @@ export default function CreateProductPage() {
                       {images.length > 0 ? `Đã chọn ${images.length} ảnh` : 'Upload ảnh sản phẩm'}
                     </p>
                   </label>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-lg border p-4 bg-gray-50">
+                  <input
+                    id="isGreen"
+                    type="checkbox"
+                    checked={isGreen}
+                    onChange={(e) => setIsGreen(e.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <div>
+                    <label htmlFor="isGreen" className="font-semibold text-sm text-gray-800">
+                      Đơn hàng xanh
+                    </label>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Gắn nhãn “xanh” (tối đa 2 sản phẩm xanh/ngày). Người mua xác nhận hành động xanh sẽ giúp bạn nhận thêm Green Credit.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : (

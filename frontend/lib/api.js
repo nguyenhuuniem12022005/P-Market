@@ -842,12 +842,12 @@ export async function fetchSellerOrders() {
   }
 }
 
-export async function confirmOrderAsBuyer(orderId) {
+export async function confirmOrderAsBuyer(orderId, payload = {}) {
   try {
     const res = await axios.post(
       `${API_URL}/orders/${orderId}/confirm-buyer`,
-      {},
-      { headers: authHeader() }
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
     );
     return res.data;
   } catch (error) {
