@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 // Đổi User thành UserCircle hoặc một icon Profile khác nếu muốn
-import { ShoppingBag, Star, Gift, Shield, UserCircle, ClipboardList } from 'lucide-react'; 
+import { ShoppingBag, Star, Gift, Shield, UserCircle, ClipboardList, Wallet } from 'lucide-react'; 
 
 const navItems = [
   // --- SỬA DÒNG NÀY ---
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/dashboard/orders', icon: ShoppingBag, label: 'Đơn mua' },
   { href: '/dashboard/my-products', icon: ClipboardList, label: 'Bài đăng sản phẩm' },
   { href: '/dashboard/reviews', icon: Star, label: 'Đánh giá' },
+  { href: '/dashboard/wallet', icon: Wallet, label: 'Ví HScoin' },
   { href: '/dashboard/rewards', icon: Gift, label: 'Green Credit' },
   { href: '/dashboard/reputation', icon: Shield, label: 'Điểm uy tín' },
 ];
