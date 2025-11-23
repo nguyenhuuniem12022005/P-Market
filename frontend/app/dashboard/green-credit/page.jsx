@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Sprout, Award, ShieldCheck, TrendingUp, Loader2, Sparkles } from 'lucide-react';
 import { fetchGreenCreditSummary, requestGreenCreditSync, convertGreenCredit, redeemGreenBadge } from '../../../lib/api';
+import { useAuth } from '../../../context/AuthContext';
 
 const formatNumber = (value) => new Intl.NumberFormat('vi-VN').format(value);
 const formatDateTime = (value) =>
@@ -24,12 +25,29 @@ export default function GreenCreditPage() {
   const [error, setError] = useState('');
   const [convertAmount, setConvertAmount] = useState('5');
   const [actionState, setActionState] = useState({ status: 'idle', message: '' });
+  const { user, setUser } = useAuth();
+
+  const updateUserFromSummary = useCallback((data) => {
+    if (!data || !setUser) return;
+    const badgeLevel = Number(data.greenBadgeLevel ?? data.hasGreenBadge ?? 0);
+    const greenCredit = Number(data.score ?? user?.greenCredit ?? 0);
+    const merged = {
+      ...(user || {}),
+      greenBadgeLevel: badgeLevel,
+      greenCredit,
+    };
+    setUser(merged);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pmarket_user', JSON.stringify(merged));
+    }
+  }, [setUser, user]);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await fetchGreenCreditSummary();
         setSummary(data);
+        updateUserFromSummary(data);
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu green credit.');
       } finally {
@@ -37,7 +55,7 @@ export default function GreenCreditPage() {
       }
     }
     load();
-  }, []);
+  }, [updateUserFromSummary]);
 
   const handleSync = async () => {
     try {
@@ -64,6 +82,7 @@ export default function GreenCreditPage() {
       setActionState({ status: 'success', message: `Đã đổi ${amount} Green Credit sang uy tín.` });
       const data = await fetchGreenCreditSummary();
       setSummary(data);
+      updateUserFromSummary(data);
     } catch (err) {
       setActionState({ status: 'error', message: err.message || 'Không thể đổi điểm.' });
     }
@@ -76,6 +95,7 @@ export default function GreenCreditPage() {
       setActionState({ status: 'success', message: 'Đã đổi huy hiệu xanh (tốn 20 Green Credit).' });
       const data = await fetchGreenCreditSummary();
       setSummary(data);
+      updateUserFromSummary(data);
     } catch (err) {
       setActionState({ status: 'error', message: err.message || 'Không thể đổi huy hiệu.' });
     }
@@ -84,6 +104,7 @@ export default function GreenCreditPage() {
   const perks = summary?.perks || [];
   const audits = summary?.audits || [];
   const contributions = summary?.contributions || [];
+  const hasBadge = Number(summary?.greenBadgeLevel ?? summary?.hasGreenBadge ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -189,6 +210,12 @@ export default function GreenCreditPage() {
                 Nhận huy hiệu (tốn 20 Green Credit)
               </Button>
               <p className="text-xs text-gray-500">Huy hiệu sẽ hiển thị cạnh avatar/tên khi bán hàng.</p>
+              <div className={`p-3 rounded-md text-sm ${hasBadge ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                <span className="font-semibold flex items-center gap-2">
+                  <Sparkles size={14} /> Huy hiệu xanh: {hasBadge ? 'Đã có' : 'Chưa có'}
+                </span>
+                {!hasBadge && <p className="text-xs mt-1">Đổi 20 Green Credit để kích hoạt.</p>}
+              </div>
             </div>
             {actionState.message && (
               <p className={`text-xs ${actionState.status === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>

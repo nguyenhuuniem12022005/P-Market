@@ -111,7 +111,7 @@ export default function DashboardPage() {
         }
       })();
     } else setIsLoading(false);
-  }, [user, token]);
+  }, [user, token, setUser]);
 
   // ===================== Handlers =====================
   const handleProfileChange = (e) => {
