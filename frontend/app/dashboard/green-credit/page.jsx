@@ -26,12 +26,14 @@ export default function GreenCreditPage() {
   const [convertAmount, setConvertAmount] = useState('5');
   const [actionState, setActionState] = useState({ status: 'idle', message: '' });
   const { user, setUser } = useAuth();
+  const [hasBadge, setHasBadge] = useState(Boolean(user?.greenBadgeLevel > 0));
 
   const updateUserFromSummary = useCallback((data) => {
     if (!data || !setUser) return;
     const incomingBadge = Number(data.greenBadgeLevel ?? data.hasGreenBadge ?? 0);
-    const badgeLevel = incomingBadge > 0 ? incomingBadge : Number(user?.greenBadgeLevel || 0);
+    const badgeLevel = incomingBadge > 0 ? incomingBadge : (hasBadge ? 1 : Number(user?.greenBadgeLevel || 0));
     const greenCredit = Number(data.score ?? user?.greenCredit ?? 0);
+    if (badgeLevel > 0) setHasBadge(true);
     const merged = {
       ...(user || {}),
       greenBadgeLevel: badgeLevel,
@@ -41,7 +43,7 @@ export default function GreenCreditPage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('pmarket_user', JSON.stringify(merged));
     }
-  }, [setUser, user]);
+  }, [setUser, user, hasBadge]);
 
   useEffect(() => {
     async function load() {
@@ -49,9 +51,10 @@ export default function GreenCreditPage() {
         const data = await fetchGreenCreditSummary();
         const incomingBadge = Number(data?.greenBadgeLevel ?? data?.hasGreenBadge ?? 0);
         const patched =
-          incomingBadge > 0 || !(user?.greenBadgeLevel > 0)
+          incomingBadge > 0 || !(hasBadge || user?.greenBadgeLevel > 0)
             ? data
-            : { ...(data || {}), greenBadgeLevel: user.greenBadgeLevel, hasGreenBadge: true };
+            : { ...(data || {}), greenBadgeLevel: user?.greenBadgeLevel || 1, hasGreenBadge: true };
+        if (patched?.greenBadgeLevel > 0 || patched?.hasGreenBadge) setHasBadge(true);
         setSummary(patched);
         updateUserFromSummary(patched);
       } catch (err) {
@@ -61,7 +64,7 @@ export default function GreenCreditPage() {
       }
     }
     load();
-  }, [updateUserFromSummary, user?.greenBadgeLevel]);
+  }, [updateUserFromSummary, user?.greenBadgeLevel, hasBadge]);
 
   const handleSync = async () => {
     try {
@@ -103,6 +106,7 @@ export default function GreenCreditPage() {
       // fallback: nếu API chưa trả field badge, set thủ công
       const patched = { ...(data || {}), greenBadgeLevel: data?.greenBadgeLevel ?? 1, hasGreenBadge: true };
       setSummary(patched);
+      setHasBadge(true);
       updateUserFromSummary(patched);
     } catch (err) {
       setActionState({ status: 'error', message: err.message || 'Không thể đổi huy hiệu.' });
@@ -112,7 +116,8 @@ export default function GreenCreditPage() {
   const perks = summary?.perks || [];
   const audits = summary?.audits || [];
   const contributions = summary?.contributions || [];
-  const hasBadge =
+  const showBadge =
+    hasBadge ||
     Number(summary?.greenBadgeLevel ?? summary?.hasGreenBadge ?? user?.greenBadgeLevel ?? 0) > 0;
 
   return (
@@ -219,11 +224,11 @@ export default function GreenCreditPage() {
                 Nhận huy hiệu (tốn 20 Green Credit)
               </Button>
               <p className="text-xs text-gray-500">Huy hiệu sẽ hiển thị cạnh avatar/tên khi bán hàng.</p>
-              <div className={`p-3 rounded-md text-sm ${hasBadge ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+              <div className={`p-3 rounded-md text-sm ${showBadge ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                 <span className="font-semibold flex items-center gap-2">
-                  <Sparkles size={14} /> Huy hiệu xanh: {hasBadge ? 'Đã có' : 'Chưa có'}
+                  <Sparkles size={14} /> Huy hiệu xanh: {showBadge ? 'Đã có' : 'Chưa có'}
                 </span>
-                {!hasBadge && <p className="text-xs mt-1">Đổi 20 Green Credit để kích hoạt.</p>}
+                {!showBadge && <p className="text-xs mt-1">Đổi 20 Green Credit để kích hoạt.</p>}
               </div>
             </div>
             {actionState.message && (
