@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import {
   Shield, Gift, UserCircle, MapPin, Phone, CalendarDays,
-  Save, KeyRound, Loader2, Camera,
+  Save, KeyRound, Loader2, Camera, Sparkles,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -19,9 +20,6 @@ import {
   getUserDashboard,
   buildAvatarUrl,
   updateUserDateOfBirth,
-  adjustReputationScore,
-  adjustGreenCredit,
-  convertGreenCredit,
   fetchReputationLedger,
   fetchNotifications,
 } from '../../lib/api';
@@ -48,9 +46,6 @@ export default function DashboardPage() {
     avatar: buildAvatarUrl(user?.avatar),
   });
 
-  const [scoreDelta, setScoreDelta] = useState({ reputation: '', greenCredit: '' });
-  const [convertAmount, setConvertAmount] = useState('');
-  const [isConverting, setIsConverting] = useState(false);
   const [reputationLedger, setReputationLedger] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
@@ -59,7 +54,6 @@ export default function DashboardPage() {
     newPassword: '',
     confirmPassword: '',
   });
-
   const [passwordError, setPasswordError] = useState('');
 
   // ===================== Load Dashboard =====================
@@ -94,7 +88,6 @@ export default function DashboardPage() {
           }
           const ledger = await fetchReputationLedger();
           setReputationLedger(ledger);
-          // simple polling notifications placeholder
           try {
             const noti = await fetchNotifications();
             setNotifications(noti || []);
@@ -217,70 +210,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleScoreInput = (type, value) => {
-    setScoreDelta(prev => ({ ...prev, [type]: value }));
-  };
-
-  const handleScoreAdjust = async (type) => {
-    const value = Number(scoreDelta[type]);
-    if (!value && value !== 0) {
-      toast.error('Nhập số hợp lệ');
-      return;
-    }
-    try {
-      if (type === 'reputation') {
-        await adjustReputationScore(value);
-        setDashboardData(prev => {
-          const current = prev ?? {};
-          return {
-            ...current,
-            reputation: (current.reputation ?? 0) + value,
-          };
-        });
-      } else {
-        await adjustGreenCredit(value);
-        setDashboardData(prev => {
-          const current = prev ?? {};
-          return {
-            ...current,
-            greenCredit: (current.greenCredit ?? 0) + value,
-          };
-        });
-      }
-      setScoreDelta(prev => ({ ...prev, [type]: '' }));
-      toast.success('Cập nhật thành công');
-    } catch (error) {
-      toast.error(error.message || 'Không cập nhật được');
-    }
-  };
-
-  const handleConvertGreenCredit = async () => {
-    const amount = Number(convertAmount);
-    if (!amount || amount <= 0) {
-      toast.error('Nhập số green credit muốn quy đổi');
-      return;
-    }
-    setIsConverting(true);
-    try {
-      const response = await convertGreenCredit(amount);
-      const gained = response?.data?.reputationGain || 0;
-      toast.success(response?.message || 'Đã quy đổi green credit thành điểm uy tín.');
-      setDashboardData((prev) => {
-        const current = prev ?? {};
-        return {
-          ...current,
-          greenCredit: Math.max(0, (current.greenCredit ?? 0) - amount),
-          reputation: (current.reputation ?? 0) + gained,
-        };
-      });
-      setConvertAmount('');
-    } catch (error) {
-      toast.error(error.message || 'Không thể quy đổi.');
-    } finally {
-      setIsConverting(false);
-    }
-  };
-
   // ===================== Render =====================
   if (isLoading || !user) {
     return (
@@ -312,6 +241,11 @@ export default function DashboardPage() {
                   className="rounded-full object-cover"
                   sizes="64px"
                 />
+                {dashboardData?.greenBadgeLevel > 0 && (
+                  <span className="absolute -bottom-1 -right-1 flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] px-2 py-0.5">
+                    <Sparkles size={12} /> Xanh
+                  </span>
+                )}
               </div>
               <label className="relative cursor-pointer bg-gray-200 hover:bg-gray-300 transition px-3 py-1 rounded-md text-gray-700 flex items-center gap-1">
                 <Camera size={16} /> {isUploading ? 'Đang tải...' : 'Đổi ảnh'}
@@ -435,8 +369,8 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Tổng quan</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg flex flex-col gap-4">
+          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg flex flex-col gap-3">
               <div className="flex items-center gap-4">
                 <Shield size={40} className="text-blue-600" />
                 <div>
@@ -444,21 +378,15 @@ export default function DashboardPage() {
                   <p className="text-3xl font-bold">{dashboardData.reputation}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Input
-                  type="number"
-                  value={scoreDelta.reputation}
-                  onChange={(e) => handleScoreInput('reputation', e.target.value)}
-                  placeholder="+/- điểm"
-                  className="w-32"
-                />
-                <Button size="sm" onClick={() => handleScoreAdjust('reputation')}>
-                  Cập nhật
-                </Button>
-              </div>
+              <p className="text-xs text-gray-600">
+                Điểm được cộng khi mua/bán hoàn tất. Cần &ge; 65 để mua/bán.
+              </p>
+              <Link href="/dashboard/reputation" className="text-blue-600 text-sm hover:underline">
+                Xem chi tiết
+              </Link>
             </div>
 
-            <div className="p-6 bg-green-50 border border-green-200 rounded-lg flex flex-col gap-4">
+            <div className="p-6 bg-green-50 border border-green-200 rounded-lg flex flex-col gap-3">
               <div className="flex items-center gap-4">
                 <Gift size={40} className="text-green-600" />
                 <div>
@@ -466,45 +394,30 @@ export default function DashboardPage() {
                   <p className="text-3xl font-bold">{dashboardData.greenCredit}</p>
                 </div>
               </div>
+              <p className="text-xs text-gray-600">
+                Nhận khi bán hành động xanh được xác nhận. Có thể đổi sang uy tín hoặc huy hiệu xanh.
+              </p>
+              <Link href="/dashboard/green-credit" className="text-green-700 text-sm hover:underline">
+                Đổi điểm / nhận huy hiệu
+              </Link>
+            </div>
+
+            <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-lg flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <Input
-                  type="number"
-                  value={scoreDelta.greenCredit}
-                  onChange={(e) => handleScoreInput('greenCredit', e.target.value)}
-                  placeholder="+/- credit"
-                  className="w-32"
-                />
-                <Button size="sm" onClick={() => handleScoreAdjust('greenCredit')}>
-                  Cập nhật
-                </Button>
-              </div>
-              <div className="flex flex-col gap-2 border-t border-green-100 pt-3">
-                <p className="text-xs text-gray-500">
-                  Đổi Green Credit lấy điểm uy tín để tiếp tục mua/bán.
-                </p>
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={convertAmount}
-                    onChange={(e) => setConvertAmount(e.target.value)}
-                    placeholder="Nhập GC muốn đổi"
-                    className="w-40"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleConvertGreenCredit}
-                    disabled={isConverting}
-                  >
-                    {isConverting ? 'Đang đổi...' : 'Quy đổi'}
-                  </Button>
+                <Sparkles size={32} className="text-yellow-600" />
+                <div>
+                  <p className="text-sm text-gray-700">Huy hiệu xanh</p>
+                  <p className="text-xl font-semibold">
+                    {dashboardData.greenBadgeLevel > 0 ? 'Đã kích hoạt' : 'Chưa có'}
+                  </p>
                 </div>
               </div>
-              <div className="text-xs text-gray-500 space-y-1">
-                <p>Kiếm Green Credit bằng: sản phẩm được duyệt audit xanh, hoàn tất đơn escrow, vận chuyển xanh.</p>
-                <p>Lịch sử đổi điểm sẽ hiển thị ở đây sau khi đồng bộ on-chain.</p>
-              </div>
+              <p className="text-xs text-gray-600">
+                Huy hiệu hiển thị cạnh avatar/tên cửa hàng sau khi đổi 20 Green Credit.
+              </p>
+              <Link href="/dashboard/green-credit" className="text-yellow-700 text-sm hover:underline">
+                Nhận huy hiệu
+              </Link>
             </div>
           </CardContent>
         </Card>

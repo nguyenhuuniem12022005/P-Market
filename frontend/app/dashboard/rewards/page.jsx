@@ -52,8 +52,8 @@ export default function RewardsPage() {
         <p className="text-sm text-rose-600 font-semibold">Referral &amp; Rewards</p>
         <h1 className="text-2xl font-bold">Thưởng mời bạn bè</h1>
         <p className="text-gray-600 text-sm">
-          Chia sẻ mã giới thiệu để bạn bè vào P-Market, hoàn tất giao dịch đầu tiên và nhận thưởng uy tín/Green Credit.
-          Các dữ liệu này sẽ được đẩy sang HScoin khi mở khóa chương trình token.
+          Chia sẻ mã giới thiệu để bạn bè vào P-Market, hoàn tất giao dịch đầu tiên và nhận thưởng điểm uy tín
+          (và token/HScoin khi chương trình on-chain mở). Không tính Green Credit ở luồng referral.
         </p>
       </header>
 
@@ -165,7 +165,7 @@ export default function RewardsPage() {
         <CardContent className="grid gap-4 md:grid-cols-3">
           {[
             { label: 'Điểm uy tín', value: rewards.reputation },
-            { label: 'Green Credit', value: rewards.greenCredit },
+            { label: 'Green Credit (nếu có)', value: rewards.greenCredit },
             { label: 'Token/HScoin', value: rewards.token },
           ].map((reward) => (
             <div key={reward.label} className="rounded-lg border border-gray-100 p-4 text-center">
