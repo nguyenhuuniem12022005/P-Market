@@ -9,6 +9,7 @@ import {
   fetchEscrowEvents,
   fetchUserContracts,
   saveUserContract,
+  deployContract,
 } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
