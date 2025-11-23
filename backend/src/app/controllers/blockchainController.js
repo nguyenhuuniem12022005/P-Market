@@ -71,8 +71,12 @@ export async function getDeveloperMetrics(req, res, next) {
 
 export async function executeSimpleToken(req, res, next) {
   try {
+    // ép caller phải trùng với ví đã liên kết (nếu có)
+    const userWallet = await userService.getWalletInfo(req.user?.userId).catch(() => null);
+    const linkedWallet = userWallet?.walletAddress?.toLowerCase();
+
     const payload = {
-      caller: req.body.caller,
+      caller: linkedWallet || req.body.caller,
       method: req.body.method || req.body?.inputData?.function,
       args: req.body?.inputData?.args ?? req.body.args ?? [],
       value: req.body.value || 0,
@@ -80,6 +84,12 @@ export async function executeSimpleToken(req, res, next) {
       userId: req.user?.userId,
       rawInputData: typeof req.body.inputData === 'string' ? req.body.inputData : undefined,
     };
+    if (linkedWallet && payload.caller?.toLowerCase() !== linkedWallet) {
+      return res.status(400).json({
+        success: false,
+        message: 'Caller phải trùng ví đã liên kết.',
+      });
+    }
     const data = await blockchainService.executeSimpleToken(payload);
     return res.status(200).json({
       success: true,
