@@ -843,6 +843,32 @@ export async function fetchUserContracts() {
   }
 }
 
+export async function compileContract(payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/contracts/compile`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function deployContract(payload) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/contracts/deploy`,
+      payload,
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 // ===================== ORDER API =====================
 export async function fetchMyOrders() {
   try {

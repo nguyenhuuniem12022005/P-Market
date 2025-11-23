@@ -25,6 +25,63 @@ export default function WalletPage() {
   const [contractAddress, setContractAddress] = useState('');
   const [isDefault, setIsDefault] = useState(true);
   const [savingContract, setSavingContract] = useState(false);
+  const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract SimpleToken {
+    string public name = "SimpleToken";
+    string public symbol = "STK";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
+    
+    mapping(address => uint256) public balanceOf;
+    address public owner;
+    
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Mint(address indexed to, uint256 value);
+    event Burn(address indexed from, uint256 value);
+    
+    constructor() {
+        owner = msg.sender;
+        totalSupply = 1000000 * 10 ** uint256(decimals);
+        balanceOf[msg.sender] = totalSupply;
+        emit Transfer(address(0), msg.sender, totalSupply);
+    }
+    
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid address");
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
+        balanceOf[msg.sender] -= _value;
+        balanceOf[_to] += _value;
+        emit Transfer(msg.sender, _to, _value);
+        return true;
+    }
+    
+    function mint(address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid address");
+        require(msg.sender == owner, "Only owner can mint");
+        totalSupply += _value;
+        balanceOf[_to] += _value;
+        emit Mint(_to, _value);
+        emit Transfer(address(0), _to, _value);
+        return true;
+    }
+    function burn(uint256 _value) public returns (bool success) {
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
+        balanceOf[msg.sender] -= _value;
+        totalSupply -= _value;
+        emit Burn(msg.sender, _value);
+        emit Transfer(msg.sender, address(0), _value);
+        return true;
+    }
+    function getBalance(address _owner) public view returns (uint256) {
+        return balanceOf[_owner];
+    }
+    function getTotalSupply() public view returns (uint256) {
+        return totalSupply;
+    }
+}`);
+  const [deploying, setDeploying] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -87,6 +144,36 @@ export default function WalletPage() {
       toast.error(err.message || 'Không thể lưu contract');
     } finally {
       setSavingContract(false);
+    }
+  };
+
+  const handleAutoDeploy = async () => {
+    if (!isConnected || !walletAddress) {
+      toast.error('Vui lòng liên kết ví HScoin trước khi deploy.');
+      connectWallet();
+      return;
+    }
+    setDeploying(true);
+    try {
+      const data = await deployContract({
+        sourceCode,
+        contractName,
+      });
+      const addr =
+        data?.contractAddress ||
+        data?.address;
+      if (addr) {
+        setContractAddress(addr);
+        toast.success(`Deploy thành công: ${addr}`);
+        const list = await fetchUserContracts();
+        setContracts(list || []);
+      } else {
+        toast.success('Deploy thành công');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Không thể deploy contract');
+    } finally {
+      setDeploying(false);
     }
   };
 
@@ -270,10 +357,34 @@ export default function WalletPage() {
             />
             Đặt làm contract mặc định
           </label>
-          <Button onClick={handleSaveContract} disabled={savingContract}>
-            {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-            Lưu contract
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button onClick={handleSaveContract} disabled={savingContract}>
+              {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+              Lưu contract
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleAutoDeploy}
+              disabled={deploying}
+            >
+              {deploying ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+              Deploy tự động (SimpleToken)
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-800">Source code</label>
+            <textarea
+              value={sourceCode}
+              onChange={(e) => setSourceCode(e.target.value)}
+              rows={8}
+              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+            />
+            <p className="text-xs text-gray-500">
+              Nếu chưa có contract, bấm "Deploy tự động" để biên dịch + deploy SimpleToken bằng ví đã liên kết.
+            </p>
+          </div>
 
           {contracts.length > 0 && (
             <div className="mt-4 space-y-2 text-sm text-gray-700">
