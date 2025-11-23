@@ -85,6 +85,16 @@ export default function DashboardPage() {
               address: apiData.address ?? prev.address,
               dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
             }));
+            // Cập nhật user trong context/localStorage để hiển thị huy hiệu xanh, điểm mới
+            const mergedUser = {
+              ...(user || {}),
+              reputation: apiData.reputation ?? user?.reputation,
+              greenCredit: apiData.greenCredit ?? user?.greenCredit,
+              greenBadgeLevel: apiData.greenBadgeLevel ?? user?.greenBadgeLevel,
+              avatar: buildAvatarUrl(apiData.avatar || user?.avatar),
+            };
+            localStorage.setItem('pmarket_user', JSON.stringify(mergedUser));
+            if (setUser) setUser(mergedUser);
           }
           const ledger = await fetchReputationLedger();
           setReputationLedger(ledger);

@@ -53,6 +53,7 @@ export function AuthProvider({ children }) {
         apiUser.reputation_score ??
         0;
       const greenCreditSource = apiUser.greenCredit ?? apiUser.green_credit ?? 0;
+      const badgeSource = apiUser.greenBadgeLevel ?? apiUser.green_badge_level ?? 0;
 
       const userData = {
         userId: apiUser.userId,
@@ -70,6 +71,7 @@ export function AuthProvider({ children }) {
         dateOfBirth: apiUser.dateOfBirth || '',
         reputation: Number(reputationSource) || 0,
         greenCredit: Number(greenCreditSource) || 0,
+        greenBadgeLevel: Number(badgeSource) || 0,
       };
 
       setUser(userData);
@@ -97,6 +99,7 @@ export function AuthProvider({ children }) {
         apiUser.reputation_score ??
         0;
       const greenCreditSource = apiUser.greenCredit ?? apiUser.green_credit ?? 0;
+      const badgeSource = apiUser.greenBadgeLevel ?? apiUser.green_badge_level ?? 0;
 
       const userData = {
         userId: apiUser.userId,
@@ -113,6 +116,7 @@ export function AuthProvider({ children }) {
         avatar: buildAvatarUrl(apiUser.avatar),
         reputation: Number(reputationSource) || 0,
         greenCredit: Number(greenCreditSource) || 0,
+        greenBadgeLevel: Number(badgeSource) || 0,
       };
 
       setUser(userData);
