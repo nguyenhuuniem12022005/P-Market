@@ -16,10 +16,16 @@ export const executeSimpleToken = Joi.object({
   method: Joi.string().trim().label('Tên hàm'),
   args: Joi.array().default([]).label('Danh sách tham số'),
   contractAddress: Joi.string().trim().optional().label('Địa chỉ hợp đồng'),
-  inputData: Joi.object({
-    function: Joi.string().trim().required(),
-    args: Joi.array().default([]),
-  }).optional(),
+  // Cho phép inputData là object {function,args} hoặc raw string calldata
+  inputData: Joi.alternatives()
+    .try(
+      Joi.object({
+        function: Joi.string().trim().required(),
+        args: Joi.array().default([]),
+      }),
+      Joi.string().trim()
+    )
+    .optional(),
 });
 
 export const listSimpleTokenHistory = Joi.object({

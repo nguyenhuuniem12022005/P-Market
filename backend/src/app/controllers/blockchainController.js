@@ -78,6 +78,7 @@ export async function executeSimpleToken(req, res, next) {
       value: req.body.value || 0,
       contractAddress: req.body.contractAddress,
       userId: req.user?.userId,
+      rawInputData: typeof req.body.inputData === 'string' ? req.body.inputData : undefined,
     };
     const data = await blockchainService.executeSimpleToken(payload);
     return res.status(200).json({

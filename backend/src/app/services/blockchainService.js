@@ -813,10 +813,15 @@ export async function getEscrowSnapshot({ orderId, status = 'Pending', amount = 
   return remote || fallback;
 }
 
-export async function executeSimpleToken({ caller, method, args = [], value = 0, contractAddress, userId }) {
-  if (!method) {
-    throw ApiError.badRequest('Thiếu tên hàm (function)');
-  }
+export async function executeSimpleToken({
+  caller,
+  method,
+  args = [],
+  value = 0,
+  contractAddress,
+  userId,
+  rawInputData,
+}) {
 
   const normalizedCaller = normalizeAddress(caller);
   if (!normalizedCaller) {
@@ -826,15 +831,23 @@ export async function executeSimpleToken({ caller, method, args = [], value = 0,
     throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
   }
 
-  const normalizedArgs = Array.isArray(args) ? args : [args];
-  let finalArgs = normalizedArgs;
-  if (method?.toLowerCase() === 'burn') {
-    const amount = Number(normalizedArgs[0]) || 0;
-    finalArgs = [amount];
-  }
-
   const resolvedContract = await resolveContractAddress({ userId, contractAddress });
-  const encodedInput = buildSimpleTokenCalldata(method, finalArgs);
+  const normalizedArgs = Array.isArray(args) ? args : [args];
+  let encodedInput = null;
+
+  if (rawInputData && typeof rawInputData === 'string') {
+    encodedInput = rawInputData.trim();
+  } else {
+    if (!method) {
+      throw ApiError.badRequest('Thiếu tên hàm (function)');
+    }
+    let finalArgs = normalizedArgs;
+    if (method?.toLowerCase() === 'burn') {
+      const amount = Number(normalizedArgs[0]) || 0;
+      finalArgs = [amount];
+    }
+    encodedInput = buildSimpleTokenCalldata(method, finalArgs);
+  }
 
   const requestPayload = {
     caller: normalizedCaller,
