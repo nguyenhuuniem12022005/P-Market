@@ -86,11 +86,17 @@ export default function DashboardPage() {
               dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
             }));
             // Cập nhật user trong context/localStorage để hiển thị huy hiệu xanh, điểm mới
+            const badgeLevel = apiData.greenBadgeLevel;
+            const finalBadge =
+              badgeLevel && Number(badgeLevel) > 0
+                ? Number(badgeLevel)
+                : Number(user?.greenBadgeLevel || 0);
+
             const mergedUser = {
               ...(user || {}),
               reputation: apiData.reputation ?? user?.reputation,
               greenCredit: apiData.greenCredit ?? user?.greenCredit,
-              greenBadgeLevel: apiData.greenBadgeLevel ?? user?.greenBadgeLevel,
+              greenBadgeLevel: finalBadge,
               avatar: buildAvatarUrl(apiData.avatar || user?.avatar),
             };
             localStorage.setItem('pmarket_user', JSON.stringify(mergedUser));

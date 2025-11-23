@@ -29,7 +29,8 @@ export default function GreenCreditPage() {
 
   const updateUserFromSummary = useCallback((data) => {
     if (!data || !setUser) return;
-    const badgeLevel = Number(data.greenBadgeLevel ?? data.hasGreenBadge ?? 0);
+    const incomingBadge = Number(data.greenBadgeLevel ?? data.hasGreenBadge ?? 0);
+    const badgeLevel = incomingBadge > 0 ? incomingBadge : Number(user?.greenBadgeLevel || 0);
     const greenCredit = Number(data.score ?? user?.greenCredit ?? 0);
     const merged = {
       ...(user || {}),
@@ -106,7 +107,8 @@ export default function GreenCreditPage() {
   const perks = summary?.perks || [];
   const audits = summary?.audits || [];
   const contributions = summary?.contributions || [];
-  const hasBadge = Number(summary?.greenBadgeLevel ?? summary?.hasGreenBadge ?? 0) > 0;
+  const hasBadge =
+    Number(summary?.greenBadgeLevel ?? summary?.hasGreenBadge ?? user?.greenBadgeLevel ?? 0) > 0;
 
   return (
     <div className="space-y-6">
