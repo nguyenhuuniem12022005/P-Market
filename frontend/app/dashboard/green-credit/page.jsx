@@ -94,8 +94,10 @@ export default function GreenCreditPage() {
       await redeemGreenBadge();
       setActionState({ status: 'success', message: 'Đã đổi huy hiệu xanh (tốn 20 Green Credit).' });
       const data = await fetchGreenCreditSummary();
-      setSummary(data);
-      updateUserFromSummary(data);
+      // fallback: nếu API chưa trả field badge, set thủ công
+      const patched = { ...(data || {}), greenBadgeLevel: data?.greenBadgeLevel ?? 1, hasGreenBadge: true };
+      setSummary(patched);
+      updateUserFromSummary(patched);
     } catch (err) {
       setActionState({ status: 'error', message: err.message || 'Không thể đổi huy hiệu.' });
     }
