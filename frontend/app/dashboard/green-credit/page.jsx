@@ -47,8 +47,13 @@ export default function GreenCreditPage() {
     async function load() {
       try {
         const data = await fetchGreenCreditSummary();
-        setSummary(data);
-        updateUserFromSummary(data);
+        const incomingBadge = Number(data?.greenBadgeLevel ?? data?.hasGreenBadge ?? 0);
+        const patched =
+          incomingBadge > 0 || !(user?.greenBadgeLevel > 0)
+            ? data
+            : { ...(data || {}), greenBadgeLevel: user.greenBadgeLevel, hasGreenBadge: true };
+        setSummary(patched);
+        updateUserFromSummary(patched);
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu green credit.');
       } finally {
@@ -56,7 +61,7 @@ export default function GreenCreditPage() {
       }
     }
     load();
-  }, [updateUserFromSummary]);
+  }, [updateUserFromSummary, user?.greenBadgeLevel]);
 
   const handleSync = async () => {
     try {
