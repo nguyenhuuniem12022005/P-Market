@@ -56,6 +56,18 @@ blockchainRouter.get(
 );
 
 blockchainRouter.post(
+  '/contracts/compile',
+  validate(blockchainRequest.compileContract),
+  blockchainController.compileContract
+);
+
+blockchainRouter.post(
+  '/contracts/deploy',
+  validate(blockchainRequest.deployContract),
+  blockchainController.deployContract
+);
+
+blockchainRouter.post(
   '/contracts',
   validate(blockchainRequest.saveUserContract),
   blockchainController.saveUserContract

@@ -1,4 +1,5 @@
 import * as blockchainService from '../services/blockchainService.js';
+import * as userService from '../services/userService.js';
 
 export async function getGreenCreditSummary(req, res, next) {
   try {
@@ -139,6 +140,51 @@ export async function listHscoinAdminCalls(req, res, next) {
       status: req.query.status || req.body.status,
       limit: req.query.limit || req.body.limit,
     });
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function compileContract(req, res, next) {
+  try {
+    const payload = {
+      sourceCode: req.body.sourceCode,
+      contractName: req.body.contractName,
+    };
+    const data = await blockchainService.compileContract(payload);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function deployContract(req, res, next) {
+  try {
+    const wallet = await userService.getWalletInfo(req.user?.userId).catch(() => null);
+    const linkedWallet = wallet?.walletAddress;
+    if (!linkedWallet) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng liên kết ví HScoin trước khi deploy contract.',
+      });
+    }
+    const payload = {
+      deployer: linkedWallet,
+      sourceCode: req.body.sourceCode,
+      contractName: req.body.contractName,
+      abi: req.body.abi,
+      bytecode: req.body.bytecode,
+      setDefault: true,
+      userId: req.user?.userId,
+    };
+    const data = await blockchainService.deployContract(payload);
     return res.status(200).json({
       success: true,
       data,

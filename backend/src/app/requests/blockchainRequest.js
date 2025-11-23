@@ -47,3 +47,15 @@ export const saveUserContract = Joi.object({
   network: Joi.string().trim().max(60).default('HScoin Devnet').label('Mạng'),
   isDefault: Joi.boolean().default(false).label('Đặt làm mặc định'),
 });
+
+export const compileContract = Joi.object({
+  sourceCode: Joi.string().required().label('Source code'),
+  contractName: Joi.string().trim().min(2).max(120).required().label('Tên contract'),
+});
+
+export const deployContract = Joi.object({
+  sourceCode: Joi.string().required().label('Source code'),
+  contractName: Joi.string().trim().min(2).max(120).required().label('Tên contract'),
+  abi: Joi.any().optional(),
+  bytecode: Joi.string().optional(),
+});

@@ -1239,6 +1239,72 @@ async function resolveContractAddress({ userId, contractAddress }) {
   throw ApiError.badRequest('Chưa cấu hình địa chỉ contract HScoin');
 }
 
+export async function compileContract({ sourceCode, contractName }) {
+  if (!sourceCode || !contractName) {
+    throw ApiError.badRequest('Thiếu source code hoặc tên contract');
+  }
+  const body = { sourceCode, contractName };
+  const response = await callHscoin('/contracts/compile', {
+    method: 'POST',
+    body,
+    requireAuth: true,
+  });
+  return response?.data || response;
+}
+
+export async function deployContract({
+  sourceCode,
+  contractName,
+  abi,
+  bytecode,
+  deployer,
+  setDefault = true,
+  userId,
+}) {
+  if (!deployer) {
+    throw ApiError.badRequest('Thiếu địa chỉ deployer (ví đã liên kết)');
+  }
+  let finalAbi = abi;
+  let finalBytecode = bytecode;
+  if (!finalAbi || !finalBytecode) {
+    const compiled = await compileContract({ sourceCode, contractName });
+    finalAbi = compiled?.abi;
+    finalBytecode = compiled?.bytecode;
+  }
+  const response = await callHscoin('/contracts/deploy', {
+    method: 'POST',
+    body: {
+      deployer,
+      contractName,
+      sourceCode,
+      abi: finalAbi,
+      bytecode: finalBytecode,
+    },
+    requireAuth: true,
+  });
+
+  const contractAddress =
+    response?.data?.contractAddress ||
+    response?.data?.address ||
+    response?.contractAddress ||
+    response?.address;
+
+  if (userId && contractAddress) {
+    await saveUserContract({
+      userId,
+      name: contractName || 'Contract',
+      address: contractAddress,
+      network: 'HScoin Devnet',
+      isDefault: setDefault,
+    });
+  }
+
+  return {
+    ...(response?.data || response),
+    contractAddress,
+  };
+}
+
 async function ensureHscoinAlertTable() {
   if (hasHscoinAlertTable) return;
   await pool.query(
