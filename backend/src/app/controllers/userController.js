@@ -169,6 +169,19 @@ export async function getWalletInfo(req, res, next) {
   }
 }
 
+export async function redeemGreenBadge(req, res, next) {
+  try {
+    const data = await userService.redeemGreenBadge(req.user.userId);
+    return res.status(200).json({
+      success: true,
+      message: 'Đã đổi huy hiệu xanh thành công',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function connectWallet(req, res, next) {
   try {
     const data = await userService.connectWallet(req.user.userId, req.body);

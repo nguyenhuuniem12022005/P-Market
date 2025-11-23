@@ -7,7 +7,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card, CardContent } from '../../../components/ui/Card';
 import { Avatar } from '../../../components/ui/Avatar';
 import ReviewCard from '../../../components/product/ReviewCard';
-import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle, Loader2 } from 'lucide-react';
+import { ShoppingCart, Star, ShieldCheck, Handshake, MessageCircle, Loader2, Sparkles } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useWallet } from '../../../context/WalletContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -61,6 +61,7 @@ export default function ProductDetailPage() {
   const totalQuantity = product?.totalQuantity ?? 0;
   const sellerName = product?.seller?.userName || product?.seller?.shopName || product?.userName || product?.shopName || 'Người bán ẩn danh';
   const sellerReputation = product?.seller?.reputationScore ?? product?.reputationScore ?? 'Chưa có';
+  const sellerBadge = Number(product?.seller?.greenBadgeLevel || 0) > 0;
   const sellerAvatar = buildAvatarUrl(product?.seller?.avatar);
   const productImage = resolveProductImage(product, FALLBACK_IMAGE);
   const reviewCount = reviews.length;
@@ -301,7 +302,14 @@ export default function ProductDetailPage() {
                 <div className="flex items-center gap-4">
                   <Avatar src={sellerAvatar} size="lg" />
                   <div>
-                    <h4 className="font-semibold text-lg">{sellerName}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-lg">{sellerName}</h4>
+                      {sellerBadge && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                          <Sparkles size={12} /> Green Badge
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600">
                       Điểm uy tín: <span className="font-medium text-primary">{sellerReputation}</span>
                     </p>

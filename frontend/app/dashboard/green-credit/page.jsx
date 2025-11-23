@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { Sprout, Award, ShieldCheck, TrendingUp, Loader2 } from 'lucide-react';
-import { fetchGreenCreditSummary, requestGreenCreditSync } from '../../../lib/api';
+import { Sprout, Award, ShieldCheck, TrendingUp, Loader2, Sparkles } from 'lucide-react';
+import { fetchGreenCreditSummary, requestGreenCreditSync, convertGreenCredit, redeemGreenBadge } from '../../../lib/api';
 
 const formatNumber = (value) => new Intl.NumberFormat('vi-VN').format(value);
 const formatDateTime = (value) =>
@@ -22,6 +22,8 @@ export default function GreenCreditPage() {
   const [loading, setLoading] = useState(true);
   const [syncState, setSyncState] = useState({ status: 'idle', message: '' });
   const [error, setError] = useState('');
+  const [convertAmount, setConvertAmount] = useState('5');
+  const [actionState, setActionState] = useState({ status: 'idle', message: '' });
 
   useEffect(() => {
     async function load() {
@@ -47,6 +49,35 @@ export default function GreenCreditPage() {
       });
     } catch (err) {
       setSyncState({ status: 'error', message: err.message || 'Không thể gửi yêu cầu.' });
+    }
+  };
+
+  const handleConvert = async () => {
+    const amount = Number(convertAmount || 0);
+    if (!amount || amount <= 0) {
+      setActionState({ status: 'error', message: 'Số điểm phải lớn hơn 0' });
+      return;
+    }
+    try {
+      setActionState({ status: 'loading', message: '' });
+      await convertGreenCredit(amount);
+      setActionState({ status: 'success', message: `Đã đổi ${amount} Green Credit sang uy tín.` });
+      const data = await fetchGreenCreditSummary();
+      setSummary(data);
+    } catch (err) {
+      setActionState({ status: 'error', message: err.message || 'Không thể đổi điểm.' });
+    }
+  };
+
+  const handleRedeemBadge = async () => {
+    try {
+      setActionState({ status: 'loading', message: '' });
+      await redeemGreenBadge();
+      setActionState({ status: 'success', message: 'Đã đổi huy hiệu xanh (tốn 20 Green Credit).' });
+      const data = await fetchGreenCreditSummary();
+      setSummary(data);
+    } catch (err) {
+      setActionState({ status: 'error', message: err.message || 'Không thể đổi huy hiệu.' });
     }
   };
 
@@ -121,6 +152,49 @@ export default function GreenCreditPage() {
                 </ul>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <div className="flex items-center gap-2 text-emerald-600">
+              <Sparkles size={18} />
+              <span className="text-sm font-semibold uppercase">Đổi điểm / Huy hiệu</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-800">Đổi Green Credit → uy tín</p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={convertAmount}
+                  onChange={(e) => setConvertAmount(e.target.value)}
+                  className="w-24 rounded-md border px-2 py-1 text-sm"
+                />
+                <Button onClick={handleConvert} disabled={actionState.status === 'loading'}>
+                  Đổi sang uy tín
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">1 Green Credit = 1 điểm uy tín.</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-800">Đổi huy hiệu xanh</p>
+              <Button
+                variant="secondary"
+                onClick={handleRedeemBadge}
+                disabled={actionState.status === 'loading'}
+              >
+                Nhận huy hiệu (tốn 20 Green Credit)
+              </Button>
+              <p className="text-xs text-gray-500">Huy hiệu sẽ hiển thị cạnh avatar/tên khi bán hàng.</p>
+            </div>
+            {actionState.message && (
+              <p className={`text-xs ${actionState.status === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+                {actionState.message}
+              </p>
+            )}
           </CardContent>
         </Card>
 

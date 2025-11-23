@@ -6,12 +6,9 @@ import * as userService from './userService.js';
 
 const ESCROW_FEE_PERCENT = Number(process.env.ESCROW_FEE_PERCENT || 0.1); // 1% mặc định
 const ESCROW_FEE_MIN = Number(process.env.ESCROW_FEE_MIN || 1000); // tối thiểu 1.000 HScoin
-const REPUTATION_REWARD_BUYER = Number(process.env.REPUTATION_REWARD_BUYER || 3);
+const REPUTATION_REWARD_BUYER = Number(process.env.REPUTATION_REWARD_BUYER || 5);
 const REPUTATION_REWARD_SELLER = Number(process.env.REPUTATION_REWARD_SELLER || 5);
-const GREEN_CREDIT_REWARD_RATE_BUYER = Number(process.env.GREEN_CREDIT_REWARD_RATE_BUYER || 0.1);
-const GREEN_CREDIT_REWARD_RATE_SELLER = Number(process.env.GREEN_CREDIT_REWARD_RATE_SELLER || 0.05);
-const GREEN_CREDIT_MIN_REWARD = Math.max(0, Number(process.env.GREEN_CREDIT_MIN_REWARD || 1));
-const GREEN_CREDIT_GREEN_CONFIRM_BONUS = Number(process.env.GREEN_CREDIT_GREEN_CONFIRM_BONUS || 5);
+const GREEN_CREDIT_SELLER_GREEN_ORDER = Number(process.env.GREEN_CREDIT_SELLER_GREEN_ORDER || 5);
 const MIN_REPUTATION_TO_BUY = Number(process.env.MIN_BUYER_REPUTATION || 65);
 
 async function getOrderById(orderId) {
@@ -221,18 +218,7 @@ async function recordEscrowLedger(orderId, status, amount) {
   );
 }
 
-function calculateGreenCreditReward(amount, rate) {
-  const normalizedAmount = Number(amount) || 0;
-  const normalizedRate = Number(rate) || 0;
-  if (normalizedAmount <= 0 || normalizedRate <= 0) {
-    return 0;
-  }
-  const computed = Math.round(normalizedAmount * normalizedRate);
-  if (computed > 0) {
-    return computed;
-  }
-  return GREEN_CREDIT_MIN_REWARD;
-}
+// Không dùng công thức phần trăm green credit nữa
 
 export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = false } = {}) {
   const normalizedBuyerId = Number(buyerId);
@@ -340,19 +326,11 @@ export async function confirmOrderAsSeller(orderId, sellerId) {
 export async function markOrderCompleted(orderId, { triggerReferral = true } = {}) {
   const order = await updateOrderStatus(orderId, 'Completed');
   const rewardTasks = [];
-  const buyerGreenCredit = calculateGreenCreditReward(
-    order?.totalAmount,
-    GREEN_CREDIT_REWARD_RATE_BUYER
-  );
-  const sellerGreenCredit = calculateGreenCreditReward(
-    order?.totalAmount,
-    GREEN_CREDIT_REWARD_RATE_SELLER
-  );
-  const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_GREEN_CONFIRM_BONUS : 0;
+  const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_SELLER_GREEN_ORDER : 0;
 
   let sellerIds = [];
   const shouldLoadSellerIds =
-    (REPUTATION_REWARD_SELLER && REPUTATION_REWARD_SELLER !== 0) || sellerGreenCredit > 0;
+    REPUTATION_REWARD_SELLER && REPUTATION_REWARD_SELLER !== 0;
   if (shouldLoadSellerIds) {
     sellerIds = await getOrderSellerIds(orderId);
   }
@@ -361,10 +339,6 @@ export async function markOrderCompleted(orderId, { triggerReferral = true } = {
     rewardTasks.push(
       userService.updateReputationScore(order.customerId, REPUTATION_REWARD_BUYER)
     );
-  }
-
-  if (order?.customerId && buyerGreenCredit > 0) {
-    rewardTasks.push(userService.updateGreenCredit(order.customerId, buyerGreenCredit));
   }
 
   const uniqueSellerIds = Array.from(new Set(sellerIds));
@@ -377,14 +351,10 @@ export async function markOrderCompleted(orderId, { triggerReferral = true } = {
     }
   }
 
-  if (uniqueSellerIds.length && sellerGreenCredit > 0) {
+  // Green Credit: chỉ cộng cho người bán nếu đơn hàng xanh được buyer xác nhận (fixed 5)
+  if (uniqueSellerIds.length && greenBonus > 0) {
     for (const supplierId of uniqueSellerIds) {
-      rewardTasks.push(
-        userService.updateGreenCredit(
-          supplierId,
-          sellerGreenCredit + (greenBonus || 0)
-        )
-      );
+      rewardTasks.push(userService.updateGreenCredit(supplierId, greenBonus));
     }
   }
 

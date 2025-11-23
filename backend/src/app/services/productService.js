@@ -494,6 +494,8 @@ export async function getProductById(productId) {
             u.userName, 
             u.avatar as sellerAvatar, 
             u.reputationScore,
+            u.greenCredit,
+            u.greenBadgeLevel,
             u.phone,
             u.address,
             c.categoryName
@@ -530,6 +532,8 @@ export async function getProductById(productId) {
         userName: product.userName,
         avatar: product.sellerAvatar,
         reputationScore: product.reputationScore,
+        greenCredit: product.greenCredit,
+        greenBadgeLevel: product.greenBadgeLevel,
         phone: product.phone,
         address: product.address
     };

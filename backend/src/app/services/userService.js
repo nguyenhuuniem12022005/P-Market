@@ -443,6 +443,7 @@ export async function getUserDashboardData(userId) {
         dateOfBirth: user.dateOfBirth || null,
         reputationScore: Number(user.reputationScore) || 0,
         greenCredit: Number(user.greenCredit) || 0,
+        greenBadgeLevel: Number(user.greenBadgeLevel || 0),
         isPTIT,
         isCustomer: user.isCustomer > 0,
         isSupplier: user.isSupplier > 0,
@@ -515,4 +516,36 @@ export async function getWalletInfo(userId) {
         connectedAt: rows[0].walletConnectedAt || null,
         isConnected: Boolean(rows[0].walletAddress),
     };
+}
+
+const GREEN_BADGE_COST = Number(process.env.GREEN_BADGE_COST || 20);
+
+export async function redeemGreenBadge(userId) {
+  const cost = GREEN_BADGE_COST;
+  const [rows] = await pool.query(
+    `
+    update User
+    set greenCredit = greenCredit - ?,
+        greenBadgeLevel = 1
+    where userId = ? and greenCredit >= ?
+    `,
+    [cost, userId, cost]
+  );
+  if (rows.affectedRows === 0) {
+    throw ApiError.badRequest('Không đủ Green Credit để đổi huy hiệu.');
+  }
+  const [userRows] = await pool.query(
+    `
+    select greenCredit, greenBadgeLevel
+    from User
+    where userId = ?
+    limit 1
+    `,
+    [userId]
+  );
+  const user = userRows[0] || {};
+  return {
+    greenCredit: Number(user.greenCredit || 0),
+    greenBadgeLevel: Number(user.greenBadgeLevel || 0),
+  };
 }

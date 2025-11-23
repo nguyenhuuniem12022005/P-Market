@@ -103,4 +103,9 @@ userRouter.delete(
     userController.disconnectWallet
 );
 
+userRouter.post(
+  '/me/green-badge/redeem',
+  userController.redeemGreenBadge
+);
+
 export default userRouter;

@@ -869,6 +869,19 @@ export async function deployContract(payload) {
   }
 }
 
+export async function redeemGreenBadge() {
+  try {
+    const res = await axios.post(
+      `${API_URL}/users/me/green-badge/redeem`,
+      {},
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 // ===================== ORDER API =====================
 export async function fetchMyOrders() {
   try {
