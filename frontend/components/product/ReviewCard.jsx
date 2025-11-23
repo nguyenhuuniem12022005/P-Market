@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Avatar } from '../ui/Avatar';
+import Image from 'next/image';
 import { Star, ThumbsDown } from 'lucide-react';
 
 export default function ReviewCard({ review }) {
@@ -47,12 +48,14 @@ export default function ReviewCard({ review }) {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block"
+                className="block relative w-full h-24"
               >
-                <img
+                <Image
                   src={item.url}
                   alt="Review media"
-                  className="w-full h-24 object-cover rounded border"
+                  fill
+                  className="object-cover rounded border"
+                  sizes="200px"
                 />
               </a>
             ))}

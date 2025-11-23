@@ -382,7 +382,7 @@ contract SimpleToken {
               className="w-full rounded-md border px-3 py-2 font-mono text-xs"
             />
             <p className="text-xs text-gray-500">
-              Nếu chưa có contract, bấm "Deploy tự động" để biên dịch + deploy SimpleToken bằng ví đã liên kết.
+              Nếu chưa có contract, bấm &quot;Deploy tự động&quot; để biên dịch + deploy SimpleToken bằng ví đã liên kết.
             </p>
           </div>
 
