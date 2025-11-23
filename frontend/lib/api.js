@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "https://p-market.onrender.com";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
@@ -8,8 +8,8 @@ const removeAccents = (str = "") =>
   str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
+    .replace(/Ä‘/g, "d")
+    .replace(/Ä/g, "D");
 
 const sanitizeSlug = (str = "") =>
   removeAccents(str)
@@ -196,6 +196,30 @@ export async function resetPasswordAPI(passwordData) {
       `${API_URL}/users/me/update-password`,
       passwordData,
       { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function requestPasswordResetAPI(email) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/auth/password-reset/request`,
+      { email }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function confirmPasswordResetAPI(token, password) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/auth/password-reset/confirm`,
+      { token, password }
     );
     return res.data;
   } catch (error) {
@@ -1038,6 +1062,7 @@ export async function markNotificationsRead(ids = []) {
     handleAxiosError(error);
   }
 }
+
 
 
 
