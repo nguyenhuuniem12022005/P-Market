@@ -241,7 +241,7 @@ export default function DashboardPage() {
                   className="rounded-full object-cover"
                   sizes="64px"
                 />
-                {dashboardData?.greenBadgeLevel > 0 && (
+                {(dashboardData?.greenBadgeLevel > 0 || user?.greenBadgeLevel > 0) && (
                   <span className="absolute -bottom-1 -right-1 flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] px-2 py-0.5">
                     <Sparkles size={12} /> Xanh
                   </span>
