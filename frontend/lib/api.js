@@ -664,16 +664,13 @@ export async function fetchChatMessages(chatRoomId) {
 }
 
 export async function sendChatMessage(chatRoomId, content) {
-  try {
-    const res = await axios.post(
-      `${API_URL}/chatrooms/${chatRoomId}/messages`,
-      { content },
-      { headers: authHeader() }
-    );
-    return res.data;
-  } catch (error) {
-    handleAxiosError(error);
-  }
+  const response = await api.post(`/chatrooms/${chatRoomId}/messages`, { content });
+  return response.data?.data;
+}
+
+export async function chatWithAI(message) {
+  const response = await api.post('/ai/chat', { message });
+  return response.data;
 }
 
 export async function fetchChatRooms() {

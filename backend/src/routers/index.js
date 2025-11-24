@@ -12,6 +12,7 @@ import cartRouter from './cartRouter.js';
 import blockchainRouter from './blockchainRouter.js';
 import referralRouter from './referralRouter.js';
 import orderRouter from './orderRouter.js';
+import aiRouter from './aiRouter.js';
 
 function route(app){
     app.use('/auth', authRouter);
@@ -28,6 +29,7 @@ function route(app){
     app.use('/blockchain', blockchainRouter);
     app.use('/referrals', referralRouter);
     app.use('/orders', orderRouter);
+    app.use('/ai', aiRouter);
     
 }
 
