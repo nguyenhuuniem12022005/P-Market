@@ -65,6 +65,7 @@ export default function OrderDetailPage() {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [greenApproved, setGreenApproved] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -84,6 +85,21 @@ export default function OrderDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Polling escrow status khi đang QUEUED/PROCESSING
+  useEffect(() => {
+    const status = order?.hscoinCall?.status || order?.escrow?.status;
+    const shouldPoll = status === 'QUEUED' || status === 'PROCESSING' || status === 'LOCKED';
+    if (!shouldPoll) return;
+    setPolling(true);
+    const timer = setInterval(() => {
+      load();
+    }, 8000);
+    return () => {
+      clearInterval(timer);
+      setPolling(false);
+    };
+  }, [order?.hscoinCall?.status, order?.escrow?.status, load, order]);
 
   const handleConfirm = async (type) => {
     if (!orderId) return;
@@ -134,6 +150,9 @@ export default function OrderDetailPage() {
   const StatusIcon = statusMeta.icon || Truck;
   const actions = order.meta?.actions || {};
   const role = order.meta?.role || {};
+  const explorerBase =
+    process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/admin/contract.html';
+  const txLink = order.escrow?.txHash ? `${explorerBase}?tx=${order.escrow.txHash}` : null;
 
   return (
     <div className="space-y-6">
@@ -157,6 +176,9 @@ export default function OrderDetailPage() {
             Ngày đặt:{' '}
             {order.orderDate ? new Date(order.orderDate).toLocaleString('vi-VN') : 'Không xác định'}
           </p>
+          {polling && (
+            <p className="text-xs text-amber-600">Đang đồng bộ trạng thái escrow...</p>
+          )}
         </div>
         <div
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${statusMeta.badge}`}
@@ -231,12 +253,25 @@ export default function OrderDetailPage() {
               <>
                 <p>
                   Tx Hash:{' '}
-                  <span className="font-mono text-xs text-primary">{order.escrow.txHash}</span>
+                  <a
+                    href={txLink || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs text-primary hover:underline"
+                    title="Mở trên HScoin explorer"
+                  >
+                    {order.escrow.txHash}
+                  </a>
                 </p>
                 <p>
                   Block #{order.escrow.blockNumber || '—'} · {order.escrow.network || 'HScoin'}
                 </p>
                 <p>Gas used: {order.escrow.gasUsed || '—'}</p>
+                {order.hscoinCall?.callId && (
+                  <p className="text-xs text-gray-500">
+                    HScoin call ID: {order.hscoinCall.callId}
+                  </p>
+                )}
               </>
             ) : (
               <p className="flex items-center gap-2 text-amber-600">

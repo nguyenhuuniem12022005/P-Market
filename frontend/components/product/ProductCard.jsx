@@ -10,6 +10,9 @@ export default function ProductCard({ product }) {
   const title = product.productName || product.title || 'Sản phẩm';
   const priceValue = product.unitPrice ?? product.price ?? 0;
   const quantity = product.totalQuantity ?? product.quantity ?? 0;
+  const sellerName = product.userName || product.shopName || product.sellerName || 'Người bán';
+  const sellerReputation = product.reputationScore;
+  const sellerGreen = product.sellerGreenCredit;
   const isFree = Number(priceValue) === 0;
   const imageURL = resolveProductImage(product, FALLBACK_IMAGE);
 
@@ -34,6 +37,21 @@ export default function ProductCard({ product }) {
           <h3 className="text-sm md:text-base font-medium text-gray-800 line-clamp-2" title={title}>
             {title}
           </h3>
+
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
+            <span className="font-semibold text-gray-800">{sellerName}</span>
+            {sellerReputation !== undefined && sellerReputation !== null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
+                ★ {sellerReputation}
+              </span>
+            )}
+            {sellerGreen !== undefined && sellerGreen !== null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                GC {sellerGreen}
+              </span>
+            )}
+          </div>
+
           <div className="flex-grow" />
           <div className="flex items-center justify-between mt-2">
             <span className="text-base md:text-lg font-bold text-primary">

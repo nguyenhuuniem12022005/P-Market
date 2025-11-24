@@ -15,7 +15,8 @@ import {
 import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lucide-react';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
-const HSCOIN_CONTRACT_URL = 'https://hsc-w3oq.onrender.com/auth/contract.html';
+const HSCOIN_EXPLORER =
+  process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/admin/contract.html';
 
 const statusBadge = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -193,6 +194,7 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
           const nextRunText = hscoinCall?.nextRunAt
             ? new Date(hscoinCall.nextRunAt).toLocaleString('vi-VN')
             : 'Đang chờ HScoin';
+          const txLink = order.escrow?.txHash ? `${HSCOIN_EXPLORER}?tx=${order.escrow.txHash}` : null;
 
           return (
             <Card key={order.orderId}>
@@ -289,6 +291,15 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
                         <p>
                           Block #{order.escrow?.blockNumber || '—'} · {order.escrow?.network || 'HScoin'}
                         </p>
+                        {txLink && (
+                          <Link
+                            href={txLink}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            Xem trên explorer <ExternalLink size={12} />
+                          </Link>
+                        )}
                       </>
                     ) : (
                       <p className="text-xs text-gray-600">
@@ -296,11 +307,11 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
                       </p>
                     )}
                     <Link
-                      href={HSCOIN_CONTRACT_URL}
+                      href={HSCOIN_EXPLORER}
                       target="_blank"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                     >
-                      Mở trên HScoin <ExternalLink size={12} />
+                      Mở explorer HScoin <ExternalLink size={12} />
                     </Link>
                     {renderActionRow({
                       order,
