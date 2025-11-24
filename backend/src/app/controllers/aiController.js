@@ -8,7 +8,7 @@ export async function chatWithAI(req, res, next) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tin nhắn.' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim();
     if (!apiKey) {
       console.error('[AI] Thiếu GEMINI_API_KEY trong biến môi trường');
       return res.status(503).json({
@@ -25,7 +25,7 @@ export async function chatWithAI(req, res, next) {
         const products = await productService.searchProducts(keywords, null);
         if (products && products.length > 0) {
             const topProducts = products.slice(0, 5).map(p => 
-                `- ${p.productName} (Giá: ${p.price} VND): ${p.description?.substring(0, 100)}...`
+                `- ${p.productName} (Giá: ${p.unitPrice || p.price || 0} VND): ${p.description?.substring(0, 100) || ''}...`
             ).join('\n');
             productContext = `Dưới đây là một số sản phẩm có thể liên quan từ cửa hàng P-Market:\n${topProducts}\n`;
         }
@@ -61,10 +61,14 @@ export async function chatWithAI(req, res, next) {
     });
 
   } catch (error) {
-    console.error('AI Chat Error:', error);
+    const msg = error?.message || 'Unknown error';
+    console.error('AI Chat Error:', msg);
+    if (error?.response?.error?.message) {
+      console.error('Gemini detail:', error.response.error.message);
+    }
     return res.status(500).json({
       success: false,
-      message: 'Xin lỗi, trợ lý AI đang bận. Vui lòng thử lại sau.',
+      message: 'Xin lỗi, trợ lý AI đang bận hoặc không kết nối được. Vui lòng thử lại sau.',
     });
   }
 }
