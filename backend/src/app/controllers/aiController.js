@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as productService from '../services/productService.js';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-
 export async function chatWithAI(req, res, next) {
   try {
     const { message } = req.body;
@@ -10,15 +8,16 @@ export async function chatWithAI(req, res, next) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tin nhắn.' });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[AI] Thiếu GEMINI_API_KEY trong biến môi trường');
       return res.status(503).json({
         success: false,
         message: 'Chức năng AI chưa được cấu hình (thiếu API Key).',
       });
     }
 
-    // 1. Tìm kiếm sản phẩm liên quan để làm context (đơn giản hóa: lấy 5 sản phẩm đầu tiên khớp từ khóa)
-    // Trích xuất từ khóa đơn giản từ message (bỏ qua các từ nối)
+    // 1. Tìm kiếm sản phẩm liên quan để làm context
     const keywords = message.split(' ').filter(w => w.length > 3).join(' ');
     let productContext = '';
     
@@ -34,7 +33,8 @@ export async function chatWithAI(req, res, next) {
         console.warn('AI search product error:', err);
     }
 
-    // 2. Gọi Gemini API
+    // 2. Gọi Gemini API (Khởi tạo tại đây để đảm bảo biến môi trường đã load)
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
     const prompt = `
