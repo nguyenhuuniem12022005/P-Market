@@ -159,6 +159,42 @@ For request/response details, inspect the corresponding controller in `backend/s
 3. Run database migrations/seeders on the target MySQL instance.
 4. Configure a process manager (PM2, systemd, or Docker) for the backend and a static host/Vercel for the frontend.
 
+## Deployment on Render
+
+### Backend Service
+1. Create a new **Web Service** on Render.
+2. Connect your repository.
+3. Settings:
+   - **Root Directory**: `backend`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Environment Variables**:
+     - `PORT`: `10000` (Render sets this automatically, but good to know)
+     - `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`: Your MySQL database details.
+     - `HSCOIN_API_KEY`: API Key for HScoin (if required).
+     - `HSCOIN_ADMIN_EMAIL`: Admin email for HScoin.
+     - `HSCOIN_ADMIN_PASSWORD`: Admin password for HScoin.
+     - `CLIENT_URL`: URL of your deployed frontend (e.g., `https://your-frontend.onrender.com`).
+
+### Frontend Service
+1. Create a new **Web Service** on Render.
+2. Connect your repository.
+3. Settings:
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+   - **Environment Variables**:
+     - `NEXT_PUBLIC_API_BASE_URL`: URL of your deployed backend (e.g., `https://your-backend.onrender.com`).
+     - `NEXT_PUBLIC_HSCOIN_EXPLORER`: URL to HScoin explorer (optional).
+
+## HScoin Integration
+
+The project is pre-configured to connect with the HScoin blockchain via the backend.
+- **Backend**: `src/app/services/blockchainService.js` handles all blockchain interactions.
+- **Frontend**: Uses `WalletContext` to manage wallet connections and sends requests to the backend.
+
+Ensure you set the `HSCOIN_*` environment variables in your backend service on Render.
+
 ## License
 
 Backend `package.json` lists ISC; update this section if the project adopts a different license.

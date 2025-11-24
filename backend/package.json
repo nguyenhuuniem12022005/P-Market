@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --exec babel-node src/index.js",
-    "start": "babel-node src/index.js",
+    "start": "node src/index.js",
     "seed": "node scripts/seed.js"
   },
   "author": "",

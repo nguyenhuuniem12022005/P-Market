@@ -11,7 +11,7 @@ import cors from 'cors';
 dotenv.config();
 const app = express();
 // Thêm giá trị mặc định cho PORT
-const PORT = process.env.APP_PORT || 3001; 
+const PORT = process.env.PORT || 3001; 
 
 // --- Định nghĩa __dirname cho ES Modules ---
 const __filename = fileURLToPath(import.meta.url);

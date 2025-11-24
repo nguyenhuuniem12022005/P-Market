@@ -16,7 +16,7 @@ import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lu
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const HSCOIN_EXPLORER =
-  process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/admin/contract.html';
+  process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/auth/contract.html';
 
 const statusBadge = {
   Pending: 'bg-amber-100 text-amber-700',
