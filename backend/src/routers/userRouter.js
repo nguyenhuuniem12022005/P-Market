@@ -108,4 +108,16 @@ userRouter.post(
   userController.redeemGreenBadge
 );
 
+// Lịch sử đánh giá của chính user
+userRouter.get(
+  '/me/reviews',
+  userController.listMyReviews
+);
+
+// Bảng xếp hạng theo tháng (dựa trên delta reputation/green credit)
+userRouter.get(
+  '/leaderboard/monthly',
+  userController.listMonthlyLeaderboard
+);
+
 export default userRouter;

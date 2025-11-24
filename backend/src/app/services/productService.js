@@ -276,7 +276,7 @@ export async function createProduct(productData, supplierId) {
 
 export async function searchProducts(searchTerm, categoryId = null) {
     let baseSql = `
-        select p.*, s.shopName, s.sellerRating, u.userName, u.avatar as sellerAvatar, u.reputationScore, c.categoryName
+        select p.*, s.shopName, s.sellerRating, u.userName, u.avatar as sellerAvatar, u.reputationScore, u.greenCredit as sellerGreenCredit, c.categoryName
         from Product p
         join Supplier s on p.supplierId = s.supplierId
         join User u on s.supplierId = u.userId
@@ -311,7 +311,7 @@ export async function searchProducts(searchTerm, categoryId = null) {
             ) inv on inv.productId = base.productId
         ) wrapped
         where wrapped.totalQuantity > 0
-        order by wrapped.productId desc
+        order by wrapped.reputationScore desc, wrapped.sellerGreenCredit desc, wrapped.productId desc
     `;
     
     const [rows] = await pool.query(finalSql, params);

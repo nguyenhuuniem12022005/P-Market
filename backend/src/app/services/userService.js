@@ -549,3 +549,77 @@ export async function redeemGreenBadge(userId) {
     greenBadgeLevel: Number(user.greenBadgeLevel || 0),
   };
 }
+
+export async function listMyReviews(userId) {
+  const [rows] = await pool.query(
+    `
+    select
+      r.reviewId,
+      r.orderDetailId,
+      r.starNumber,
+      r.comment,
+      r.createdAt,
+      p.productId,
+      p.productName,
+      u.userName as reviewerName,
+      u.avatar   as reviewerAvatar
+    from Review r
+      join OrderDetail od on r.orderDetailId = od.orderDetailId
+      join Product p on od.productId = p.productId
+      join User u on r.customerId = u.userId
+    where r.customerId = ?
+    order by r.createdAt desc
+    `,
+    [userId]
+  );
+
+  return rows.map((row) => ({
+    reviewId: row.reviewId,
+    rating: Number(row.starNumber || 0),
+    comment: row.comment || '',
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    product: {
+      productId: row.productId,
+      title: row.productName,
+    },
+    reviewerName: row.reviewerName || 'Bạn',
+    reviewerAvatar: row.reviewerAvatar || null,
+  }));
+}
+
+export async function listMonthlyLeaderboard({ days = 30, limit = 10 } = {}) {
+  await ensureReputationLedger();
+  const windowDays = Math.max(1, Number(days) || 30);
+  const maxBase = Math.max(1, Number(limit) || 10);
+
+  const [rows] = await pool.query(
+    `
+    select
+      u.userId,
+      u.userName,
+      u.avatar,
+      coalesce(sum(rl.deltaReputation), 0) as repGain,
+      coalesce(sum(rl.deltaGreen), 0) as greenGain
+    from ReputationLedger rl
+      join User u on u.userId = rl.userId
+    where rl.createdAt >= date_sub(now(), interval ? day)
+    group by u.userId, u.userName, u.avatar
+    having repGain <> 0 or greenGain <> 0
+    order by repGain desc, greenGain desc, u.userId asc
+    `,
+    [windowDays]
+  );
+
+  if (rows.length === 0) return [];
+
+  // Lấy top và giữ lại tất cả ai bằng điểm với vị trí cuối cùng trong top cơ bản
+  const baseCount = Math.min(rows.length, maxBase);
+  const base = rows.slice(0, baseCount);
+  if (rows.length <= maxBase) return base;
+
+  const last = base[baseCount - 1];
+  const tie = rows.slice(baseCount).filter(
+    (r) => Number(r.repGain) === Number(last.repGain) && Number(r.greenGain) === Number(last.greenGain)
+  );
+  return [...base, ...tie];
+}

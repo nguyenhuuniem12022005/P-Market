@@ -206,3 +206,29 @@ export async function disconnectWallet(req, res, next) {
     return next(error);
   }
 }
+
+export async function listMyReviews(req, res, next) {
+  try {
+    const data = await userService.listMyReviews(req.user.userId);
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listMonthlyLeaderboard(req, res, next) {
+  try {
+    const days = req.query.days ? Number(req.query.days) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const data = await userService.listMonthlyLeaderboard({ days, limit });
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}

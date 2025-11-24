@@ -1063,6 +1063,30 @@ export async function markNotificationsRead(ids = []) {
   }
 }
 
+// Reviews
+export async function fetchMyReviews() {
+  try {
+    const res = await axios.get(`${API_URL}/users/me/reviews`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function fetchMonthlyLeaderboard(params = {}) {
+  try {
+    const res = await axios.get(`${API_URL}/users/leaderboard/monthly`, {
+      params,
+      headers: authHeader(),
+    });
+    return res.data?.data || [];
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 
 
 
