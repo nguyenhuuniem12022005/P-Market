@@ -3,6 +3,11 @@
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "https://p-market.onrender.com";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
 
+// Axios instance có sẵn baseURL
+const api = axios.create({
+  baseURL: API_URL,
+});
+
 // ===================== CATEGORY HELPERS =====================
 const removeAccents = (str = "") =>
   str
@@ -64,6 +69,15 @@ function authHeader() {
   const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
+
+// Add auth header cho axios instance
+api.interceptors.request.use((config) => {
+  config.headers = {
+    ...(config.headers || {}),
+    ...authHeader(),
+  };
+  return config;
+});
 
 // ===================== X? L? L?I AXIOS =====================
 function handleAxiosError(error) {
