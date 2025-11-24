@@ -63,6 +63,11 @@ export default function ChatPage() {
   }, []);
 
   const loadRooms = useCallback(async () => {
+    if (!user) {
+      setChatRooms([]);
+      setIsLoadingRooms(false);
+      return;
+    }
     setIsLoadingRooms(true);
     try {
       const response = await fetchChatRooms();
@@ -82,7 +87,7 @@ export default function ChatPage() {
     let ignore = false;
 
     async function prepareChatByProduct() {
-      if (!productId) return;
+      if (!productId || !user) return;
       setIsLoadingChat(true);
       try {
         const response = await createChatRoomForProduct(Number(productId));
@@ -103,7 +108,7 @@ export default function ChatPage() {
       }
     }
 
-    if (productId) {
+    if (productId && user) {
       prepareChatByProduct();
     }
 
@@ -113,12 +118,13 @@ export default function ChatPage() {
   }, [productId, loadRooms]);
 
   useEffect(() => {
-    if (roomParam) {
+    if (roomParam && user) {
       loadMessages(Number(roomParam));
     }
-  }, [roomParam, loadMessages]);
+  }, [roomParam, loadMessages, user]);
 
   const handleSelectRoom = async (roomId) => {
+    if (!user) return;
     await loadMessages(roomId);
   };
 
@@ -142,6 +148,18 @@ export default function ChatPage() {
       setIsSending(false);
     }
   };
+
+  if (!user) {
+    return (
+      <Container className="py-10">
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="p-6 text-center text-gray-700">
+            Bạn cần đăng nhập để sử dụng tính năng chat.
+          </CardContent>
+        </Card>
+      </Container>
+    );
+  }
 
   return (
     <Container className="py-6">
