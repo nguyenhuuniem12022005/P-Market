@@ -15,6 +15,7 @@ const navItems = [
   { href: '/dashboard/rewards', icon: Gift, label: 'Thưởng & mời bạn bè' },
   { href: '/dashboard/green-credit', icon: Leaf, label: 'Green Credit' },
   { href: '/dashboard/reputation', icon: Shield, label: 'Điểm uy tín' },
+  { href: '/dashboard/analytics', icon: ClipboardList, label: 'Thống kê bán hàng' },
 ];
 
 const cn = (...classes) => classes.filter(Boolean).join(' ');

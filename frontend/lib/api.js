@@ -783,6 +783,22 @@ export async function fetchCategories() {
   }
 }
 
+// ===================== SELLER ANALYTICS API =====================
+export async function fetchSellerRevenue(year) {
+  const res = await api.get('/reports/seller/revenue', { params: { year } });
+  return res.data?.data;
+}
+
+export async function fetchSellerTopProducts(params = {}) {
+  const res = await api.get('/reports/seller/top-products', { params });
+  return res.data?.data || [];
+}
+
+export async function fetchSellerCompletion(params = {}) {
+  const res = await api.get('/reports/seller/order-completion', { params });
+  return res.data?.data;
+}
+
 // ===================== BLOCKCHAIN API =====================
 export async function fetchGreenCreditSummary() {
   try {

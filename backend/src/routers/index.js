@@ -7,6 +7,7 @@ import supplierRouter from './supplierRouter.js';
 import storeRouter from './storeRouter.js';
 import warehouseRouter from './warehouseRouter.js';
 import overviewRouter from './overviewRouter.js';
+import sellerReportRouter from './sellerReportRouter.js';
 import chatRouter from './chatRouter.js';
 import cartRouter from './cartRouter.js';
 import blockchainRouter from './blockchainRouter.js';
@@ -24,6 +25,7 @@ function route(app){
     app.use('/stores', storeRouter);
     app.use('/warehouses', warehouseRouter);
     app.use('/reports', overviewRouter);
+    app.use('/reports/seller', sellerReportRouter);
     app.use('/chatrooms', chatRouter);
     app.use('/cart', cartRouter);
     app.use('/blockchain', blockchainRouter);
