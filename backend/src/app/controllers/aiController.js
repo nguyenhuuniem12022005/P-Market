@@ -36,7 +36,7 @@ export async function chatWithAI(req, res, next) {
     // 2. Gọi Gemini API (Khởi tạo tại đây để đảm bảo biến môi trường đã load)
     const genAI = new GoogleGenerativeAI(apiKey);
     // Dùng model ổn định (pro/flash). Nếu pro unavailable, flash vẫn chạy được.
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
       Bạn là trợ lý mua sắm ảo thông minh của P-Market (nền tảng thương mại điện tử xanh).
