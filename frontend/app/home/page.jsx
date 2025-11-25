@@ -1,4 +1,4 @@
-﻿// app/home/page.jsx hoặc tương tự
+// app/home/page.jsx ho?c t��ng t?
 import { Suspense } from 'react';
 import { getAllProducts, fetchCategories } from '../../lib/api';
 import ProductCard from '../../components/product/ProductCard';
@@ -11,24 +11,30 @@ import SkeletonCard from '../../components/ui/SkeletonCard';
 export const dynamic = 'force-dynamic';
 
 // =========================
-// 🧩 CATEGORY GRID
+// ?? CATEGORY GRID
 // =========================
 async function CategoryGrid() {
-  const result = await fetchCategories();
-  const categories = result?.categories || [];
+  let categories = [];
+  try {
+    const result = await fetchCategories();
+    categories = result?.categories || [];
+  } catch (err) {
+    console.error('fetchCategories error:', err?.message || err);
+    categories = [];
+  }
 
   if (categories.length === 0) {
     return (
       <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
-        <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
-        <p className="text-sm text-gray-500">Chưa có danh mục nào.</p>
+        <h2 className="text-lg font-semibold mb-3">Kh�m ph� Danh m?c</h2>
+        <p className="text-sm text-gray-500">Ch�a c� danh m?c n�o.</p>
       </div>
     );
   }
 
   return (
     <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
-      <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
+      <h2 className="text-lg font-semibold mb-3">Kh�m ph� Danh m?c</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {categories.map((category) => (
           <Link
@@ -54,7 +60,7 @@ async function CategoryGrid() {
 function CategoryGridSkeleton() {
   return (
     <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm animate-pulse">
-      <h2 className="text-lg font-semibold mb-3">Khám phá Danh mục</h2>
+      <h2 className="text-lg font-semibold mb-3">Kh�m ph� Danh m?c</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {[...Array(6)].map((_, index) => (
           <div key={index} className="flex flex-col items-center">
@@ -69,12 +75,12 @@ function CategoryGridSkeleton() {
 
 // =========================
 async function ProductGrid() {
-  const products = await getAllProducts(24); // Lấy 24 sản phẩm gần đây nhất
+  const products = await getAllProducts(24); // L?y 24 s?n ph?m g?n ��y nh?t
 
   if (products.length === 0) {
     return (
       <p className="text-gray-500 col-span-full text-center py-4">
-        Không có sản phẩm nào.
+        Kh�ng c� s?n ph?m n�o.
       </p>
     );
   }
@@ -89,7 +95,7 @@ async function ProductGrid() {
 }
 
 // =========================
-// 🧩 SKELETON GRID (fallback)
+// ?? SKELETON GRID (fallback)
 // =========================
 function ProductGridSkeleton({ count = 12 }) {
   return (
@@ -102,7 +108,7 @@ function ProductGridSkeleton({ count = 12 }) {
 }
 
 // =========================
-// 🏠 HOME PAGE
+// ?? HOME PAGE
 // =========================
 export default function HomePage() {
   return (
@@ -119,7 +125,7 @@ export default function HomePage() {
         <BlockchainValueProps />
 
         <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h2 className="text-lg font-semibold mb-3">Sản phẩm mới đăng</h2>
+          <h2 className="text-lg font-semibold mb-3">S?n ph?m m?i ��ng</h2>
           <Suspense fallback={<ProductGridSkeleton count={12} />}>
             <ProductGrid />
           </Suspense>
@@ -128,4 +134,5 @@ export default function HomePage() {
     </div>
   );
 }
+
 
