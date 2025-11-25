@@ -679,7 +679,8 @@ export async function fetchChatMessages(chatRoomId) {
 
 export async function sendChatMessage(chatRoomId, content) {
   const response = await api.post(`/chatrooms/${chatRoomId}/messages`, { content });
-  return response.data?.data;
+  // Backend trả { success, message }, không bọc trong data.data
+  return response.data;
 }
 
 export async function chatWithAI(message) {
