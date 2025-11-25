@@ -8,7 +8,7 @@ import BlockchainValueProps from "../../components/layout/BlockchainValueProps";
 import Link from "next/link";
 import SkeletonCard from "../../components/ui/SkeletonCard";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 0;
 const ChatWidget = dynamic(() => import("../../components/chat/ChatWidget"), { ssr: false });
 
 async function CategoryGrid() {
@@ -129,3 +129,4 @@ export default function HomePage() {
     </div>
   );
 }
+
