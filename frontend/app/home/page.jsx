@@ -1,40 +1,36 @@
-// app/home/page.jsx ho?c týõng t?
-import { Suspense } from 'react';
-import { getAllProducts, fetchCategories } from '../../lib/api';
-import ProductCard from '../../components/product/ProductCard';
-import HeroBanner from '../../components/layout/HeroBanner';
-import UserFlowShowcase from '../../components/layout/UserFlowShowcase';
-import BlockchainValueProps from '../../components/layout/BlockchainValueProps';
-import Link from 'next/link';
-import SkeletonCard from '../../components/ui/SkeletonCard';
+ï»¿import { Suspense } from "react";
+import { getAllProducts, fetchCategories } from "../../lib/api";
+import ProductCard from "../../components/product/ProductCard";
+import HeroBanner from "../../components/layout/HeroBanner";
+import UserFlowShowcase from "../../components/layout/UserFlowShowcase";
+import BlockchainValueProps from "../../components/layout/BlockchainValueProps";
+import Link from "next/link";
+import SkeletonCard from "../../components/ui/SkeletonCard";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-// =========================
-// ?? CATEGORY GRID
-// =========================
 async function CategoryGrid() {
   let categories = [];
   try {
     const result = await fetchCategories();
     categories = result?.categories || [];
   } catch (err) {
-    console.error('fetchCategories error:', err?.message || err);
+    console.error("fetchCategories error:", err?.message || err);
     categories = [];
   }
 
   if (categories.length === 0) {
     return (
       <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
-        <h2 className="text-lg font-semibold mb-3">Khám phá Danh m?c</h2>
-        <p className="text-sm text-gray-500">Chýa có danh m?c nào.</p>
+        <h2 className="text-lg font-semibold mb-3">KhÃ¡m phÃ¡ danh má»¥c</h2>
+        <p className="text-sm text-gray-500">ChÆ°a cÃ³ danh má»¥c nÃ o.</p>
       </div>
     );
   }
 
   return (
     <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm">
-      <h2 className="text-lg font-semibold mb-3">Khám phá Danh m?c</h2>
+      <h2 className="text-lg font-semibold mb-3">KhÃ¡m phÃ¡ danh má»¥c</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {categories.map((category) => (
           <Link
@@ -60,7 +56,7 @@ async function CategoryGrid() {
 function CategoryGridSkeleton() {
   return (
     <div className="w-full bg-white mb-4 p-4 rounded-lg shadow-sm animate-pulse">
-      <h2 className="text-lg font-semibold mb-3">Khám phá Danh m?c</h2>
+      <h2 className="text-lg font-semibold mb-3">KhÃ¡m phÃ¡ danh má»¥c</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {[...Array(6)].map((_, index) => (
           <div key={index} className="flex flex-col items-center">
@@ -73,14 +69,19 @@ function CategoryGridSkeleton() {
   );
 }
 
-// =========================
 async function ProductGrid() {
-  const products = await getAllProducts(24); // L?y 24 s?n ph?m g?n ðây nh?t
+  let products = [];
+  try {
+    products = await getAllProducts(24);
+  } catch (err) {
+    console.error("getAllProducts error:", err?.message || err);
+    products = [];
+  }
 
   if (products.length === 0) {
     return (
       <p className="text-gray-500 col-span-full text-center py-4">
-        Không có s?n ph?m nào.
+        KhÃ´ng cÃ³ sáº£n pháº©m nÃ o.
       </p>
     );
   }
@@ -94,9 +95,6 @@ async function ProductGrid() {
   );
 }
 
-// =========================
-// ?? SKELETON GRID (fallback)
-// =========================
 function ProductGridSkeleton({ count = 12 }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -107,9 +105,6 @@ function ProductGridSkeleton({ count = 12 }) {
   );
 }
 
-// =========================
-// ?? HOME PAGE
-// =========================
 export default function HomePage() {
   return (
     <div>
@@ -125,7 +120,7 @@ export default function HomePage() {
         <BlockchainValueProps />
 
         <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h2 className="text-lg font-semibold mb-3">S?n ph?m m?i ðãng</h2>
+          <h2 className="text-lg font-semibold mb-3">Sáº£n pháº©m má»›i Ä‘Äƒng</h2>
           <Suspense fallback={<ProductGridSkeleton count={12} />}>
             <ProductGrid />
           </Suspense>
@@ -134,5 +129,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-
