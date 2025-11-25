@@ -1,4 +1,5 @@
-﻿import { Suspense } from "react";
+﻿import dynamic from "next/dynamic";
+import { Suspense } from "react";
 import { getAllProducts, fetchCategories } from "../../lib/api";
 import ProductCard from "../../components/product/ProductCard";
 import HeroBanner from "../../components/layout/HeroBanner";
@@ -8,6 +9,7 @@ import Link from "next/link";
 import SkeletonCard from "../../components/ui/SkeletonCard";
 
 export const dynamic = "force-dynamic";
+const ChatWidget = dynamic(() => import("../../components/chat/ChatWidget"), { ssr: false });
 
 async function CategoryGrid() {
   let categories = [];
@@ -43,9 +45,7 @@ async function CategoryGrid() {
                 {category.categoryName}
               </span>
             </div>
-            <span className="text-xs font-medium text-gray-700">
-              {category.categoryName}
-            </span>
+            <span className="text-xs font-medium text-gray-700">{category.categoryName}</span>
           </Link>
         ))}
       </div>
@@ -80,9 +80,7 @@ async function ProductGrid() {
 
   if (products.length === 0) {
     return (
-      <p className="text-gray-500 col-span-full text-center py-4">
-        Không có sản phẩm nào.
-      </p>
+      <p className="text-gray-500 col-span-full text-center py-4">Không có sản phẩm nào.</p>
     );
   }
 
@@ -126,6 +124,8 @@ export default function HomePage() {
           </Suspense>
         </div>
       </div>
+
+      {ChatWidget && <ChatWidget />}
     </div>
   );
 }

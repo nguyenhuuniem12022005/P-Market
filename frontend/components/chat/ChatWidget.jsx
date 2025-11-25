@@ -138,7 +138,7 @@ export default function ChatWidget() {
     <>
       <button
         type="button"
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-full shadow-lg hover:bg-primary/90 transition"
+        className="fixed bottom-24 right-4 sm:bottom-20 sm:right-6 z-50 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-full shadow-lg hover:bg-primary/90 transition"
         onClick={() => setIsChatOpen((prev) => !prev)}
       >
         <MessageCircle size={20} />
@@ -147,7 +147,7 @@ export default function ChatWidget() {
 
       <button
         type="button"
-        className="fixed bottom-20 right-6 z-40 flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-emerald-700 transition"
+        className="fixed bottom-36 right-4 sm:bottom-32 sm:right-6 z-50 flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-emerald-700 transition"
         onClick={() => setIsAiOpen((prev) => !prev)}
       >
         <Bot size={18} />
@@ -156,7 +156,7 @@ export default function ChatWidget() {
 
       {/* Popup Chat người dùng */}
       {isChatOpen && (
-        <div className="fixed bottom-20 right-6 z-40 w-[360px] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden h-[500px]">
+        <div className="fixed bottom-28 right-3 sm:bottom-24 sm:right-6 z-50 w-[360px] max-w-[calc(100%-24px)] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden h-[500px]">
           <div className="flex items-center justify-between px-4 py-3 border-b bg-primary text-white">
             <div>
               <p className="text-sm font-semibold">Hỗ trợ & Tin nhắn</p>
@@ -253,7 +253,7 @@ export default function ChatWidget() {
 
       {/* Popup Trợ lý AI */}
       {isAiOpen && (
-        <div className="fixed bottom-24 right-24 z-40 w-[340px] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden h-[420px]">
+        <div className="fixed bottom-36 right-24 sm:bottom-32 sm:right-10 z-50 w-[340px] max-w-[calc(100%-32px)] bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden h-[420px]">
           <div className="flex items-center justify-between px-4 py-3 border-b bg-emerald-600 text-white">
             <div className="flex items-center gap-1">
               <Bot size={16} /> <p className="text-sm font-semibold">Trợ lý AI</p>
