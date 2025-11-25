@@ -116,6 +116,10 @@ export async function createEscrowOrder({
   if (product.status !== 'Active') {
     throw ApiError.badRequest('Sản phẩm chưa sẵn sàng để đặt hàng');
   }
+  // Không cho phép mua sản phẩm của chính mình
+if (Number(product.supplierId) === Number(customerId)) {
+    throw ApiError.badRequest('Bạn không thể mua sản phẩm của chính mình.');
+}
 
   const [users] = await pool.query(
     `
