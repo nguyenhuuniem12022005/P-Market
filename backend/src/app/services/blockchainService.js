@@ -55,6 +55,7 @@ let hasHscoinAlertTable = false;
 let hasUserContractTable = false;
 
 const SIMPLE_TOKEN_FUNCTIONS = {
+  // Token functions
   burn: {
     selector: '0x42966c68', // burn(uint256)
     inputs: ['uint256'],
@@ -66,6 +67,19 @@ const SIMPLE_TOKEN_FUNCTIONS = {
   transfer: {
     selector: '0xa9059cbb', // transfer(address,uint256)
     inputs: ['address', 'uint256'],
+  },
+  // Escrow functions (PMarket)
+  deposit: {
+    selector: '0x8340f549', // deposit(uint256,address,uint256)
+    inputs: ['uint256', 'address', 'uint256'],
+  },
+  release: {
+    selector: '0x37bdc99b', // release(uint256)
+    inputs: ['uint256'],
+  },
+  refund: {
+    selector: '0x7c41ad2c', // refund(uint256)
+    inputs: ['uint256'],
   },
 };
 

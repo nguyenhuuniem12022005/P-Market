@@ -2,12 +2,15 @@ import pool from "../../configs/mysql.js";
 import ApiError from "../../utils/classes/api-error.js";
 import * as userService from './userService.js';
 import * as supplierService from './supplierService.js';
+import { executeSimpleToken } from './blockchainService.js';
 
 const MAX_PRODUCT_EDITS = 3;
 const MIN_SELLER_REPUTATION = Number(process.env.MIN_SELLER_REPUTATION || 65);
 const GREEN_CREDIT_REWARD_GREEN_PRODUCT = Number(
   process.env.GREEN_CREDIT_REWARD_GREEN_PRODUCT || 25
 );
+const PRODUCT_POST_FEE = Number(process.env.PRODUCT_POST_FEE || 500); // Phí đăng bài
+
 let hasEnsuredStatusEnum = false;
 let hasEnsuredGreenCertificationLog = false;
 let hasEnsuredReviewFlagTable = false;
@@ -229,15 +232,37 @@ async function rewardGreenCertification(productId) {
         [productId, supplierId, GREEN_CREDIT_REWARD_GREEN_PRODUCT]
     );
 }
-// Đăng bài
-export async function createProduct(productData, supplierId) {
+
+// Đăng bài - có burn phí
+export async function createProduct(productData, supplierId, { walletAddress, contractAddress } = {}) {
     await ensureProductStatusEnum();
     await ensureGreenFlagColumn();
     await ensureSellerEligible(supplierId);
+    
     const { productName, description, imageURL, unitPrice, categoryId, size, status, discount, complianceDocs, isGreen } = productData;
 
     if (isGreen) {
         await ensureDailyGreenLimit(supplierId);
+    }
+
+    // Burn phí đăng bài nếu có walletAddress
+    if (walletAddress && PRODUCT_POST_FEE > 0) {
+        try {
+            await executeSimpleToken({
+                caller: walletAddress,
+                method: 'burn',
+                args: [PRODUCT_POST_FEE],
+                value: 0,
+                contractAddress,
+                userId: supplierId,
+            });
+        } catch (error) {
+            if (error.statusCode !== 503) {
+                throw ApiError.badRequest(`Không thể burn phí đăng bài: ${error.message}`);
+            }
+            // Nếu 503 (queued) thì vẫn cho đăng bài, burn sẽ xử lý sau
+            console.warn(`[Product] Burn fee queued for supplier ${supplierId}`);
+        }
     }
 
     const sql = `
@@ -393,12 +418,9 @@ export async function updateProduct(productId, supplierId, updateData) {
     await ensureProductOwner(productId, supplierId);
     await ensureProductNotTransacted(productId);
     await ensureEditAvailability(productId, supplierId);
-    // Tạo mảng 'fields' chứa các phần của câu lệnh SET 
     const fields = [];
-    // Tạo mảng 'params' chứa các giá trị tương ứng
     const params = [];
 
-    // Duyệt qua updateData và thêm trường vào query nếu nó tồn tại (khác undefined)
     if (updateData.productName !== undefined) {
         fields.push("productName = ?");
         params.push(updateData.productName);
@@ -439,18 +461,15 @@ export async function updateProduct(productId, supplierId, updateData) {
         params.push(updateData.categoryId);
     }
 
-    // Nếu không có trường nào để cập nhật, dừng lại
     if (fields.length === 0) {
         console.log("Không có trường nào để cập nhật.");
         return;
     }
     fields.push("editCount = editCount + 1");
 
-    // Thêm các tham số cho WHERE (productId và supplierId)
     params.push(productId);
     params.push(supplierId);
 
-    // fields.join(', ') sẽ tự động thêm dấu phẩy
     const sql = `
         update Product 
         set
@@ -630,223 +649,223 @@ export async function reviewProductAudit(productId, auditId, reviewerId, { statu
     );
 
     const productStatus = status === 'APPROVED' ? 'Active' : 'Draft';
-  await pool.query(
-    `
-    update Product
-    set status = ?
-    where productId = ?
-    `,
-    [productStatus, productId]
-  );
+    await pool.query(
+        `
+        update Product
+        set status = ?
+        where productId = ?
+        `,
+        [productStatus, productId]
+    );
 
-  if (status === 'APPROVED') {
-    await rewardGreenCertification(productId);
-  }
+    if (status === 'APPROVED') {
+        await rewardGreenCertification(productId);
+    }
 
-  return getProductAudits(productId);
+    return getProductAudits(productId);
 }
 
 export async function listPendingAudits() {
-  const [rows] = await pool.query(
-    `
-    select
-      pa.auditId,
-      pa.productId,
-      pa.status,
-      pa.note,
-      pa.attachments,
-      pa.createdAt,
-      p.productName,
-      p.status as productStatus,
-      p.unitPrice,
-      u.userName as sellerName,
-      u.email as sellerEmail
-    from ProductAudit pa
-    join Product p on p.productId = pa.productId
-    join User u on u.userId = p.supplierId
-    where pa.status = 'PENDING'
-    order by pa.createdAt asc
-    `
-  );
+    const [rows] = await pool.query(
+        `
+        select
+            pa.auditId,
+            pa.productId,
+            pa.status,
+            pa.note,
+            pa.attachments,
+            pa.createdAt,
+            p.productName,
+            p.status as productStatus,
+            p.unitPrice,
+            u.userName as sellerName,
+            u.email as sellerEmail
+        from ProductAudit pa
+        join Product p on p.productId = pa.productId
+        join User u on u.userId = p.supplierId
+        where pa.status = 'PENDING'
+        order by pa.createdAt asc
+        `
+    );
 
-  return rows.map((row) => ({
-    ...row,
-    attachments: row.attachments ? JSON.parse(row.attachments) : [],
-  }));
+    return rows.map((row) => ({
+        ...row,
+        attachments: row.attachments ? JSON.parse(row.attachments) : [],
+    }));
 }
 
 export async function listProductReviews(productId) {
-  await ensureReviewMediaTable();
-  const [rows] = await pool.query(
-    `
-    select
-      r.reviewId,
-      r.orderDetailId,
-      r.starNumber,
-      r.comment,
-      r.createdAt,
-      so.customerId,
-      u.userName,
-      u.avatar
-    from Review r
-    join OrderDetail od on od.orderDetailId = r.orderDetailId
-    join SalesOrder so on so.salesOrderId = od.salesOrderId
-    join User u on u.userId = so.customerId
-    where od.productId = ?
-    order by r.createdAt desc
-    `,
-    [productId]
-  );
-
-  const reviewIds = rows.map((row) => row.reviewId);
-  let mediaByReview = new Map();
-  if (reviewIds.length) {
-    const [mediaRows] = await pool.query(
-      `
-      select mediaId, reviewId, url, type, createdAt
-      from ReviewMedia
-      where reviewId in (?)
-      order by createdAt asc
-      `,
-      [reviewIds]
+    await ensureReviewMediaTable();
+    const [rows] = await pool.query(
+        `
+        select
+            r.reviewId,
+            r.orderDetailId,
+            r.starNumber,
+            r.comment,
+            r.createdAt,
+            so.customerId,
+            u.userName,
+            u.avatar
+        from Review r
+        join OrderDetail od on od.orderDetailId = r.orderDetailId
+        join SalesOrder so on so.salesOrderId = od.salesOrderId
+        join User u on u.userId = so.customerId
+        where od.productId = ?
+        order by r.createdAt desc
+        `,
+        [productId]
     );
-    mediaByReview = mediaRows.reduce((map, item) => {
-      if (!map.has(item.reviewId)) map.set(item.reviewId, []);
-      map.get(item.reviewId).push({
-        mediaId: item.mediaId,
-        url: item.url,
-        type: item.type,
-        createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : item.createdAt,
-      });
-      return map;
-    }, new Map());
-  }
 
-  return rows.map((row) => ({
-    reviewId: row.reviewId,
-    orderDetailId: row.orderDetailId,
-    rating: Number(row.starNumber) || 0,
-    comment: row.comment || '',
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
-    userName: row.userName,
-    avatar: row.avatar || null,
-    isVerified: true,
-    reason: null,
-    media: mediaByReview.get(row.reviewId) || [],
-  }));
+    const reviewIds = rows.map((row) => row.reviewId);
+    let mediaByReview = new Map();
+    if (reviewIds.length) {
+        const [mediaRows] = await pool.query(
+            `
+            select mediaId, reviewId, url, type, createdAt
+            from ReviewMedia
+            where reviewId in (?)
+            order by createdAt asc
+            `,
+            [reviewIds]
+        );
+        mediaByReview = mediaRows.reduce((map, item) => {
+            if (!map.has(item.reviewId)) map.set(item.reviewId, []);
+            map.get(item.reviewId).push({
+                mediaId: item.mediaId,
+                url: item.url,
+                type: item.type,
+                createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : item.createdAt,
+            });
+            return map;
+        }, new Map());
+    }
+
+    return rows.map((row) => ({
+        reviewId: row.reviewId,
+        orderDetailId: row.orderDetailId,
+        rating: Number(row.starNumber) || 0,
+        comment: row.comment || '',
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+        userName: row.userName,
+        avatar: row.avatar || null,
+        isVerified: true,
+        reason: null,
+        media: mediaByReview.get(row.reviewId) || [],
+    }));
 }
 
 export async function createProductReview(productId, orderDetailId, customerId, { rating, comment, attachments = [] }) {
-  const normalizedRating = Math.max(1, Math.min(5, Number(rating) || 1));
-  await ensureReviewMediaTable();
-  const [orderRows] = await pool.query(
-    `
-    select
-      od.orderDetailId,
-      od.productId,
-      so.salesOrderId,
-      so.status,
-      so.customerId,
-      p.supplierId
-    from OrderDetail od
-    join SalesOrder so on so.salesOrderId = od.salesOrderId
-    join Product p on p.productId = od.productId
-    where od.orderDetailId = ?
-    `,
-    [orderDetailId]
-  );
-
-  const orderRow = orderRows[0];
-  if (!orderRow || Number(orderRow.productId) !== Number(productId)) {
-    await userService.updateReputationScore(customerId, -10);
-    throw ApiError.forbidden('Bạn không thể đánh giá sản phẩm không thuộc đơn hàng của mình.');
-  }
-  if (orderRow.customerId !== customerId) {
-    await userService.updateReputationScore(customerId, -10);
-    throw ApiError.forbidden('Bạn không thể đánh giá đơn hàng của người khác.');
-  }
-  if (orderRow.status !== 'Completed') {
-    throw ApiError.badRequest('Đơn hàng chưa hoàn tất hoặc chưa đủ điều kiện đánh giá.');
-  }
-
-  const [existing] = await pool.query(
-    `
-    select reviewId
-    from Review
-    where orderDetailId = ?
-    limit 1
-    `,
-    [orderDetailId]
-  );
-  if (existing.length) {
-    throw ApiError.badRequest('Bạn đã đánh giá sản phẩm này.');
-  }
-
-  const [reviewResult] = await pool.query(
-    `
-    insert into Review (orderDetailId, starNumber, comment, createdAt)
-    values (?, ?, ?, now())
-    `,
-    [orderDetailId, normalizedRating, comment || null]
-  );
-  const reviewId = reviewResult.insertId;
-
-  if (attachments && attachments.length) {
-    const mediaRows = attachments.slice(0, 5).map((url) => [reviewId, url, 'image']);
-    await pool.query(
-      `
-      insert into ReviewMedia (reviewId, url, type)
-      values ?
-      `,
-      [mediaRows]
+    const normalizedRating = Math.max(1, Math.min(5, Number(rating) || 1));
+    await ensureReviewMediaTable();
+    const [orderRows] = await pool.query(
+        `
+        select
+            od.orderDetailId,
+            od.productId,
+            so.salesOrderId,
+            so.status,
+            so.customerId,
+            p.supplierId
+        from OrderDetail od
+        join SalesOrder so on so.salesOrderId = od.salesOrderId
+        join Product p on p.productId = od.productId
+        where od.orderDetailId = ?
+        `,
+        [orderDetailId]
     );
-  }
 
-  if (normalizedRating <= 2) {
-    await userService.updateReputationScore(orderRow.supplierId, -5);
-  }
-  await supplierService.updateSellerRating(orderRow.supplierId);
+    const orderRow = orderRows[0];
+    if (!orderRow || Number(orderRow.productId) !== Number(productId)) {
+        await userService.updateReputationScore(customerId, -10);
+        throw ApiError.forbidden('Bạn không thể đánh giá sản phẩm không thuộc đơn hàng của mình.');
+    }
+    if (orderRow.customerId !== customerId) {
+        await userService.updateReputationScore(customerId, -10);
+        throw ApiError.forbidden('Bạn không thể đánh giá đơn hàng của người khác.');
+    }
+    if (orderRow.status !== 'Completed') {
+        throw ApiError.badRequest('Đơn hàng chưa hoàn tất hoặc chưa đủ điều kiện đánh giá.');
+    }
 
-  return listProductReviews(productId);
+    const [existing] = await pool.query(
+        `
+        select reviewId
+        from Review
+        where orderDetailId = ?
+        limit 1
+        `,
+        [orderDetailId]
+    );
+    if (existing.length) {
+        throw ApiError.badRequest('Bạn đã đánh giá sản phẩm này.');
+    }
+
+    const [reviewResult] = await pool.query(
+        `
+        insert into Review (orderDetailId, starNumber, comment, createdAt)
+        values (?, ?, ?, now())
+        `,
+        [orderDetailId, normalizedRating, comment || null]
+    );
+    const reviewId = reviewResult.insertId;
+
+    if (attachments && attachments.length) {
+        const mediaRows = attachments.slice(0, 5).map((url) => [reviewId, url, 'image']);
+        await pool.query(
+            `
+            insert into ReviewMedia (reviewId, url, type)
+            values ?
+            `,
+            [mediaRows]
+        );
+    }
+
+    if (normalizedRating <= 2) {
+        await userService.updateReputationScore(orderRow.supplierId, -5);
+    }
+    await supplierService.updateSellerRating(orderRow.supplierId);
+
+    return listProductReviews(productId);
 }
 
 export async function flagReview(reviewId, reporterId, reason = '') {
-  await ensureReviewFlagTable();
-  await pool.query(
-    `
-    insert into ReviewFlag (reviewId, reporterId, reason)
-    values (?, ?, ?)
-    `,
-    [reviewId, reporterId, reason || null]
-  );
-  return { success: true };
+    await ensureReviewFlagTable();
+    await pool.query(
+        `
+        insert into ReviewFlag (reviewId, reporterId, reason)
+        values (?, ?, ?)
+        `,
+        [reviewId, reporterId, reason || null]
+    );
+    return { success: true };
 }
 
 export async function listReviewFlags(limit = 50) {
-  await ensureReviewFlagTable();
-  const [rows] = await pool.query(
-    `
-    select
-      rf.flagId,
-      rf.reviewId,
-      rf.reporterId,
-      rf.reason,
-      rf.createdAt,
-      r.orderDetailId,
-      r.starNumber,
-      r.comment,
-      so.salesOrderId
-    from ReviewFlag rf
-    left join Review r on r.reviewId = rf.reviewId
-    left join OrderDetail od on od.orderDetailId = r.orderDetailId
-    left join SalesOrder so on so.salesOrderId = od.salesOrderId
-    order by rf.createdAt desc
-    limit ?
-    `,
-    [Math.max(1, Math.min(Number(limit) || 50, 200))]
-  );
-  return rows.map((row) => ({
-    ...row,
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
-  }));
+    await ensureReviewFlagTable();
+    const [rows] = await pool.query(
+        `
+        select
+            rf.flagId,
+            rf.reviewId,
+            rf.reporterId,
+            rf.reason,
+            rf.createdAt,
+            r.orderDetailId,
+            r.starNumber,
+            r.comment,
+            so.salesOrderId
+        from ReviewFlag rf
+        left join Review r on r.reviewId = rf.reviewId
+        left join OrderDetail od on od.orderDetailId = r.orderDetailId
+        left join SalesOrder so on so.salesOrderId = od.salesOrderId
+        order by rf.createdAt desc
+        limit ?
+        `,
+        [Math.max(1, Math.min(Number(limit) || 50, 200))]
+    );
+    return rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+    }));
 }

@@ -4,8 +4,6 @@ import { handleReferralAfterOrderCompleted } from './referralAutomationService.j
 import { getEscrowSnapshot, executeSimpleToken, attachOrderToHscoinCall } from './blockchainService.js';
 import * as userService from './userService.js';
 
-const ESCROW_FEE_PERCENT = Number(process.env.ESCROW_FEE_PERCENT || 0.1); // 1% mặc định
-const ESCROW_FEE_MIN = Number(process.env.ESCROW_FEE_MIN || 1000); // tối thiểu 1.000 HScoin
 const REPUTATION_REWARD_BUYER = Number(process.env.REPUTATION_REWARD_BUYER || 5);
 const REPUTATION_REWARD_SELLER = Number(process.env.REPUTATION_REWARD_SELLER || 5);
 const GREEN_CREDIT_SELLER_GREEN_ORDER = Number(process.env.GREEN_CREDIT_SELLER_GREEN_ORDER || 5);
@@ -141,33 +139,18 @@ export async function createEscrowOrder({
 
   const unitPrice = Number(product.unitPrice) || 0;
   const totalAmount = unitPrice * qty;
-  const burnAmount = Math.max(
-    ESCROW_FEE_MIN,
-    Math.round(totalAmount * ESCROW_FEE_PERCENT)
-  );
 
-  let burnCallId = null;
-  let burnStatus = 'SUCCESS';
-  try {
-    const burnResult = await executeSimpleToken({
-      caller: walletAddress,
-      method: 'burn',
-      args: [burnAmount],
-      value: 0,
-      contractAddress,
-      userId: customerId,
-    });
-    burnCallId = burnResult?.callId || null;
-    burnStatus = burnResult?.status || 'SUCCESS';
-  } catch (error) {
-    if (error.statusCode === 503 && error.hscoinCallId) {
-      burnCallId = error.hscoinCallId;
-      burnStatus = 'QUEUED';
-    } else {
-      throw error;
-    }
+  // Lấy địa chỉ ví của seller
+  const [sellerRows] = await pool.query(
+    `select walletAddress from User where userId = ? limit 1`,
+    [product.supplierId]
+  );
+  const sellerWalletAddress = sellerRows[0]?.walletAddress;
+  if (!sellerWalletAddress) {
+    throw ApiError.badRequest('Người bán chưa liên kết ví HScoin. Không thể tạo đơn hàng.');
   }
 
+  // Tạo đơn hàng trước để lấy orderId cho escrow
   const paymentMethodId = 1;
   const [orderResult] = await pool.query(
     `
@@ -186,8 +169,34 @@ export async function createEscrowOrder({
     [product.productId, orderId, Number(product.discount) || 0, null, qty, unitPrice]
   );
 
-  if (burnCallId) {
-    await attachOrderToHscoinCall(burnCallId, orderId);
+  // Gọi deposit() để khóa tiền vào escrow
+  let escrowCallId = null;
+  let escrowStatus = 'SUCCESS';
+  try {
+    const depositResult = await executeSimpleToken({
+      caller: walletAddress,
+      method: 'deposit',
+      args: [orderId, sellerWalletAddress, totalAmount],
+      value: 0,
+      contractAddress,
+      userId: customerId,
+    });
+    escrowCallId = depositResult?.callId || null;
+    escrowStatus = depositResult?.status || 'SUCCESS';
+  } catch (error) {
+    if (error.statusCode === 503 && error.hscoinCallId) {
+      escrowCallId = error.hscoinCallId;
+      escrowStatus = 'QUEUED';
+    } else {
+      // Rollback nếu deposit thất bại
+      await pool.query('delete from OrderDetail where salesOrderId = ?', [orderId]);
+      await pool.query('delete from SalesOrder where salesOrderId = ?', [orderId]);
+      throw error;
+    }
+  }
+
+  if (escrowCallId) {
+    await attachOrderToHscoinCall(escrowCallId, orderId);
   }
 
   await recordEscrowLedger(orderId, 'Pending', totalAmount);
@@ -197,8 +206,8 @@ export async function createEscrowOrder({
     status: 'Pending',
     totalAmount,
     quantity: qty,
-    hscoinCallId: burnCallId,
-    hscoinStatus: burnStatus,
+    hscoinCallId: escrowCallId,
+    hscoinStatus: escrowStatus,
     product: {
       productId: product.productId,
       productName: product.productName,
@@ -218,9 +227,7 @@ async function recordEscrowLedger(orderId, status, amount) {
   );
 }
 
-// Không dùng công thức phần trăm green credit nữa
-
-export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = false } = {}) {
+export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = false, walletAddress, contractAddress } = {}) {
   const normalizedBuyerId = Number(buyerId);
   if (!orderId || !normalizedBuyerId) {
     throw ApiError.badRequest('Thiếu thông tin người dùng hoặc đơn hàng');
@@ -238,7 +245,7 @@ export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = 
 
   const escrowState = await getLatestEscrowState(orderId);
   if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
-    throw ApiError.badRequest('Phí HScoin đang được xử lý, vui lòng đợi burn escrow hoàn tất rồi mới xác nhận.');
+    throw ApiError.badRequest('Escrow đang được xử lý, vui lòng đợi deposit hoàn tất rồi mới xác nhận.');
   }
   if (escrowState.ledgerStatus && escrowState.ledgerStatus !== 'LOCKED') {
     throw ApiError.badRequest('Trạng thái escrow chưa sẵn sàng để xác nhận.');
@@ -267,7 +274,7 @@ export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = 
 
   if (order.status === 'SellerConfirmed') {
     await recordEscrowLedger(orderId, 'BuyerConfirmed', order.totalAmount);
-    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true });
+    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true, walletAddress, contractAddress });
     return { order: completedOrder, status: completedOrder.status, completed: true };
   }
 
@@ -276,7 +283,7 @@ export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = 
   return { order: updatedOrder, status: updatedOrder.status, completed: false };
 }
 
-export async function confirmOrderAsSeller(orderId, sellerId) {
+export async function confirmOrderAsSeller(orderId, sellerId, { walletAddress, contractAddress } = {}) {
   const normalizedSellerId = Number(sellerId);
   if (!orderId || !normalizedSellerId) {
     throw ApiError.badRequest('Thiếu thông tin người dùng hoặc đơn hàng');
@@ -291,7 +298,7 @@ export async function confirmOrderAsSeller(orderId, sellerId) {
 
   const escrowState = await getLatestEscrowState(orderId);
   if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
-    throw ApiError.badRequest('Phí HScoin đang được xử lý, vui lòng đợi burn escrow hoàn tất rồi mới xác nhận.');
+    throw ApiError.badRequest('Escrow đang được xử lý, vui lòng đợi deposit hoàn tất rồi mới xác nhận.');
   }
   if (escrowState.ledgerStatus && escrowState.ledgerStatus !== 'LOCKED') {
     throw ApiError.badRequest('Trạng thái escrow chưa sẵn sàng để xác nhận.');
@@ -314,7 +321,7 @@ export async function confirmOrderAsSeller(orderId, sellerId) {
 
   if (order.status === 'BuyerConfirmed') {
     await recordEscrowLedger(orderId, 'SellerConfirmed', order.totalAmount);
-    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true });
+    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true, walletAddress, contractAddress });
     return { order: completedOrder, status: completedOrder.status, completed: true };
   }
 
@@ -323,8 +330,25 @@ export async function confirmOrderAsSeller(orderId, sellerId) {
   return { order: updatedOrder, status: updatedOrder.status, completed: false };
 }
 
-export async function markOrderCompleted(orderId, { triggerReferral = true } = {}) {
+export async function markOrderCompleted(orderId, { triggerReferral = true, walletAddress, contractAddress } = {}) {
   const order = await updateOrderStatus(orderId, 'Completed');
+
+  // Gọi release() để giải phóng tiền cho seller
+  if (walletAddress) {
+    try {
+      await executeSimpleToken({
+        caller: walletAddress,
+        method: 'release',
+        args: [orderId],
+        value: 0,
+        contractAddress,
+        userId: order.customerId,
+      });
+    } catch (error) {
+      console.error(`[Escrow] Release failed for order ${orderId}:`, error.message);
+    }
+  }
+
   const rewardTasks = [];
   const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_SELLER_GREEN_ORDER : 0;
 
@@ -369,8 +393,25 @@ export async function markOrderCompleted(orderId, { triggerReferral = true } = {
   return order;
 }
 
-export async function markOrderCancelled(orderId) {
+export async function markOrderCancelled(orderId, { walletAddress, contractAddress } = {}) {
   const order = await updateOrderStatus(orderId, 'Cancelled');
+
+  // Gọi refund() để hoàn tiền cho buyer
+  if (walletAddress) {
+    try {
+      await executeSimpleToken({
+        caller: walletAddress,
+        method: 'refund',
+        args: [orderId],
+        value: 0,
+        contractAddress,
+        userId: order.customerId,
+      });
+    } catch (error) {
+      console.error(`[Escrow] Refund failed for order ${orderId}:`, error.message);
+    }
+  }
+
   await recordEscrowLedger(orderId, 'Cancelled', order.totalAmount);
   return order;
 }
@@ -404,11 +445,7 @@ export async function getOrderDetail(orderId, requesterId) {
       so.shippingAddress,
       so.isGreen,
       so.isGreenConfirmed,
-      so.isGreen,
-      so.isGreenConfirmed,
       so.paymentMethodId,
-      so.isGreen,
-      so.isGreenConfirmed,
       buyer.userName as buyerName,
       buyer.email as buyerEmail,
       buyer.avatar as buyerAvatar,
@@ -621,6 +658,8 @@ export async function listOrdersForCustomer(customerId) {
       so.totalAmount,
       so.orderDate,
       so.shippingAddress,
+      so.isGreen,
+      so.isGreenConfirmed,
       od.orderDetailId,
       od.quantity,
       od.unitPrice,
@@ -685,8 +724,6 @@ export async function listOrdersForCustomer(customerId) {
         isGreen: toBool(row.isGreen),
         isGreenConfirmed: toBool(row.isGreenConfirmed),
         shippingAddress: row.shippingAddress,
-        isGreen: toBool(row.isGreen),
-        isGreenConfirmed: toBool(row.isGreenConfirmed),
         seller: {
           supplierId: row.supplierId,
           name: row.sellerName,
@@ -771,6 +808,8 @@ export async function listOrdersForSeller(supplierId) {
       so.totalAmount,
       so.orderDate,
       so.shippingAddress,
+      so.isGreen,
+      so.isGreenConfirmed,
       od.orderDetailId,
       od.quantity,
       od.unitPrice,
@@ -832,6 +871,8 @@ export async function listOrdersForSeller(supplierId) {
         status: row.status,
         totalAmount: Number(row.totalAmount) || 0,
         orderDate: row.orderDate,
+        isGreen: toBool(row.isGreen),
+        isGreenConfirmed: toBool(row.isGreenConfirmed),
         shippingAddress: row.shippingAddress,
         customer: {
           userId: row.customerId,
