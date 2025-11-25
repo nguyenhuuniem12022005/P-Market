@@ -22,34 +22,72 @@ export default function WalletPage() {
   const [error, setError] = useState('');
   const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
   const [contracts, setContracts] = useState([]);
-  const [contractName, setContractName] = useState('SimpleToken');
+  const [contractName, setContractName] = useState('PMarket');
   const [contractAddress, setContractAddress] = useState('');
   const [isDefault, setIsDefault] = useState(true);
   const [savingContract, setSavingContract] = useState(false);
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract SimpleToken {
-    string public name = "SimpleToken";
-    string public symbol = "STK";
+/**
+ * @title PMarket
+ * @dev Token + Escrow gộp làm 1 cho P-Market
+ * Deploy 1 lần, dùng luôn!
+ */
+contract PMarket {
+    // ============ Token Info ============
+    string public name = "PMarket Token";
+    string public symbol = "PMK";
     uint8 public decimals = 18;
     uint256 public totalSupply;
-    
+
     mapping(address => uint256) public balanceOf;
     address public owner;
-    
+
+    // ============ Order Info ============
+    enum OrderStatus {
+        None,       // Chưa có order
+        Deposited,  // Buyer đã deposit
+        Released,   // Đã release cho seller
+        Refunded    // Đã hoàn tiền cho buyer
+    }
+
+    struct Order {
+        address buyer;
+        address seller;
+        uint256 amount;
+        OrderStatus status;
+        uint256 createdAt;
+    }
+
+    mapping(uint256 => Order) public orders;
+    uint256 public totalOrders;
+
+    // ============ Events ============
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Mint(address indexed to, uint256 value);
     event Burn(address indexed from, uint256 value);
-    
+    event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
+    event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
+    event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
+    event OwnerChanged(address indexed oldOwner, address indexed newOwner);
+
+    // ============ Modifiers ============
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    // ============ Constructor ============
     constructor() {
         owner = msg.sender;
         totalSupply = 1000000 * 10 ** uint256(decimals);
         balanceOf[msg.sender] = totalSupply;
         emit Transfer(address(0), msg.sender, totalSupply);
     }
-    
-    function transfer(address _to, uint256 _value) public returns (bool success) {
+
+    // ============ Token Functions ============
+    function transfer(address _to, uint256 _value) public returns (bool) {
         require(_to != address(0), "Invalid address");
         require(balanceOf[msg.sender] >= _value, "Insufficient balance");
         balanceOf[msg.sender] -= _value;
@@ -57,17 +95,17 @@ contract SimpleToken {
         emit Transfer(msg.sender, _to, _value);
         return true;
     }
-    
-    function mint(address _to, uint256 _value) public returns (bool success) {
+
+    function mint(address _to, uint256 _value) public onlyOwner returns (bool) {
         require(_to != address(0), "Invalid address");
-        require(msg.sender == owner, "Only owner can mint");
         totalSupply += _value;
         balanceOf[_to] += _value;
         emit Mint(_to, _value);
         emit Transfer(address(0), _to, _value);
         return true;
     }
-    function burn(uint256 _value) public returns (bool success) {
+
+    function burn(uint256 _value) public returns (bool) {
         require(balanceOf[msg.sender] >= _value, "Insufficient balance");
         balanceOf[msg.sender] -= _value;
         totalSupply -= _value;
@@ -75,11 +113,91 @@ contract SimpleToken {
         emit Transfer(msg.sender, address(0), _value);
         return true;
     }
+
     function getBalance(address _owner) public view returns (uint256) {
         return balanceOf[_owner];
     }
+
     function getTotalSupply() public view returns (uint256) {
         return totalSupply;
+    }
+
+    // ============ Escrow Functions ============
+    function deposit(uint256 orderId, address seller, uint256 amount) external {
+        require(orders[orderId].status == OrderStatus.None, "Order exists");
+        require(seller != address(0), "Invalid seller");
+        require(seller != msg.sender, "Buyer = Seller");
+        require(amount > 0, "Amount = 0");
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+
+        balanceOf[msg.sender] -= amount;
+        balanceOf[address(this)] += amount;
+
+        orders[orderId] = Order({
+            buyer: msg.sender,
+            seller: seller,
+            amount: amount,
+            status: OrderStatus.Deposited,
+            createdAt: block.timestamp
+        });
+
+        totalOrders++;
+
+        emit Transfer(msg.sender, address(this), amount);
+        emit Deposited(orderId, msg.sender, seller, amount);
+    }
+
+    function release(uint256 orderId) external onlyOwner {
+        Order storage o = orders[orderId];
+        require(o.status == OrderStatus.Deposited, "Not deposited");
+
+        o.status = OrderStatus.Released;
+
+        balanceOf[address(this)] -= o.amount;
+        balanceOf[o.seller] += o.amount;
+
+        emit Transfer(address(this), o.seller, o.amount);
+        emit Released(orderId, o.seller, o.amount);
+    }
+
+    function refund(uint256 orderId) external onlyOwner {
+        Order storage o = orders[orderId];
+        require(o.status == OrderStatus.Deposited, "Not deposited");
+
+        o.status = OrderStatus.Refunded;
+
+        balanceOf[address(this)] -= o.amount;
+        balanceOf[o.buyer] += o.amount;
+
+        emit Transfer(address(this), o.buyer, o.amount);
+        emit Refunded(orderId, o.buyer, o.amount);
+    }
+
+    // ============ View Functions ============
+    function getOrder(uint256 orderId) external view returns (
+        address buyer,
+        address seller,
+        uint256 amount,
+        OrderStatus status,
+        uint256 createdAt
+    ) {
+        Order storage o = orders[orderId];
+        return (o.buyer, o.seller, o.amount, o.status, o.createdAt);
+    }
+
+    function getOrderStatus(uint256 orderId) external view returns (OrderStatus) {
+        return orders[orderId].status;
+    }
+
+    function getContractBalance() external view returns (uint256) {
+        return balanceOf[address(this)];
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Invalid address");
+        address oldOwner = owner;
+        owner = newOwner;
+        emit OwnerChanged(oldOwner, newOwner);
     }
 }`);
   const [deploying, setDeploying] = useState(false);
@@ -94,7 +212,7 @@ contract SimpleToken {
         const def = (cons || []).find((c) => c.isDefault);
         if (def) {
           setContractAddress(def.address || '');
-          setContractName(def.name || 'SimpleToken');
+          setContractName(def.name || 'PMarket');
           setIsDefault(def.isDefault || false);
         }
       } catch (err) {
@@ -134,7 +252,7 @@ contract SimpleToken {
     setSavingContract(true);
     try {
       const data = await saveUserContract({
-        name: contractName || 'SimpleToken',
+        name: contractName || 'PMarket',
         address: contractAddress,
         isDefault,
       });
@@ -333,7 +451,7 @@ contract SimpleToken {
               value={contractName}
               onChange={(e) => setContractName(e.target.value)}
               className="w-full rounded-md border px-3 py-2 text-sm"
-              placeholder="SimpleToken"
+              placeholder="PMarket"
             />
           </div>
           <div className="space-y-2">
@@ -370,7 +488,7 @@ contract SimpleToken {
               disabled={deploying}
             >
               {deploying ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-              Deploy tự động (SimpleToken)
+              Deploy tự động (PMarket)
             </Button>
           </div>
 
@@ -379,11 +497,11 @@ contract SimpleToken {
             <textarea
               value={sourceCode}
               onChange={(e) => setSourceCode(e.target.value)}
-              rows={8}
+              rows={12}
               className="w-full rounded-md border px-3 py-2 font-mono text-xs"
             />
             <p className="text-xs text-gray-500">
-              Nếu chưa có contract, bấm &quot;Deploy tự động&quot; để biên dịch + deploy SimpleToken bằng ví đã liên kết.
+              Nếu chưa có contract, bấm &quot;Deploy tự động&quot; để biên dịch + deploy PMarket bằng ví đã liên kết. Contract PMarket có sẵn Escrow (deposit/release/refund) cho mua bán và burn để đăng sản phẩm.
             </p>
           </div>
 
