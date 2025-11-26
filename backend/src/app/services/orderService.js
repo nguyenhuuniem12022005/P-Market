@@ -48,6 +48,18 @@ async function getBuyerWalletAddress(order) {
   return info.walletAddress;
 }
 
+async function getSellerWalletAddress(orderId) {
+  const sellerIds = await getOrderSellerIds(orderId);
+  if (!sellerIds.length) {
+    throw ApiError.badRequest('Không tìm thấy người bán cho đơn hàng.');
+  }
+  const sellerInfo = await userService.getWalletInfo(sellerIds[0]);
+  if (!sellerInfo?.walletAddress) {
+    throw ApiError.badRequest('Người bán chưa liên kết ví HScoin. Không thể giải phóng escrow.');
+  }
+  return sellerInfo.walletAddress;
+}
+
 async function getOrderContractAddress(orderId) {
   const [rows] = await pool.query(
     `
@@ -406,7 +418,9 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
   }
 
   // Gọi release() để giải phóng tiền cho seller; nếu fail thì không đánh dấu Completed
-  const releaseWallet = walletAddress || (await getBuyerWalletAddress(orderBefore));
+  const sellerWallet = await getSellerWalletAddress(orderId);
+  const buyerWallet = await getBuyerWalletAddress(orderBefore);
+  const releaseWallet = walletAddress || sellerWallet || buyerWallet;
   const releaseContract = contractAddress || (await getOrderContractAddress(orderId));
   if (!releaseContract) {
     throw ApiError.badRequest('Không xác định được contract escrow của đơn hàng.');
@@ -478,10 +492,11 @@ export async function markOrderCancelled(orderId, { walletAddress, contractAddre
 
   // Gọi refund() để hoàn tiền cho buyer
   const refundContract = contractAddress || (await getOrderContractAddress(orderId));
-  if (walletAddress && refundContract) {
+  const refundWallet = walletAddress || (await getBuyerWalletAddress(order));
+  if (refundWallet && refundContract) {
     try {
       await executeSimpleToken({
-        caller: walletAddress,
+        caller: refundWallet,
         method: 'refund',
         args: [orderId],
         value: 0,
