@@ -982,6 +982,18 @@ export async function confirmOrderAsSeller(orderId) {
     handleAxiosError(error);
   }
 }
+export async function cancelOrder(orderId) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/orders/${orderId}/cancel`,
+      {},
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
 
 export async function fetchOrderDetail(orderId) {
   try {

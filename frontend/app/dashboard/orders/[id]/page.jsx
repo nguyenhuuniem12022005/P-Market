@@ -11,6 +11,7 @@ import {
   confirmOrderAsSeller,
   retryHscoinCall,
   verifyHscoinCallTxHash,
+  cancelOrder,
 } from '../../../../lib/api';
 import { resolveProductImage } from '../../../../lib/image';
 import { Card, CardHeader, CardContent } from '../../../../components/ui/Card';
@@ -71,6 +72,7 @@ export default function OrderDetailPage() {
   const [retryLoading, setRetryLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -157,6 +159,24 @@ export default function OrderDetailPage() {
       toast.error(err.message || 'Không thể kiểm tra txHash');
     } finally {
       setVerifyLoading(false);
+    }
+  };
+  const handleCancelOrder = async () => {
+    if (!orderId) return;
+    const confirmed = window.confirm(
+      'Bạn có chắc muốn hủy đơn hàng này? Bạn có thể tạo đơn hàng mới sau khi hủy.'
+    );
+    if (!confirmed) return;
+    
+    setCancelLoading(true);
+    try {
+      const res = await cancelOrder(orderId);
+      toast.success(res?.message || 'Đã hủy đơn hàng');
+      await load();
+    } catch (err) {
+      toast.error(err.message || 'Không thể hủy đơn hàng');
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -317,28 +337,49 @@ export default function OrderDetailPage() {
               </p>
             )}
             {order.hscoinCall?.status === 'FAILED' && (
-              <p className="text-xs text-rose-600">
-                Lỗi HScoin: {order.hscoinCall?.lastError || 'Không xác định'}
-              </p>
+              <>
+                <p className="text-xs text-rose-600">
+                   Lỗi HScoin: {order.hscoinCall?.lastError || 'Không xác định'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                   <strong>Thử lại escrow</strong> nếu lỗi tạm thời (network, timeout).<br/>
+                   <strong>Hủy đơn hàng</strong> nếu muốn tạo đơn mới.
+                </p>
+              </>
             )}
             {order.hscoinCall?.status === 'QUEUED' && (
-              <p className="text-xs text-amber-600">
-                Lần thử tiếp: {order.hscoinCall.nextRunAt || 'Đang xếp hàng'}
-              </p>
+              <>
+                <p className="text-xs text-amber-600">
+                   Lần thử tiếp: {order.hscoinCall.nextRunAt || 'Đang xếp hàng'}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                   Hệ thống sẽ tự động retry. Bạn có thể thử lại ngay hoặc hủy đơn.
+                </p>
+              </>
             )}
 
-            {/* Retry / Verify actions */}
+            {/* Retry / Verify / Cancel actions */}
             {order.hscoinCall?.callId && (
               <div className="pt-2 flex flex-wrap gap-2">
                 {['FAILED','QUEUED'].includes(String(order.hscoinCall.status).toUpperCase()) && (
-                  <button
-                    type="button"
-                    onClick={handleRetryEscrow}
-                    disabled={retryLoading}
-                    className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-60"
-                  >
-                    {retryLoading ? 'Đang retry...' : 'Thử lại escrow'}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleRetryEscrow}
+                      disabled={retryLoading || cancelLoading}
+                      className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-60"
+                    >
+                      {retryLoading ? 'Đang retry...' : ' Thử lại'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelOrder}
+                      disabled={cancelLoading || retryLoading}
+                      className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-60"
+                    >
+                      {cancelLoading ? 'Đang hủy...' : ' Hủy đơn'}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
