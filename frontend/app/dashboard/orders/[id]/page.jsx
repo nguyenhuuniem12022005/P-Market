@@ -112,7 +112,9 @@ export default function OrderDetailPage() {
     if (!orderId) return;
     const escrowStatus = order?.hscoinCall?.status;
     if (['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(escrowStatus).toUpperCase())) {
-      toast.error('Escrow chưa sẵn sàng để xác nhận.');
+      toast.error(
+        'Escrow HScoin chưa sẵn sàng. Hãy Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi xác nhận.'
+      );
       return;
     }
     setActionLoading(true);
@@ -339,21 +341,23 @@ export default function OrderDetailPage() {
             {order.hscoinCall?.status === 'FAILED' && (
               <>
                 <p className="text-xs text-rose-600">
-                   Lỗi HScoin: {order.hscoinCall?.lastError || 'Không xác định'}
+                   Escrow HScoin thất bại: {order.hscoinCall?.lastError || 'Không xác định'}
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                   <strong>Thử lại escrow</strong> nếu lỗi tạm thời (network, timeout).<br/>
-                   <strong>Hủy đơn hàng</strong> nếu muốn tạo đơn mới.
+                   Bạn có 3 lựa chọn: <strong>Thử lại</strong> để giữ đơn,{' '}
+                   <strong>Hủy đơn + hoàn tiền</strong> nếu muốn tạo đơn mới, hoặc{' '}
+                   <strong>Kiểm tra TxHash</strong> trên chain trước khi quyết định.
                 </p>
               </>
             )}
             {order.hscoinCall?.status === 'QUEUED' && (
               <>
                 <p className="text-xs text-amber-600">
-                   Lần thử tiếp: {order.hscoinCall.nextRunAt || 'Đang xếp hàng'}
+                   Escrow đang chờ xử lý. Lần thử tiếp: {order.hscoinCall.nextRunAt || 'Đang xếp hàng'}
                 </p>
                 <p className="text-xs text-gray-600 mt-1">
-                   Hệ thống sẽ tự động retry. Bạn có thể thử lại ngay hoặc hủy đơn.
+                   Hệ thống sẽ tự động retry; bạn có thể bấm <strong>Thử lại</strong>,{' '}
+                   <strong>Hủy đơn</strong>, hoặc <strong>Kiểm tra TxHash</strong> ngay bây giờ.
                 </p>
               </>
             )}
@@ -369,7 +373,7 @@ export default function OrderDetailPage() {
                       disabled={retryLoading || cancelLoading}
                       className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-60"
                     >
-                      {retryLoading ? 'Đang retry...' : ' Thử lại'}
+                      {retryLoading ? 'Đang retry...' : 'Thử lại'}
                     </button>
                     <button
                       type="button"
@@ -377,7 +381,7 @@ export default function OrderDetailPage() {
                       disabled={cancelLoading || retryLoading}
                       className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-60"
                     >
-                      {cancelLoading ? 'Đang hủy...' : ' Hủy đơn'}
+                      {cancelLoading ? 'Đang hủy...' : 'Hủy đơn'}
                     </button>
                   </>
                 )}
