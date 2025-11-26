@@ -34,10 +34,10 @@ async function ensureAndReserveStock(productId, quantity) {
   const qty = Math.max(1, Number(quantity) || 1);
   const [stores] = await pool.query(
     `
-    select storeId, quantity
+    select warehouseId, quantity
     from Store
     where productId = ?
-    order by quantity desc, storeId asc
+    order by quantity desc, warehouseId asc
     `,
     [productId]
   );
@@ -58,12 +58,12 @@ async function ensureAndReserveStock(productId, quantity) {
         `
         update Store
         set quantity = quantity - ?
-        where storeId = ? and quantity >= ?
+        where productId = ? and warehouseId = ? and quantity >= ?
         `,
-        [take, store.storeId, take]
+        [take, productId, store.warehouseId, take]
       );
       remaining -= take;
-      deductions.push({ storeId: store.storeId, amount: take });
+      deductions.push({ warehouseId: store.warehouseId, amount: take });
     }
   }
   return deductions;
@@ -300,9 +300,10 @@ if (Number(product.supplierId) === Number(customerId)) {
       // trả lại tồn kho đã trừ
       if (stockDeductions?.length) {
         for (const d of stockDeductions) {
-          await pool.query(`update Store set quantity = quantity + ? where storeId = ?`, [
+          await pool.query(`update Store set quantity = quantity + ? where productId = ? and warehouseId = ?`, [
             d.amount,
-            d.storeId,
+            product.productId,
+            d.warehouseId,
           ]);
         }
       }
