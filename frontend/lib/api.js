@@ -921,6 +921,26 @@ export async function deployContract(payload) {
   }
 }
 
+// Mint token nội bộ (mintSelf) cho ví caller trên contract mặc định
+export async function mintSelfToken({ amountWei, caller, contractAddress }) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/simple-token/execute`,
+      {
+        caller,
+        method: 'mintSelf',
+        args: [String(amountWei)],
+        value: 0,
+        contractAddress,
+      },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function redeemGreenBadge() {
   try {
     const res = await axios.post(

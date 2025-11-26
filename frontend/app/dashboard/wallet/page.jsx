@@ -10,6 +10,7 @@ import {
   fetchUserContracts,
   saveUserContract,
   deployContract,
+  mintSelfToken,
 } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
@@ -26,6 +27,7 @@ export default function WalletPage() {
   const [contractAddress, setContractAddress] = useState('');
   const [isDefault, setIsDefault] = useState(true);
   const [savingContract, setSavingContract] = useState(false);
+  const [mintAmount, setMintAmount] = useState('1000');
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -172,6 +174,40 @@ contract PMarketTokenEscrow {
     }
     load();
   }, []);
+
+  const toWei = (amount) => {
+    const val = Number(amount);
+    if (!Number.isFinite(val) || val <= 0) return null;
+    try {
+      // tránh lỗi float: val * 1e18 = (val * 1e6) * 1e12
+      return (BigInt(Math.round(val * 1e6)) * 10n ** 12n).toString();
+    } catch {
+      return null;
+    }
+  };
+
+  const handleMintSelf = async () => {
+    if (!walletAddress) {
+      toast.error('Vui lòng kết nối ví HScoin trước khi mint.');
+      connectWallet();
+      return;
+    }
+    const wei = toWei(mintAmount);
+    if (!wei) {
+      toast.error('Số lượng mint không hợp lệ.');
+      return;
+    }
+    try {
+      await mintSelfToken({
+        amountWei: wei,
+        caller: walletAddress,
+        contractAddress,
+      });
+      toast.success(`Đã mint ${mintAmount} PMK vào ví.`);
+    } catch (err) {
+      toast.error(err.message || 'Mint thất bại.');
+    }
+  };
 
   const stats = useMemo(() => {
     const base = { locked: 0, released: 0, refunded: 0 };
@@ -476,6 +512,25 @@ contract PMarketTokenEscrow {
               ))}
             </div>
           )}
+
+          <div className="mt-6 p-4 border rounded-lg space-y-3">
+            <h3 className="font-semibold text-gray-800">Mint PMK (devnet test)</h3>
+            <p className="text-xs text-gray-600">
+              Mint token nội bộ vào ví hiện tại để thử escrow bằng PMK.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                value={mintAmount}
+                onChange={(e) => setMintAmount(e.target.value)}
+                className="w-32 rounded border px-3 py-2 text-sm"
+              />
+              <Button size="sm" onClick={handleMintSelf} disabled={!walletAddress}>
+                Mint vào ví
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
