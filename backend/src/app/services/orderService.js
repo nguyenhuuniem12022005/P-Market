@@ -470,8 +470,7 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
 
   // Gọi release() để giải phóng tiền cho seller; nếu fail thì không đánh dấu Completed
   const sellerWallet = await getSellerWalletAddress(orderId);
-  const buyerWallet = await getBuyerWalletAddress(orderBefore);
-  const releaseWallet = walletAddress || sellerWallet || buyerWallet;
+  const releaseWallet = sellerWallet;
   const releaseContract = contractAddress || (await getOrderContractAddress(orderId));
   if (!releaseContract) {
     throw ApiError.badRequest('Không xác định được contract escrow của đơn hàng.');
