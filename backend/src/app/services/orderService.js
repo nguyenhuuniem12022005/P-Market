@@ -48,6 +48,32 @@ async function getBuyerWalletAddress(order) {
   return info.walletAddress;
 }
 
+async function getOrderContractAddress(orderId) {
+  const [rows] = await pool.query(
+    `
+    select payload
+    from HscoinContractCall
+    where orderId = ? and method = 'deposit'
+    order by createdAt desc
+    limit 1
+    `,
+    [orderId]
+  );
+  if (!rows.length) return null;
+  try {
+    const payload = JSON.parse(rows[0].payload || '{}');
+    if (payload?.contractAddress) {
+      return String(payload.contractAddress).toLowerCase();
+    }
+    if (payload?.body?.contractAddress) {
+      return String(payload.body.contractAddress).toLowerCase();
+    }
+  } catch (err) {
+    // ignore parse errors
+  }
+  return null;
+}
+
 async function getLatestEscrowState(orderId) {
   const [[ledgerRow]] = await pool.query(
     `
@@ -374,24 +400,34 @@ export async function confirmOrderAsSeller(orderId, sellerId, { walletAddress, c
 }
 
 export async function markOrderCompleted(orderId, { triggerReferral = true, walletAddress, contractAddress } = {}) {
-  const order = await updateOrderStatus(orderId, 'Completed');
-
-  // Gọi release() để giải phóng tiền cho seller
-  const releaseWallet = walletAddress || (await getBuyerWalletAddress(order));
-  if (releaseWallet) {
-    try {
-      await executeSimpleToken({
-        caller: releaseWallet,
-        method: 'release',
-        args: [orderId],
-        value: 0,
-        contractAddress,
-        userId: order.customerId,
-      });
-    } catch (error) {
-      console.error(`[Escrow] Release failed for order ${orderId}:`, error.message);
-    }
+  const orderBefore = await getOrderById(orderId);
+  if (!orderBefore) {
+    throw ApiError.notFound('Không tìm thấy đơn hàng');
   }
+
+  // Gọi release() để giải phóng tiền cho seller; nếu fail thì không đánh dấu Completed
+  const releaseWallet = walletAddress || (await getBuyerWalletAddress(orderBefore));
+  const releaseContract = contractAddress || (await getOrderContractAddress(orderId));
+  if (!releaseContract) {
+    throw ApiError.badRequest('Không xác định được contract escrow của đơn hàng.');
+  }
+  try {
+    await executeSimpleToken({
+      caller: releaseWallet,
+      method: 'release',
+      args: [orderId],
+      value: 0,
+      contractAddress: releaseContract,
+      userId: orderBefore.customerId,
+    });
+  } catch (error) {
+    console.error(`[Escrow] Release failed for order ${orderId}:`, error.message);
+    throw ApiError.serviceUnavailable(
+      'Giải phóng escrow thất bại. Vui lòng thử lại hoặc kiểm tra HScoin.'
+    );
+  }
+
+  const order = await updateOrderStatus(orderId, 'Completed');
 
   const rewardTasks = [];
   const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_SELLER_GREEN_ORDER : 0;
@@ -433,7 +469,7 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
   if (triggerReferral) {
     await handleReferralAfterOrderCompleted(orderId);
   }
-  await recordEscrowLedger(orderId, 'Completed', order.totalAmount);
+  await recordEscrowLedger(orderId, 'Completed', convertVndToWei(order.totalAmount).toString());
   return order;
 }
 
@@ -441,14 +477,15 @@ export async function markOrderCancelled(orderId, { walletAddress, contractAddre
   const order = await updateOrderStatus(orderId, 'Cancelled');
 
   // Gọi refund() để hoàn tiền cho buyer
-  if (walletAddress) {
+  const refundContract = contractAddress || (await getOrderContractAddress(orderId));
+  if (walletAddress && refundContract) {
     try {
       await executeSimpleToken({
         caller: walletAddress,
         method: 'refund',
         args: [orderId],
         value: 0,
-        contractAddress,
+        contractAddress: refundContract,
         userId: order.customerId,
       });
     } catch (error) {
