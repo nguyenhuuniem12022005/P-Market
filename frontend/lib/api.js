@@ -1009,7 +1009,7 @@ export async function fetchEscrowEvents() {
 export async function retryHscoinCall(callId) {
   try {
     const res = await axios.post(
-      +'${API_URL}/blockchain/hscoin-calls//retry'+,
+      `${API_URL}/blockchain/simple-token/calls/${callId}/retry`,
       {},
       { headers: authHeader() }
     );
@@ -1021,12 +1021,11 @@ export async function retryHscoinCall(callId) {
 
 export async function verifyHscoinCallTxHash(callId) {
   try {
-    const res = await axios.post(
-      +'${API_URL}/blockchain/hscoin-calls//verify'+,
-      {},
+    const res = await axios.get(
+      `${API_URL}/blockchain/simple-token/calls/${callId}/verify`,
       { headers: authHeader() }
     );
-    return res.data;
+    return res.data?.data;
   } catch (error) {
     handleAxiosError(error);
   }

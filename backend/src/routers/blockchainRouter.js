@@ -55,6 +55,17 @@ blockchainRouter.get(
   blockchainController.listHscoinAdminCalls
 );
 
+// Manual retry & verify txHash for HScoin calls
+blockchainRouter.post(
+  '/simple-token/calls/:callId/retry',
+  blockchainController.retryHscoinCall
+);
+
+blockchainRouter.get(
+  '/simple-token/calls/:callId/verify',
+  blockchainController.verifyHscoinCallTxHash
+);
+
 blockchainRouter.post(
   '/contracts/compile',
   validate(blockchainRequest.compileContract),
