@@ -110,10 +110,14 @@ export default function OrderDetailPage() {
 
   const handleConfirm = async (type) => {
     if (!orderId) return;
-    const escrowStatus = order?.hscoinCall?.status;
-    if (['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(escrowStatus).toUpperCase())) {
+    const currentEscrowStatus = String(
+      order?.hscoinCall?.status || order?.escrow?.status || order?.meta?.actions?.escrowStatus || ''
+    ).toUpperCase();
+    const blockedStatuses = ['FAILED', 'QUEUED', 'PROCESSING', 'PENDING', 'LOCKED'];
+    if (blockedStatuses.includes(currentEscrowStatus)) {
       toast.error(
-        'Escrow HScoin chưa sẵn sàng. Hãy Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi xác nhận.'
+        'Escrow HScoin chưa sẵn sàng. Hãy Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi xác nhận.',
+        { id: 'escrow-blocked' }
       );
       return;
     }
@@ -210,6 +214,12 @@ export default function OrderDetailPage() {
   const StatusIcon = statusMeta.icon || Truck;
   const actions = order.meta?.actions || {};
   const role = order.meta?.role || {};
+  const escrowStatus = String(
+    order?.hscoinCall?.status || order?.escrow?.status || actions?.escrowStatus || ''
+  ).toUpperCase();
+  const escrowBlocked = ['FAILED', 'QUEUED', 'PROCESSING', 'PENDING', 'LOCKED'].includes(
+    escrowStatus
+  );
   const explorerBase =
     process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/admin/contract.html';
   const txLink = order.escrow?.txHash ? `${explorerBase}?tx=${order.escrow.txHash}` : null;
@@ -250,11 +260,11 @@ export default function OrderDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2 text-gray-700">
-              <Shield size={18} /> Thông tin giao dịch
-            </div>
-          </CardHeader>
+      <CardHeader>
+        <div className="flex items-center gap-2 text-gray-700">
+          <Shield size={18} /> Thông tin giao dịch
+        </div>
+      </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600">
               <div className="space-y-1">
@@ -298,6 +308,8 @@ export default function OrderDetailPage() {
               isGreenConfirmed: Boolean(order.isGreenConfirmed),
               greenApproved,
               onToggleGreen: setGreenApproved,
+              escrowStatus,
+              escrowBlocked,
             })}
           </CardContent>
         </Card>
@@ -491,8 +503,18 @@ function renderActions({
   greenApproved,
   onToggleGreen,
   isGreenConfirmed,
+  escrowStatus,
+  escrowBlocked,
 }) {
   const hasAction = actions.canConfirmAsBuyer || actions.canConfirmAsSeller;
+  const escrowStatusLabel =
+    {
+      FAILED: 'thất bại',
+      QUEUED: 'đang xếp hàng',
+      PROCESSING: 'đang xử lý',
+      PENDING: 'đang khởi tạo',
+      LOCKED: 'đang khóa',
+    }[escrowStatus] || 'chưa sẵn sàng';
   const waitingMessage = actions.waitingForBuyer
     ? 'Đang chờ người mua xác nhận.'
     : actions.waitingForSeller
@@ -535,7 +557,7 @@ function renderActions({
           disabled={
             loading ||
             (isGreen && !isGreenConfirmed && !greenApproved) ||
-            ['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(actions?.escrowStatus).toUpperCase())
+            escrowBlocked
           }
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <User size={16} />}
@@ -546,16 +568,21 @@ function renderActions({
       {actions.canConfirmAsSeller && role.isSeller && (
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
-          onClick={() => onConfirm('seller')}
-          disabled={
-            loading ||
-            ['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(actions?.escrowStatus).toUpperCase())
-          }
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
-          Tôi đã giao hàng
-        </button>
+        className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
+        onClick={() => onConfirm('seller')}
+        disabled={
+          loading || escrowBlocked
+        }
+      >
+        {loading ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
+        Tôi đã giao hàng
+      </button>
+    )}
+      {escrowBlocked && (
+        <p className="text-xs text-rose-600">
+          Escrow HScoin {escrowStatusLabel}. Vui lòng Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi
+          xác nhận.
+        </p>
       )}
       {waitingMessage && <p className="text-xs text-amber-600">{waitingMessage}</p>}
     </div>
