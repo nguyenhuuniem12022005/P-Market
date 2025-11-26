@@ -1,5 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { ec as EC } from 'elliptic';
+import { createHash } from 'crypto';
 import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
 
@@ -21,6 +23,39 @@ function encryptPrivateKey(value) {
   const cipher = crypto.createCipheriv('aes-256-ctr', WALLET_ENCRYPTION_KEY, iv);
   const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+// Derive address từ private key bằng elliptic curve secp256k1
+function deriveAddressFromPrivateKey(privateKey) {
+  try {
+    const ec = new EC('secp256k1');
+    const cleanKey = privateKey.replace(/^0x/, '').toLowerCase();
+    
+    if (!/^[0-9a-f]{64}$/.test(cleanKey)) {
+      return null;
+    }
+    
+    const keyPair = ec.keyFromPrivate(cleanKey, 'hex');
+    // Lấy public key không nén (uncompressed), bỏ byte đầu tiên (04)
+    const publicKey = keyPair.getPublic(false, 'hex').slice(2);
+    
+    // Keccak256 hash của public key, lấy 20 bytes cuối làm address
+    const hash = createHash('sha3-256').update(Buffer.from(publicKey, 'hex')).digest('hex');
+    const address = '0x' + hash.slice(-40);
+    
+    return address.toLowerCase();
+  } catch (error) {
+    console.error('[Wallet] Derive address failed:', error.message);
+    return null;
+  }
+}
+
+function validatePrivateKeyMatchesAddress(privateKey, walletAddress) {
+  const derivedAddress = deriveAddressFromPrivateKey(privateKey);
+  if (!derivedAddress) {
+    return false;
+  }
+  return derivedAddress === walletAddress.toLowerCase();
 }
 
 export async function createUser({
@@ -472,14 +507,33 @@ export async function connectWallet(userId, { walletAddress, privateKey }) {
         throw ApiError.badRequest('Thiếu thông tin ví HScoin');
     }
 
-    const encryptedKey = encryptPrivateKey(privateKey.trim());
+    const cleanAddress = walletAddress.trim().toLowerCase();
+    const cleanKey = privateKey.trim().replace(/^0x/, '');
+
+    // Validate format địa chỉ ví
+    if (!/^0x[0-9a-f]{40}$/i.test(cleanAddress) && !/^[0-9a-f]{40}$/i.test(cleanAddress)) {
+        throw ApiError.badRequest('Địa chỉ ví không hợp lệ (phải là 40 ký tự hex)');
+    }
+
+    // Validate format private key
+    if (!/^[0-9a-f]{64}$/i.test(cleanKey)) {
+        throw ApiError.badRequest('Private key không hợp lệ (phải là 64 ký tự hex)');
+    }
+
+    // Validate private key khớp với address
+    const normalizedAddress = cleanAddress.startsWith('0x') ? cleanAddress : `0x${cleanAddress}`;
+    if (!validatePrivateKeyMatchesAddress(cleanKey, normalizedAddress)) {
+        throw ApiError.badRequest('Private key không khớp với địa chỉ ví. Vui lòng kiểm tra lại.');
+    }
+
+    const encryptedKey = encryptPrivateKey(cleanKey);
     await pool.query(
         `
         update User
         set walletAddress = ?, walletEncryptedKey = ?, walletConnectedAt = now()
         where userId = ?
         `,
-        [walletAddress.trim(), encryptedKey, userId]
+        [normalizedAddress, encryptedKey, userId]
     );
 
     return getWalletInfo(userId);
