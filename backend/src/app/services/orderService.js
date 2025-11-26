@@ -248,6 +248,9 @@ export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = 
   }
 
   const escrowState = await getLatestEscrowState(orderId);
+  if ((escrowState.callStatus || '').toUpperCase() === 'FAILED') {
+    throw ApiError.badRequest('Escrow HScoin đã thất bại. Vui lòng thử lại nạp escrow trước khi xác nhận đơn hàng.');
+  }
   if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
     throw ApiError.badRequest('Escrow đang được xử lý, vui lòng đợi deposit hoàn tất rồi mới xác nhận.');
   }
@@ -301,6 +304,9 @@ export async function confirmOrderAsSeller(orderId, sellerId, { walletAddress, c
   }
 
   const escrowState = await getLatestEscrowState(orderId);
+  if ((escrowState.callStatus || '').toUpperCase() === 'FAILED') {
+    throw ApiError.badRequest('Escrow HScoin đã thất bại. Vui lòng thử lại nạp escrow trước khi xác nhận đơn hàng.');
+  }
   if (['PENDING', 'QUEUED', 'PROCESSING'].includes((escrowState.callStatus || '').toUpperCase())) {
     throw ApiError.badRequest('Escrow đang được xử lý, vui lòng đợi deposit hoàn tất rồi mới xác nhận.');
   }

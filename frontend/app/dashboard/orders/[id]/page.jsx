@@ -68,6 +68,9 @@ export default function OrderDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [greenApproved, setGreenApproved] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null);
 
   const load = useCallback(async () => {
     if (!orderId) return;
@@ -105,6 +108,11 @@ export default function OrderDetailPage() {
 
   const handleConfirm = async (type) => {
     if (!orderId) return;
+    const escrowStatus = order?.hscoinCall?.status;
+    if (['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(escrowStatus).toUpperCase())) {
+      toast.error('Escrow chưa sẵn sàng để xác nhận.');
+      return;
+    }
     setActionLoading(true);
     try {
       if (type === 'buyer') {
@@ -121,6 +129,34 @@ export default function OrderDetailPage() {
       toast.error(err.message || 'Không thể xác nhận đơn hàng.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRetryEscrow = async () => {
+    if (!order?.hscoinCall?.callId) return;
+    setRetryLoading(true);
+    try {
+      const res = await retryHscoinCall(order.hscoinCall.callId);
+      toast.success(res?.message || 'Đã gửi yêu cầu retry');
+      await load();
+    } catch (err) {
+      toast.error(err.message || 'Retry thất bại');
+    } finally {
+      setRetryLoading(false);
+    }
+  };
+
+  const handleVerifyTx = async () => {
+    if (!order?.hscoinCall?.callId) return;
+    setVerifyLoading(true);
+    try {
+      const res = await verifyHscoinCallTxHash(order.hscoinCall.callId);
+      setVerifyResult(res);
+      toast.success(res?.verified ? 'Tx đã được xác nhận' : 'Tx chưa xuất hiện trên chain');
+    } catch (err) {
+      toast.error(err.message || 'Không thể kiểm tra txHash');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -290,6 +326,40 @@ export default function OrderDetailPage() {
                 Lần thử tiếp: {order.hscoinCall.nextRunAt || 'Đang xếp hàng'}
               </p>
             )}
+
+            {/* Retry / Verify actions */}
+            {order.hscoinCall?.callId && (
+              <div className="pt-2 flex flex-wrap gap-2">
+                {['FAILED','QUEUED'].includes(String(order.hscoinCall.status).toUpperCase()) && (
+                  <button
+                    type="button"
+                    onClick={handleRetryEscrow}
+                    disabled={retryLoading}
+                    className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {retryLoading ? 'Đang retry...' : 'Thử lại escrow'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleVerifyTx}
+                  disabled={verifyLoading}
+                  className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {verifyLoading ? 'Đang kiểm tra...' : 'Kiểm tra TxHash'}
+                </button>
+              </div>
+            )}
+            {verifyResult && (
+              <div className="mt-2 text-xs">
+                <p className={verifyResult.verified ? 'text-emerald-600' : 'text-gray-500'}>
+                  {verifyResult.message}
+                </p>
+                {verifyResult.txHash && (
+                  <p className="font-mono truncate">{verifyResult.txHash}</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -419,7 +489,8 @@ function renderActions({
           onClick={() => onConfirm('buyer')}
           disabled={
             loading ||
-            (isGreen && !isGreenConfirmed && !greenApproved)
+            (isGreen && !isGreenConfirmed && !greenApproved) ||
+            ['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(actions?.escrowStatus).toUpperCase())
           }
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <User size={16} />}
@@ -432,7 +503,10 @@ function renderActions({
           type="button"
           className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
           onClick={() => onConfirm('seller')}
-          disabled={loading}
+          disabled={
+            loading ||
+            ['FAILED','QUEUED','PROCESSING','PENDING'].includes(String(actions?.escrowStatus).toUpperCase())
+          }
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
           Tôi đã giao hàng
