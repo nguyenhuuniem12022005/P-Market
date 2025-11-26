@@ -864,10 +864,17 @@ export async function executeSimpleToken({
     encodedInput = buildSimpleTokenCalldata(method, finalArgs);
   }
 
+  const normalizedValue =
+    typeof value === 'bigint'
+      ? value.toString()
+      : typeof value === 'string'
+      ? value
+      : Number(value) || 0;
+
   const requestPayload = {
     caller: normalizedCaller,
     inputData: encodedInput,
-    value: Number(value) || 0,
+    value: normalizedValue,
   };
 
   const callId = await recordHscoinContractCall({
