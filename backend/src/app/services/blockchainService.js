@@ -847,6 +847,7 @@ export async function executeSimpleToken({
 
   const resolvedContract = await resolveContractAddress({ userId, contractAddress });
   const normalizedArgs = Array.isArray(args) ? args : [args];
+  const loggedArgs = normalizedArgs.map((v) => (typeof v === 'bigint' ? v.toString() : v));
   let encodedInput = null;
 
   if (rawInputData && typeof rawInputData === 'string') {
@@ -875,7 +876,7 @@ export async function executeSimpleToken({
     payload: {
       contractAddress: resolvedContract,
       body: requestPayload,
-      originalCall: { method, args: normalizedArgs },
+      originalCall: { method, args: loggedArgs },
     },
   });
 
