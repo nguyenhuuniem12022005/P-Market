@@ -1,10 +1,11 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { ec as EC } from 'elliptic';
+import elliptic from 'elliptic';
 import { createHash } from 'crypto';
 import ApiError from '../../utils/classes/api-error.js';
 import pool from '../../configs/mysql.js';
 
+const EC = elliptic.ec;
 const PASSWORD_RESET_TOKEN_EXPIRES_MINUTES = Math.max(
   5,
   Number(process.env.PASSWORD_RESET_TOKEN_EXPIRES || 30)
