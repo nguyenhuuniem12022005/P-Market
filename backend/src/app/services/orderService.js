@@ -242,7 +242,7 @@ if (Number(product.supplierId) === Number(customerId)) {
       caller: walletAddress,
       method: 'deposit',
       args: [orderId, sellerWalletAddress, amountWei],
-      value: 0,
+      value: amountWei, // gửi đúng số tiền vào contract (native coin)
       contractAddress,
       userId: customerId,
     });
@@ -499,7 +499,7 @@ export async function markOrderCancelled(orderId, { walletAddress, contractAddre
         caller: refundWallet,
         method: 'refund',
         args: [orderId],
-        value: 0,
+        value: 0, // refund không cần gửi thêm value
         contractAddress: refundContract,
         userId: order.customerId,
       });
