@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -46,6 +46,9 @@ export default function DashboardPage() {
     avatar: buildAvatarUrl(user?.avatar),
   });
 
+  // Track if user has manually edited the phone field to avoid overwriting it with async fetches
+  const phoneTouchedRef = useRef(false);
+
   const [reputationLedger, setReputationLedger] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
@@ -66,7 +69,8 @@ export default function DashboardPage() {
         fullName: user.fullName || '',
         userName: user.userName || '',
         email: user.email || '',
-        phone: user.phone || '',
+        // Only set phone from user if user hasn't started editing
+        phone: phoneTouchedRef.current ? prev.phone : (user.phone || ''),
         address: user.address || '',
         dateOfBirth: user.dateOfBirth || '',
         avatar: buildAvatarUrl(user.avatar),
@@ -81,7 +85,8 @@ export default function DashboardPage() {
             setDashboardData(apiData);
             setProfileData(prev => ({
               ...prev,
-              phone: apiData.phone ?? prev.phone,
+              // Do not override phone if the user started typing
+              phone: phoneTouchedRef.current ? prev.phone : (apiData.phone ?? prev.phone),
               address: apiData.address ?? prev.address,
               dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
             }));
@@ -122,6 +127,9 @@ export default function DashboardPage() {
   // ===================== Handlers =====================
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'phone') {
+      phoneTouchedRef.current = true;
+    }
     if (name === 'firstName' || name === 'lastName') {
       const newFirstName = name === 'firstName' ? value : profileData.firstName;
       const newLastName = name === 'lastName' ? value : profileData.lastName;
