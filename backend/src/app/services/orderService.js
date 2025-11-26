@@ -29,6 +29,45 @@ function toBool(val) {
   return String(val) === '1' || val === true;
 }
 
+async function ensureAndReserveStock(productId, quantity) {
+  const qty = Math.max(1, Number(quantity) || 1);
+  const [stores] = await pool.query(
+    `
+    select storeId, quantity
+    from Store
+    where productId = ?
+    order by quantity desc, storeId asc
+    `,
+    [productId]
+  );
+
+  const total = stores.reduce((acc, cur) => acc + (Number(cur.quantity) || 0), 0);
+  if (total < qty) {
+    throw ApiError.badRequest('Sản phẩm không đủ tồn kho cho số lượng yêu cầu.');
+  }
+
+  let remaining = qty;
+  const deductions = [];
+  for (const store of stores) {
+    if (remaining <= 0) break;
+    const available = Math.max(0, Number(store.quantity) || 0);
+    const take = Math.min(available, remaining);
+    if (take > 0) {
+      await pool.query(
+        `
+        update Store
+        set quantity = quantity - ?
+        where storeId = ? and quantity >= ?
+        `,
+        [take, store.storeId, take]
+      );
+      remaining -= take;
+      deductions.push({ storeId: store.storeId, amount: take });
+    }
+  }
+  return deductions;
+}
+
 function convertVndToWei(vndAmount) {
   const rate = HSC_RATE_VND > 0 ? HSC_RATE_VND : 2170;
   // Dùng milli-VND để giảm sai số khi chia cho rate thập phân
@@ -176,6 +215,7 @@ export async function createEscrowOrder({
   if (product.status !== 'Active') {
     throw ApiError.badRequest('Sản phẩm chưa sẵn sàng để đặt hàng');
   }
+  const stockDeductions = await ensureAndReserveStock(product.productId, qty);
   // Không cho phép mua sản phẩm của chính mình
 if (Number(product.supplierId) === Number(customerId)) {
     throw ApiError.badRequest('Bạn không thể mua sản phẩm của chính mình.');
@@ -256,6 +296,15 @@ if (Number(product.supplierId) === Number(customerId)) {
       // Rollback nếu deposit thất bại
       await pool.query('delete from OrderDetail where salesOrderId = ?', [orderId]);
       await pool.query('delete from SalesOrder where salesOrderId = ?', [orderId]);
+      // trả lại tồn kho đã trừ
+      if (stockDeductions?.length) {
+        for (const d of stockDeductions) {
+          await pool.query(`update Store set quantity = quantity + ? where storeId = ?`, [
+            d.amount,
+            d.storeId,
+          ]);
+        }
+      }
       throw error;
     }
   }

@@ -29,6 +29,7 @@ export default function ProductDetailPage() {
   const { isConnected, connectWallet, walletAddress } = useWallet();
   const { user } = useAuth();
   const [isEscrowProcessing, setIsEscrowProcessing] = useState(false);
+  const [purchaseQty, setPurchaseQty] = useState(1);
 
   // --- Fetch dữ liệu ---
   useEffect(() => {
@@ -119,11 +120,21 @@ export default function ProductDetailPage() {
       router.push('/dashboard');
       return;
     }
+    const maxQty = Number(totalQuantity || 0);
+    const desiredQty = Math.max(1, Number(purchaseQty) || 1);
+    if (maxQty <= 0) {
+      toast.error('Sản phẩm đã hết hàng.');
+      return;
+    }
+    if (desiredQty > maxQty) {
+      toast.error(`Chỉ còn ${maxQty} sản phẩm trong kho.`);
+      return;
+    }
     setIsEscrowProcessing(true);
     try {
       const payload = {
         productId: product?.productId || product?.id,
-        quantity: 1,
+        quantity: desiredQty,
         walletAddress,
         shippingAddress: user.address,
       };
@@ -362,6 +373,20 @@ export default function ProductDetailPage() {
                   {totalQuantity > 0 ? totalQuantity : 'Đang cập nhật'}
                 </span>
               </p>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <label className="font-semibold" htmlFor="purchaseQty">
+                  Chọn số lượng:
+                </label>
+                <input
+                  id="purchaseQty"
+                  type="number"
+                  min="1"
+                  max={totalQuantity || 1}
+                  value={purchaseQty}
+                  onChange={(e) => setPurchaseQty(e.target.value)}
+                  className="w-24 rounded border px-2 py-1 text-sm"
+                />
+              </div>
 
               {/* Nút Mua an toàn với Escrow */}
               <Button
