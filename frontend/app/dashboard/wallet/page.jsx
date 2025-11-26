@@ -30,167 +30,35 @@ export default function WalletPage() {
 pragma solidity ^0.8.0;
 
 /**
- * @title PMarket
- * @dev Token + Escrow gộp làm 1 cho P-Market
- * Deploy 1 lần, dùng luôn!
+ * @title PMarketEscrow (native coin)
+ * @dev Escrow giữ native coin. Deposit gửi kèm value, release trả seller, refund trả buyer.
  */
-contract PMarket {
-    // ============ Token Info ============
-    string public name = "PMarket Token";
-    string public symbol = "PMK";
-    uint8 public decimals = 18;
-    uint256 public totalSupply;
-
-    mapping(address => uint256) public balanceOf;
-    address public owner;
-
-    // ============ Order Info ============
-    enum OrderStatus {
-        None,       // Chưa có order
-        Deposited,  // Buyer đã deposit
-        Released,   // Đã release cho seller
-        Refunded    // Đã hoàn tiền cho buyer
-    }
+contract PMarketEscrow {
+    enum Status { None, Deposited, Released, Refunded }
 
     struct Order {
         address buyer;
         address seller;
         uint256 amount;
-        OrderStatus status;
+        Status status;
         uint256 createdAt;
     }
 
     mapping(uint256 => Order) public orders;
-    uint256 public totalOrders;
+    address public owner;
 
-    // ============ Events ============
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Mint(address indexed to, uint256 value);
-    event Burn(address indexed from, uint256 value);
     event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
     event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
     event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
     event OwnerChanged(address indexed oldOwner, address indexed newOwner);
 
-    // ============ Modifiers ============
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
     }
 
-    // ============ Constructor ============
     constructor() {
         owner = msg.sender;
-        totalSupply = 1000000 * 10 ** uint256(decimals);
-        balanceOf[msg.sender] = totalSupply;
-        emit Transfer(address(0), msg.sender, totalSupply);
-    }
-
-    // ============ Token Functions ============
-    function transfer(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0), "Invalid address");
-        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
-        balanceOf[msg.sender] -= _value;
-        balanceOf[_to] += _value;
-        emit Transfer(msg.sender, _to, _value);
-        return true;
-    }
-
-    function mint(address _to, uint256 _value) public onlyOwner returns (bool) {
-        require(_to != address(0), "Invalid address");
-        totalSupply += _value;
-        balanceOf[_to] += _value;
-        emit Mint(_to, _value);
-        emit Transfer(address(0), _to, _value);
-        return true;
-    }
-
-    function burn(uint256 _value) public returns (bool) {
-        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
-        balanceOf[msg.sender] -= _value;
-        totalSupply -= _value;
-        emit Burn(msg.sender, _value);
-        emit Transfer(msg.sender, address(0), _value);
-        return true;
-    }
-
-    function getBalance(address _owner) public view returns (uint256) {
-        return balanceOf[_owner];
-    }
-
-    function getTotalSupply() public view returns (uint256) {
-        return totalSupply;
-    }
-
-    // ============ Escrow Functions ============
-    function deposit(uint256 orderId, address seller, uint256 amount) external {
-        require(orders[orderId].status == OrderStatus.None, "Order exists");
-        require(seller != address(0), "Invalid seller");
-        require(seller != msg.sender, "Buyer = Seller");
-        require(amount > 0, "Amount = 0");
-        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
-
-        balanceOf[msg.sender] -= amount;
-        balanceOf[address(this)] += amount;
-
-        orders[orderId] = Order({
-            buyer: msg.sender,
-            seller: seller,
-            amount: amount,
-            status: OrderStatus.Deposited,
-            createdAt: block.timestamp
-        });
-
-        totalOrders++;
-
-        emit Transfer(msg.sender, address(this), amount);
-        emit Deposited(orderId, msg.sender, seller, amount);
-    }
-
-    function release(uint256 orderId) external onlyOwner {
-        Order storage o = orders[orderId];
-        require(o.status == OrderStatus.Deposited, "Not deposited");
-
-        o.status = OrderStatus.Released;
-
-        balanceOf[address(this)] -= o.amount;
-        balanceOf[o.seller] += o.amount;
-
-        emit Transfer(address(this), o.seller, o.amount);
-        emit Released(orderId, o.seller, o.amount);
-    }
-
-    function refund(uint256 orderId) external onlyOwner {
-        Order storage o = orders[orderId];
-        require(o.status == OrderStatus.Deposited, "Not deposited");
-
-        o.status = OrderStatus.Refunded;
-
-        balanceOf[address(this)] -= o.amount;
-        balanceOf[o.buyer] += o.amount;
-
-        emit Transfer(address(this), o.buyer, o.amount);
-        emit Refunded(orderId, o.buyer, o.amount);
-    }
-
-    // ============ View Functions ============
-    function getOrder(uint256 orderId) external view returns (
-        address buyer,
-        address seller,
-        uint256 amount,
-        OrderStatus status,
-        uint256 createdAt
-    ) {
-        Order storage o = orders[orderId];
-        return (o.buyer, o.seller, o.amount, o.status, o.createdAt);
-    }
-
-    function getOrderStatus(uint256 orderId) external view returns (OrderStatus) {
-        return orders[orderId].status;
-    }
-
-    function getContractBalance() external view returns (uint256) {
-        return balanceOf[address(this)];
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
@@ -198,6 +66,60 @@ contract PMarket {
         address oldOwner = owner;
         owner = newOwner;
         emit OwnerChanged(oldOwner, newOwner);
+    }
+
+    function deposit(uint256 orderId, address seller, uint256 amount) external payable {
+        require(orders[orderId].status == Status.None, "Order exists");
+        require(seller != address(0) && seller != msg.sender, "Bad seller");
+        require(amount > 0, "Amount=0");
+        require(msg.value == amount, "Value != amount");
+
+        orders[orderId] = Order({
+            buyer: msg.sender,
+            seller: seller,
+            amount: amount,
+            status: Status.Deposited,
+            createdAt: block.timestamp
+        });
+
+        emit Deposited(orderId, msg.sender, seller, amount);
+    }
+
+    function release(uint256 orderId) external {
+        Order storage o = orders[orderId];
+        require(o.status == Status.Deposited, "Not deposited");
+        require(msg.sender == o.seller, "Not seller");
+
+        o.status = Status.Released;
+        payable(o.seller).transfer(o.amount);
+
+        emit Released(orderId, o.seller, o.amount);
+    }
+
+    function refund(uint256 orderId) external {
+        Order storage o = orders[orderId];
+        require(o.status == Status.Deposited, "Not deposited");
+        require(msg.sender == o.buyer, "Not buyer");
+
+        o.status = Status.Refunded;
+        payable(o.buyer).transfer(o.amount);
+
+        emit Refunded(orderId, o.buyer, o.amount);
+    }
+
+    function getOrder(uint256 orderId) external view returns (
+        address buyer,
+        address seller,
+        uint256 amount,
+        Status status,
+        uint256 createdAt
+    ) {
+        Order storage o = orders[orderId];
+        return (o.buyer, o.seller, o.amount, o.status, o.createdAt);
+    }
+
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
     }
 }`);
   const [deploying, setDeploying] = useState(false);
