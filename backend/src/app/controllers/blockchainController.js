@@ -1,4 +1,4 @@
-import * as blockchainService from '../services/blockchainService.js';
+﻿import * as blockchainService from '../services/blockchainService.js';
 import * as userService from '../services/userService.js';
 
 export async function getGreenCreditSummary(req, res, next) {
@@ -149,6 +149,26 @@ export async function listHscoinAdminCalls(req, res, next) {
   }
 }
 
+
+export async function retryHscoinCall(req, res, next) {
+  try {
+    const callId = req.params.callId || req.body.callId;
+    const data = await blockchainService.retryHscoinCall(callId);
+    return res.status(200).json({ success: true, message: 'Retry HScoin call thành công', data });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function verifyHscoinCallTxHash(req, res, next) {
+  try {
+    const callId = req.params.callId || req.body.callId;
+    const data = await blockchainService.verifyHscoinCallTxHash(callId);
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+}
 export async function compileContract(req, res, next) {
   try {
     const payload = {

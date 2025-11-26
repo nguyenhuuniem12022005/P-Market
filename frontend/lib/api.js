@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 
 const RAW_API_URL = (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.trim()) || "https://p-market.onrender.com";
 const API_URL = RAW_API_URL.replace(/\/$/, "");
@@ -1005,6 +1005,32 @@ export async function fetchEscrowEvents() {
   }
 }
 
+
+export async function retryHscoinCall(callId) {
+  try {
+    const res = await axios.post(
+      +'${API_URL}/blockchain/hscoin-calls//retry'+,
+      {},
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function verifyHscoinCallTxHash(callId) {
+  try {
+    const res = await axios.post(
+      +'${API_URL}/blockchain/hscoin-calls//verify'+,
+      {},
+      { headers: authHeader() }
+    );
+    return res.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
 // ===================== REFERRAL / REWARDS API =====================
 export async function fetchReferralSummary() {
   try {

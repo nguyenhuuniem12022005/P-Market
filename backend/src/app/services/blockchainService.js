@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+﻿import crypto from 'crypto';
 import pool from '../../configs/mysql.js';
 import ApiError from '../../utils/classes/api-error.js';
 
@@ -963,6 +963,93 @@ export async function listHscoinAdminCalls({ status, limit = 50 }) {
     createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
   }));
+}
+
+export async function retryHscoinCall(callId) {
+  if (!callId) {
+    throw ApiError.badRequest('Thiếu callId');
+  }
+  await ensureHscoinCallTable();
+  const [[row]] = await pool.query(
+    `select * from HscoinContractCall where callId = ? and status in ('QUEUED','FAILED') and retries < maxRetries for update`,
+    [callId]
+  );
+  if (!row) {
+    throw ApiError.badRequest('Call không tồn tại hoặc không thể retry');
+  }
+  await pool.query(`update HscoinContractCall set status = 'PROCESSING' where callId = ?`, [callId]);
+  let payload;
+  try {
+    payload = JSON.parse(row.payload);
+  } catch {
+    await markHscoinCallFailure(callId, new Error('Payload không hợp lệ'), {
+      retryable: false, currentRetries: row.retries, maxRetries: row.maxRetries,
+    });
+    throw ApiError.badRequest('Payload không hợp lệ');
+  }
+  if (!payload || !payload.contractAddress || !payload.body) {
+    await markHscoinCallFailure(callId, new Error('Payload thiếu dữ liệu'), {
+      retryable: false, currentRetries: row.retries, maxRetries: row.maxRetries,
+    });
+    throw ApiError.badRequest('Payload không đầy đủ');
+  }
+  try {
+    const response = await invokeHscoinContract(payload);
+    await markHscoinCallSuccess(callId, response, { orderId: row.orderId });
+    return { callId, status: 'SUCCESS', result: response?.data || response, message: 'Retry thành công' };
+  } catch (error) {
+    const retryable = shouldRetryHscoinError(error);
+    await markHscoinCallFailure(callId, error, {
+      retryable, currentRetries: row.retries, maxRetries: row.maxRetries, orderId: row.orderId,
+    });
+    throw ApiError.serviceUnavailable(
+      `Retry thất bại: ${error.message}. ${retryable ? 'Sẽ tự động retry lại sau.' : 'Không thể retry thêm.'}`
+    );
+  }
+}
+
+export async function verifyHscoinCallTxHash(callId) {
+  if (!callId) {
+    throw ApiError.badRequest('Thiếu callId');
+  }
+  await ensureHscoinCallTable();
+  const [[row]] = await pool.query(`select callId, status, lastResponse, orderId from HscoinContractCall where callId = ?`, [callId]);
+  if (!row) {
+    throw ApiError.badRequest('Call không tồn tại');
+  }
+  let txHash = null;
+  let blockNumber = null;
+  if (row.lastResponse) {
+    try {
+      const parsed = JSON.parse(row.lastResponse);
+      txHash = parsed?.txHash || parsed?.transactionHash || parsed?.data?.txHash || parsed?.data?.transactionHash;
+    } catch {}
+  }
+  if (!txHash) {
+    return { callId, status: row.status, verified: false, message: 'Chưa có txHash (giao dịch chưa được đào)' };
+  }
+  try {
+    const blocks = await fetchChainBlocks();
+    for (const block of blocks) {
+      if (block.transactions && Array.isArray(block.transactions)) {
+        const found = block.transactions.find(tx => 
+          tx.hash?.toLowerCase() === txHash.toLowerCase() || tx.txHash?.toLowerCase() === txHash.toLowerCase()
+        );
+        if (found) {
+          blockNumber = block.index || block.blockNumber || block.number;
+          break;
+        }
+      }
+    }
+    if (blockNumber != null) {
+      return { callId, txHash, blockNumber, status: row.status, verified: true, message: 'TxHash đã được xác nhận trên blockchain' };
+    } else {
+      return { callId, txHash, status: row.status, verified: false, message: 'TxHash chưa xuất hiện trên blockchain (đang pending)' };
+    }
+  } catch (error) {
+    console.warn('[HScoin] Không thể verify txHash:', error.message);
+    return { callId, txHash, status: row.status, verified: false, message: 'Không thể kết nối blockchain explorer', error: error.message };
+  }
 }
 export async function listHscoinAlerts({ severity, limit = 50 }) {
   await ensureHscoinAlertTable();
