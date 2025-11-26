@@ -928,8 +928,8 @@ export async function mintSelfToken({ amountWei, caller, contractAddress }) {
       `${API_URL}/blockchain/simple-token/execute`,
       {
         caller,
-        method: 'mintSelf',
-        args: [String(amountWei)],
+        method: 'mint',
+        args: [caller, String(amountWei)],
         value: 0,
         contractAddress,
       },
