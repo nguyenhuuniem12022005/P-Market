@@ -96,7 +96,10 @@ export default function OrderDetailPage() {
   // Polling escrow status khi đang QUEUED/PROCESSING
   useEffect(() => {
     const status = order?.hscoinCall?.status || order?.escrow?.status;
-    const shouldPoll = status === 'QUEUED' || status === 'PROCESSING' || status === 'LOCKED';
+    const shouldPoll =
+      !order?.status || order.status === 'Pending'
+        ? status === 'QUEUED' || status === 'PROCESSING' || status === 'LOCKED'
+        : false;
     if (!shouldPoll) return;
     setPolling(true);
     const timer = setInterval(() => {
@@ -106,10 +109,14 @@ export default function OrderDetailPage() {
       clearInterval(timer);
       setPolling(false);
     };
-  }, [order?.hscoinCall?.status, order?.escrow?.status, load, order]);
+  }, [order?.hscoinCall?.status, order?.escrow?.status, order?.status, load, order]);
 
   const handleConfirm = async (type) => {
     if (!orderId) return;
+    if (isFinalized) {
+      toast.error('Đơn hàng đã hoàn tất/hủy. Không thể xác nhận.');
+      return;
+    }
     const currentEscrowStatus = String(
       order?.hscoinCall?.status || order?.escrow?.status || order?.meta?.actions?.escrowStatus || ''
     ).toUpperCase();
@@ -142,6 +149,10 @@ export default function OrderDetailPage() {
 
   const handleRetryEscrow = async () => {
     if (!order?.hscoinCall?.callId) return;
+    if (isFinalized) {
+      toast.error('Đơn hàng đã hoàn tất/hủy. Không thể retry escrow.');
+      return;
+    }
     setRetryLoading(true);
     try {
       const res = await retryHscoinCall(order.hscoinCall.callId);
@@ -156,6 +167,10 @@ export default function OrderDetailPage() {
 
   const handleVerifyTx = async () => {
     if (!order?.hscoinCall?.callId) return;
+    if (isFinalized) {
+      toast.error('Đơn hàng đã hoàn tất/hủy. Không cần kiểm tra lại.');
+      return;
+    }
     setVerifyLoading(true);
     try {
       const res = await verifyHscoinCallTxHash(order.hscoinCall.callId);
@@ -169,6 +184,10 @@ export default function OrderDetailPage() {
   };
   const handleCancelOrder = async () => {
     if (!orderId) return;
+    if (isFinalized) {
+      toast.error('Đơn hàng đã hoàn tất/hủy. Không thể hủy lại.');
+      return;
+    }
     const confirmed = window.confirm(
       'Bạn có chắc muốn hủy đơn hàng này? Bạn có thể tạo đơn hàng mới sau khi hủy.'
     );
@@ -220,6 +239,7 @@ export default function OrderDetailPage() {
   const escrowBlocked = ['FAILED', 'QUEUED', 'PROCESSING', 'PENDING', 'LOCKED'].includes(
     escrowStatus
   );
+  const isFinalized = order.status === 'Cancelled' || order.status === 'Completed';
   const explorerBase =
     process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/admin/contract.html';
   const txLink = order.escrow?.txHash ? `${explorerBase}?tx=${order.escrow.txHash}` : null;
@@ -248,6 +268,9 @@ export default function OrderDetailPage() {
           </p>
           {polling && (
             <p className="text-xs text-amber-600">Đang đồng bộ trạng thái escrow...</p>
+          )}
+          {isFinalized && order.status === 'Cancelled' && (
+            <p className="text-xs text-rose-600">Đơn hàng đã bị hủy.</p>
           )}
         </div>
         <div
@@ -299,18 +322,20 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {renderActions({
-              actions,
-              role,
-              onConfirm: handleConfirm,
-              loading: actionLoading,
-              isGreen: Boolean(order.isGreen),
-              isGreenConfirmed: Boolean(order.isGreenConfirmed),
-              greenApproved,
-              onToggleGreen: setGreenApproved,
-              escrowStatus,
-              escrowBlocked,
-            })}
+            {!isFinalized &&
+              renderActions({
+                actions,
+                role,
+                onConfirm: handleConfirm,
+                loading: actionLoading,
+                isGreen: Boolean(order.isGreen),
+                isGreenConfirmed: Boolean(order.isGreenConfirmed),
+                greenApproved,
+                onToggleGreen: setGreenApproved,
+                escrowStatus,
+                escrowBlocked,
+                orderStatus: order.status,
+              })}
           </CardContent>
         </Card>
 
@@ -375,7 +400,7 @@ export default function OrderDetailPage() {
             )}
 
             {/* Retry / Verify / Cancel actions */}
-            {order.hscoinCall?.callId && (
+            {order.hscoinCall?.callId && !isFinalized && (
               <div className="pt-2 flex flex-wrap gap-2">
                 {['FAILED','QUEUED'].includes(String(order.hscoinCall.status).toUpperCase()) && (
                   <>
@@ -505,6 +530,7 @@ function renderActions({
   isGreenConfirmed,
   escrowStatus,
   escrowBlocked,
+  orderStatus,
 }) {
   const hasAction = actions.canConfirmAsBuyer || actions.canConfirmAsSeller;
   const escrowStatusLabel =
@@ -520,6 +546,10 @@ function renderActions({
     : actions.waitingForSeller
     ? 'Đang chờ người bán xác nhận.'
     : null;
+
+  if (orderStatus === 'Cancelled' || orderStatus === 'Completed') {
+    return null;
+  }
 
   if (!hasAction && !waitingMessage) {
     return null;

@@ -24,6 +24,28 @@ import {
   fetchNotifications,
 } from '../../lib/api';
 
+const normalizeDateForInput = (value) => {
+  if (!value) return '';
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      const [d, m, y] = trimmed.split('/');
+      return `${y}-${m}-${d}`;
+    }
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+  }
+  return '';
+};
+
 // ===================== Dashboard =====================
 export default function DashboardPage() {
   const { user, token, setUser } = useAuth();
@@ -42,7 +64,7 @@ export default function DashboardPage() {
     email: user?.email || '',
     phone: user?.phone || '',
     address: user?.address || '',
-    dateOfBirth: user?.dateOfBirth || '',
+    dateOfBirth: normalizeDateForInput(user?.dateOfBirth),
     avatar: buildAvatarUrl(user?.avatar),
   });
 
@@ -71,7 +93,9 @@ export default function DashboardPage() {
         email: user.email || '',
         phone: touchedFieldsRef.current.phone ? prev.phone : (user.phone || ''),
         address: touchedFieldsRef.current.address ? prev.address : (user.address || ''),
-        dateOfBirth: touchedFieldsRef.current.dateOfBirth ? prev.dateOfBirth : (user.dateOfBirth || ''),
+        dateOfBirth: touchedFieldsRef.current.dateOfBirth
+          ? prev.dateOfBirth
+          : normalizeDateForInput(user.dateOfBirth),
         avatar: buildAvatarUrl(user.avatar),
       }));
     }
@@ -86,7 +110,9 @@ export default function DashboardPage() {
               ...prev,
               phone: touchedFieldsRef.current.phone ? prev.phone : (apiData.phone ?? prev.phone),
               address: touchedFieldsRef.current.address ? prev.address : (apiData.address ?? prev.address),
-              dateOfBirth: touchedFieldsRef.current.dateOfBirth ? prev.dateOfBirth : (apiData.dateOfBirth ?? prev.dateOfBirth),
+              dateOfBirth: touchedFieldsRef.current.dateOfBirth
+                ? prev.dateOfBirth
+                : normalizeDateForInput(apiData.dateOfBirth ?? prev.dateOfBirth),
             }));
             // Cập nhật user trong context/localStorage để hiển thị huy hiệu xanh, điểm mới
             const badgeLevel = apiData.greenBadgeLevel;
@@ -134,6 +160,8 @@ export default function DashboardPage() {
         [name]: value,
         fullName: `${newFirstName} ${newLastName}`.trim(),
       }));
+    } else if (name === 'dateOfBirth') {
+      setProfileData(prev => ({ ...prev, [name]: value }));
     } else {
       setProfileData(prev => ({ ...prev, [name]: value }));
     }
@@ -323,7 +351,7 @@ export default function DashboardPage() {
               <Input
                 type="date"
                 name="dateOfBirth"
-                value={profileData.dateOfBirth ? profileData.dateOfBirth.slice(0, 10) : ''}
+                value={profileData.dateOfBirth || ''}
                 onChange={handleProfileChange}
               />
             </div>

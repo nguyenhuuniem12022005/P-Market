@@ -8,7 +8,7 @@ const navItems = [
   // --- SỬA DÒNG NÀY ---
   { href: '/dashboard', icon: UserCircle, label: 'Profile' }, // Đổi thành Profile
   // --- HẾT SỬA ---
-  { href: '/dashboard/orders', icon: ShoppingBag, label: 'Đơn mua' },
+  { href: '/dashboard/orders', icon: ShoppingBag, label: 'Quản lý đơn hàng' },
   { href: '/dashboard/my-products', icon: ClipboardList, label: 'Bài đăng sản phẩm' },
   { href: '/dashboard/reviews', icon: Star, label: 'Đánh giá' },
   { href: '/dashboard/wallet', icon: Wallet, label: 'Ví HScoin' },

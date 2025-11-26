@@ -17,6 +17,9 @@ import { Package, Truck, ExternalLink, Loader2, Shield, AlertTriangle } from 'lu
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const HSCOIN_EXPLORER =
   process.env.NEXT_PUBLIC_HSCOIN_EXPLORER || 'https://hsc-w3oq.onrender.com/auth/contract.html';
+const ESCROW_BLOCKED_STATUSES = ['FAILED', 'QUEUED', 'PROCESSING', 'PENDING', 'LOCKED'];
+const escrowBlockedMessage =
+  'Escrow HScoin chưa sẵn sàng. Hãy Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi xác nhận.';
 
 const statusBadge = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -33,6 +36,9 @@ const statusLabels = {
   Completed: 'Hoàn tất',
   Cancelled: 'Đã hủy',
 };
+
+const getEscrowStatus = (order) =>
+  String(order?.hscoinCall?.status || order?.escrow?.status || '').toUpperCase();
 
 export default function OrdersPage() {
   const [purchases, setPurchases] = useState([]);
@@ -79,7 +85,13 @@ export default function OrdersPage() {
     loadSales();
   }, [loadPurchases, loadSales]);
 
-  const handleBuyerConfirm = async (orderId) => {
+  const handleBuyerConfirm = async (order) => {
+    const orderId = order?.orderId;
+    const escrowStatus = getEscrowStatus(order);
+    if (ESCROW_BLOCKED_STATUSES.includes(escrowStatus)) {
+      toast.error(escrowBlockedMessage, { id: 'escrow-blocked-list' });
+      return;
+    }
     setActionOrderId(orderId);
     try {
       const response = await confirmOrderAsBuyer(orderId);
@@ -92,7 +104,13 @@ export default function OrdersPage() {
     }
   };
 
-  const handleSellerConfirm = async (orderId) => {
+  const handleSellerConfirm = async (order) => {
+    const orderId = order?.orderId;
+    const escrowStatus = getEscrowStatus(order);
+    if (ESCROW_BLOCKED_STATUSES.includes(escrowStatus)) {
+      toast.error(escrowBlockedMessage, { id: 'escrow-blocked-list' });
+      return;
+    }
     setActionOrderId(orderId);
     try {
       const response = await confirmOrderAsSeller(orderId);
@@ -190,7 +208,7 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
               <Truck size={16} className="inline mr-1" />
             );
           const hscoinCall = order.hscoinCall;
-          const hscoinStatus = hscoinCall?.status || order.escrow?.status || 'LOCKED';
+          const hscoinStatus = getEscrowStatus(order) || 'LOCKED';
           const nextRunText = hscoinCall?.nextRunAt
             ? new Date(hscoinCall.nextRunAt).toLocaleString('vi-VN')
             : 'Đang chờ HScoin';
@@ -345,6 +363,17 @@ function renderActionRow({ order, isSellerView, onBuyerConfirm, onSellerConfirm,
     ? order.status === 'Pending' || order.status === 'BuyerConfirmed'
     : order.status === 'Pending' || order.status === 'SellerConfirmed';
 
+  const escrowStatus = getEscrowStatus(order);
+  const escrowBlocked = ESCROW_BLOCKED_STATUSES.includes(escrowStatus);
+  const escrowStatusLabel =
+    {
+      FAILED: 'thất bại',
+      QUEUED: 'đang xếp hàng',
+      PROCESSING: 'đang xử lý',
+      PENDING: 'đang khởi tạo',
+      LOCKED: 'đang khóa',
+    }[escrowStatus] || 'chưa sẵn sàng';
+
   if (!canConfirm && !waitingCounterparty) {
     return null;
   }
@@ -364,9 +393,9 @@ function renderActionRow({ order, isSellerView, onBuyerConfirm, onSellerConfirm,
           type="button"
           className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-70"
           onClick={() =>
-            isSellerView ? onSellerConfirm?.(order.orderId) : onBuyerConfirm?.(order.orderId)
+            isSellerView ? onSellerConfirm?.(order) : onBuyerConfirm?.(order)
           }
-          disabled={actionOrderId === order.orderId}
+          disabled={actionOrderId === order.orderId || escrowBlocked}
         >
           {actionOrderId === order.orderId ? (
             <span className="flex items-center gap-2">
@@ -376,6 +405,11 @@ function renderActionRow({ order, isSellerView, onBuyerConfirm, onSellerConfirm,
             actionLabel
           )}
         </button>
+      )}
+      {escrowBlocked && (
+        <p className="text-xs text-rose-600">
+          Escrow HScoin {escrowStatusLabel}. Vui lòng Thử lại/Hủy đơn hoặc Kiểm tra TxHash trước khi xác nhận.
+        </p>
       )}
       {waitingCounterparty && (
         <p className="text-xs text-amber-600">
