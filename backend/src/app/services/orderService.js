@@ -26,6 +26,14 @@ function toBool(val) {
   return String(val) === '1' || val === true;
 }
 
+async function getBuyerWalletAddress(order) {
+  const info = await userService.getWalletInfo(order.customerId);
+  if (!info?.walletAddress) {
+    throw ApiError.badRequest('Người mua chưa liên kết ví HScoin. Không thể giải phóng escrow.');
+  }
+  return info.walletAddress;
+}
+
 async function getLatestEscrowState(orderId) {
   const [[ledgerRow]] = await pool.query(
     `
@@ -281,7 +289,12 @@ export async function confirmOrderAsBuyer(orderId, buyerId, { isGreenApproved = 
 
   if (order.status === 'SellerConfirmed') {
     await recordEscrowLedger(orderId, 'BuyerConfirmed', order.totalAmount);
-    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true, walletAddress, contractAddress });
+    const buyerWallet = walletAddress || (await getBuyerWalletAddress(order));
+    const completedOrder = await markOrderCompleted(orderId, {
+      triggerReferral: true,
+      walletAddress: buyerWallet,
+      contractAddress,
+    });
     return { order: completedOrder, status: completedOrder.status, completed: true };
   }
 
@@ -331,7 +344,12 @@ export async function confirmOrderAsSeller(orderId, sellerId, { walletAddress, c
 
   if (order.status === 'BuyerConfirmed') {
     await recordEscrowLedger(orderId, 'SellerConfirmed', order.totalAmount);
-    const completedOrder = await markOrderCompleted(orderId, { triggerReferral: true, walletAddress, contractAddress });
+    const buyerWallet = walletAddress || (await getBuyerWalletAddress(order));
+    const completedOrder = await markOrderCompleted(orderId, {
+      triggerReferral: true,
+      walletAddress: buyerWallet,
+      contractAddress,
+    });
     return { order: completedOrder, status: completedOrder.status, completed: true };
   }
 
@@ -344,10 +362,11 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
   const order = await updateOrderStatus(orderId, 'Completed');
 
   // Gọi release() để giải phóng tiền cho seller
-  if (walletAddress) {
+  const releaseWallet = walletAddress || (await getBuyerWalletAddress(order));
+  if (releaseWallet) {
     try {
       await executeSimpleToken({
-        caller: walletAddress,
+        caller: releaseWallet,
         method: 'release',
         args: [orderId],
         value: 0,
