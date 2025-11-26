@@ -429,8 +429,8 @@ contract PMarketEscrow {
 
           {contracts.length > 0 && (
             <div className="mt-4 space-y-2 text-sm text-gray-700">
-              <p className="font-semibold">Contract đã lưu:</p>
-              {contracts.map((c) => (
+              <p className="font-semibold">Contract đã lưu (tối đa 5 gần nhất):</p>
+              {contracts.slice(0, 5).map((c) => (
                 <div
                   key={c.contractId}
                   className="rounded-md border px-3 py-2 flex items-center justify-between"

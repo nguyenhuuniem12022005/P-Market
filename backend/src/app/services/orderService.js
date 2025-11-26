@@ -4,9 +4,10 @@ import { handleReferralAfterOrderCompleted } from './referralAutomationService.j
 import { getEscrowSnapshot, executeSimpleToken, attachOrderToHscoinCall } from './blockchainService.js';
 import * as userService from './userService.js';
 
-const REPUTATION_REWARD_BUYER = Number(process.env.REPUTATION_REWARD_BUYER || 5);
-const REPUTATION_REWARD_SELLER = Number(process.env.REPUTATION_REWARD_SELLER || 5);
-const GREEN_CREDIT_SELLER_GREEN_ORDER = Number(process.env.GREEN_CREDIT_SELLER_GREEN_ORDER || 5);
+// Fixed rewards to tránh lạm phát: mỗi bên +5 uy tín; đơn hàng xanh người bán +5 Green Credit
+const REPUTATION_REWARD_BUYER = 5;
+const REPUTATION_REWARD_SELLER = 5;
+const GREEN_CREDIT_SELLER_GREEN_ORDER = 5;
 const MIN_REPUTATION_TO_BUY = Number(process.env.MIN_BUYER_REPUTATION || 65);
 const HSC_RATE_VND = Number(process.env.HSC_RATE_VND || 2170); // 1 HSC = 2.170 VND
 const HSC_DECIMALS = Number(process.env.HSC_DECIMALS || 18);
