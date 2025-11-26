@@ -283,7 +283,7 @@ if (Number(product.supplierId) === Number(customerId)) {
       caller: walletAddress,
       method: 'deposit',
       args: [orderId, sellerWalletAddress, amountWei],
-      value: amountWei, // gửi đúng số tiền vào contract (native coin)
+      value: 0, // dùng token nội bộ, không gửi native coin
       contractAddress,
       userId: customerId,
     });

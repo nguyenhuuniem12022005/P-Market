@@ -30,12 +30,18 @@ export default function WalletPage() {
 pragma solidity ^0.8.0;
 
 /**
- * @title PMarketEscrow (native coin)
- * @dev Escrow giữ native coin. Deposit gửi kèm value, release trả seller, refund trả buyer.
+ * @title PMarketTokenEscrow
+ * @dev Token nội bộ + escrow. Mint tự do để test trên devnet.
  */
-contract PMarketEscrow {
-    enum Status { None, Deposited, Released, Refunded }
+contract PMarketTokenEscrow {
+    string public name = "PMarket Token";
+    string public symbol = "PMK";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
 
+    mapping(address => uint256) public balanceOf;
+
+    enum Status { None, Deposited, Released, Refunded }
     struct Order {
         address buyer;
         address seller;
@@ -43,36 +49,52 @@ contract PMarketEscrow {
         Status status;
         uint256 createdAt;
     }
-
     mapping(uint256 => Order) public orders;
-    address public owner;
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Mint(address indexed to, uint256 value);
     event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
     event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
     event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
-    event OwnerChanged(address indexed oldOwner, address indexed newOwner);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
+    // Mint cho chính mình (devnet)
+    function mintSelf(uint256 _value) external returns (bool) {
+        require(_value > 0, "Amount=0");
+        totalSupply += _value;
+        balanceOf[msg.sender] += _value;
+        emit Mint(msg.sender, _value);
+        emit Transfer(address(0), msg.sender, _value);
+        return true;
     }
 
-    constructor() {
-        owner = msg.sender;
+    // Mint cho người khác (devnet)
+    function mint(address _to, uint256 _value) public returns (bool) {
+        require(_to != address(0), "Invalid address");
+        require(_value > 0, "Amount=0");
+        totalSupply += _value;
+        balanceOf[_to] += _value;
+        emit Mint(_to, _value);
+        emit Transfer(address(0), _to, _value);
+        return true;
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Invalid address");
-        address oldOwner = owner;
-        owner = newOwner;
-        emit OwnerChanged(oldOwner, newOwner);
+    function transfer(address _to, uint256 _value) public returns (bool) {
+        require(_to != address(0), "Invalid address");
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
+        balanceOf[msg.sender] -= _value;
+        balanceOf[_to] += _value;
+        emit Transfer(msg.sender, _to, _value);
+        return true;
     }
 
-    function deposit(uint256 orderId, address seller, uint256 amount) external payable {
+    function deposit(uint256 orderId, address seller, uint256 amount) external {
         require(orders[orderId].status == Status.None, "Order exists");
         require(seller != address(0) && seller != msg.sender, "Bad seller");
         require(amount > 0, "Amount=0");
-        require(msg.value == amount, "Value != amount");
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+
+        balanceOf[msg.sender] -= amount;
+        balanceOf[address(this)] += amount;
 
         orders[orderId] = Order({
             buyer: msg.sender,
@@ -82,6 +104,7 @@ contract PMarketEscrow {
             createdAt: block.timestamp
         });
 
+        emit Transfer(msg.sender, address(this), amount);
         emit Deposited(orderId, msg.sender, seller, amount);
     }
 
@@ -91,8 +114,10 @@ contract PMarketEscrow {
         require(msg.sender == o.seller, "Not seller");
 
         o.status = Status.Released;
-        payable(o.seller).transfer(o.amount);
+        balanceOf[address(this)] -= o.amount;
+        balanceOf[o.seller] += o.amount;
 
+        emit Transfer(address(this), o.seller, o.amount);
         emit Released(orderId, o.seller, o.amount);
     }
 
@@ -102,8 +127,10 @@ contract PMarketEscrow {
         require(msg.sender == o.buyer, "Not buyer");
 
         o.status = Status.Refunded;
-        payable(o.buyer).transfer(o.amount);
+        balanceOf[address(this)] -= o.amount;
+        balanceOf[o.buyer] += o.amount;
 
+        emit Transfer(address(this), o.buyer, o.amount);
         emit Refunded(orderId, o.buyer, o.amount);
     }
 
@@ -119,7 +146,7 @@ contract PMarketEscrow {
     }
 
     function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
+        return balanceOf[address(this)];
     }
 }`);
   const [deploying, setDeploying] = useState(false);
