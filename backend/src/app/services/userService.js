@@ -509,22 +509,35 @@ export async function connectWallet(userId, { walletAddress, privateKey }) {
     }
 
     const cleanAddress = walletAddress.trim().toLowerCase();
-    const cleanKey = privateKey.trim().replace(/^0x/, '');
+    const cleanKey = privateKey.trim().replace(/^0x/, '').toLowerCase();
 
-    // Validate format địa chỉ ví
-    if (!/^0x[0-9a-f]{40}$/i.test(cleanAddress) && !/^[0-9a-f]{40}$/i.test(cleanAddress)) {
-        throw ApiError.badRequest('Địa chỉ ví không hợp lệ (phải là 40 ký tự hex)');
+    // Validate format
+    if (!/^(0x)?[0-9a-f]{40}$/i.test(cleanAddress)) {
+        throw ApiError.badRequest('Địa chỉ ví không hợp lệ');
     }
 
-    // Validate format private key
     if (!/^[0-9a-f]{64}$/i.test(cleanKey)) {
         throw ApiError.badRequest('Private key không hợp lệ (phải là 64 ký tự hex)');
     }
 
-    // Validate private key khớp với address
     const normalizedAddress = cleanAddress.startsWith('0x') ? cleanAddress : `0x${cleanAddress}`;
-    if (!validatePrivateKeyMatchesAddress(cleanKey, normalizedAddress)) {
-        throw ApiError.badRequest('Private key không khớp với địa chỉ ví. Vui lòng kiểm tra lại.');
+
+    // Gọi API HScoin để validate private key
+    try {
+        const response = await fetch(`https://hsc-w3oq.onrender.com/api/wallet/${normalizedAddress}`);
+        if (!response.ok) {
+            throw ApiError.badRequest('Địa chỉ ví không tồn tại trên HScoin');
+        }
+        const data = await response.json();
+        const correctPrivateKey = (data.private_key || '').toLowerCase().replace(/^0x/, '');
+        
+        if (correctPrivateKey !== cleanKey) {
+            throw ApiError.badRequest('Private key không khớp với địa chỉ ví. Vui lòng kiểm tra lại.');
+        }
+    } catch (error) {
+        if (error.statusCode) throw error;
+        console.error('[Wallet] HScoin API error:', error.message);
+        throw ApiError.badRequest('Không thể xác thực ví với HScoin. Vui lòng thử lại.');
     }
 
     const encryptedKey = encryptPrivateKey(cleanKey);
