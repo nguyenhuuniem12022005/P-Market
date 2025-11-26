@@ -1103,6 +1103,7 @@ export async function listEscrowEventsForUser(customerId) {
     join SalesOrder so on so.salesOrderId = el.salesOrderId
     where so.customerId = ?
     order by el.createdAt desc
+    limit 10
     `,
     [customerId]
   );
