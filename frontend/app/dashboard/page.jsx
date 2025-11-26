@@ -46,8 +46,8 @@ export default function DashboardPage() {
     avatar: buildAvatarUrl(user?.avatar),
   });
 
-  // Track if user has manually edited the phone field to avoid overwriting it with async fetches
-  const phoneTouchedRef = useRef(false);
+  // Track which fields user has manually edited to avoid overwriting them with async fetches
+  const touchedFieldsRef = useRef({});
 
   const [reputationLedger, setReputationLedger] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -67,12 +67,11 @@ export default function DashboardPage() {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         fullName: user.fullName || '',
-        userName: user.userName || '',
+        userName: touchedFieldsRef.current.userName ? prev.userName : (user.userName || ''),
         email: user.email || '',
-        // Only set phone from user if user hasn't started editing
-        phone: phoneTouchedRef.current ? prev.phone : (user.phone || ''),
-        address: user.address || '',
-        dateOfBirth: user.dateOfBirth || '',
+        phone: touchedFieldsRef.current.phone ? prev.phone : (user.phone || ''),
+        address: touchedFieldsRef.current.address ? prev.address : (user.address || ''),
+        dateOfBirth: touchedFieldsRef.current.dateOfBirth ? prev.dateOfBirth : (user.dateOfBirth || ''),
         avatar: buildAvatarUrl(user.avatar),
       }));
     }
@@ -85,10 +84,9 @@ export default function DashboardPage() {
             setDashboardData(apiData);
             setProfileData(prev => ({
               ...prev,
-              // Do not override phone if the user started typing
-              phone: phoneTouchedRef.current ? prev.phone : (apiData.phone ?? prev.phone),
-              address: apiData.address ?? prev.address,
-              dateOfBirth: apiData.dateOfBirth ?? prev.dateOfBirth,
+              phone: touchedFieldsRef.current.phone ? prev.phone : (apiData.phone ?? prev.phone),
+              address: touchedFieldsRef.current.address ? prev.address : (apiData.address ?? prev.address),
+              dateOfBirth: touchedFieldsRef.current.dateOfBirth ? prev.dateOfBirth : (apiData.dateOfBirth ?? prev.dateOfBirth),
             }));
             // Cập nhật user trong context/localStorage để hiển thị huy hiệu xanh, điểm mới
             const badgeLevel = apiData.greenBadgeLevel;
@@ -127,9 +125,7 @@ export default function DashboardPage() {
   // ===================== Handlers =====================
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'phone') {
-      phoneTouchedRef.current = true;
-    }
+    touchedFieldsRef.current[name] = true;
     if (name === 'firstName' || name === 'lastName') {
       const newFirstName = name === 'firstName' ? value : profileData.firstName;
       const newLastName = name === 'lastName' ? value : profileData.lastName;
