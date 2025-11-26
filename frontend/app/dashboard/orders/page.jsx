@@ -169,6 +169,7 @@ export default function OrdersPage() {
 
 function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfirm, actionOrderId }) {
   const isSellerView = type === 'sales';
+  const visibleOrders = orders.filter((order) => order.status !== 'Cancelled');
 
   const copyHash = async (hash) => {
     if (!hash) return;
@@ -192,14 +193,17 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
             <Loader2 className="animate-spin" size={16} /> Đang tải danh sách đơn {isSellerView ? 'bán' : 'mua'}…
           </CardContent>
         </Card>
-      ) : orders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center text-gray-500">
             {isSellerView ? 'Bạn chưa có đơn bán nào.' : 'Bạn chưa có đơn mua nào.'}
+            {orders.length > 0 && (
+              <span className="block text-xs text-gray-400 mt-1">Đơn đã hủy được ẩn khỏi danh sách.</span>
+            )}
           </CardContent>
         </Card>
       ) : (
-        orders.map((order) => {
+        visibleOrders.map((order) => {
           const badgeClass = statusBadge[order.status] || statusBadge.Pending;
           const icon =
             order.status === 'Completed' ? (

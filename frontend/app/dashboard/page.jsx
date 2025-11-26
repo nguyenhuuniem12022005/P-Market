@@ -46,6 +46,15 @@ const normalizeDateForInput = (value) => {
   return '';
 };
 
+const normalizeDateOnChange = (value) => {
+  if (!value) return '';
+  const v = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  const year = Number(v.slice(0, 4));
+  if (year < 1900 || year > 2100) return '';
+  return v;
+};
+
 // ===================== Dashboard =====================
 export default function DashboardPage() {
   const { user, token, setUser } = useAuth();
@@ -161,7 +170,7 @@ export default function DashboardPage() {
         fullName: `${newFirstName} ${newLastName}`.trim(),
       }));
     } else if (name === 'dateOfBirth') {
-      setProfileData(prev => ({ ...prev, [name]: value }));
+      setProfileData(prev => ({ ...prev, [name]: normalizeDateOnChange(value) }));
     } else {
       setProfileData(prev => ({ ...prev, [name]: value }));
     }
@@ -353,6 +362,9 @@ export default function DashboardPage() {
                 name="dateOfBirth"
                 value={profileData.dateOfBirth || ''}
                 onChange={handleProfileChange}
+                min="1900-01-01"
+                max={new Date().toISOString().slice(0, 10)}
+                autoComplete="bday"
               />
             </div>
           </CardContent>
