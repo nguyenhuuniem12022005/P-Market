@@ -49,6 +49,10 @@ export default function OrdersPage() {
   const [errorSales, setErrorSales] = useState('');
   const [activeTab, setActiveTab] = useState('purchases');
   const [actionOrderId, setActionOrderId] = useState(null);
+  const [purchasesPage, setPurchasesPage] = useState(1);
+  const [salesPage, setSalesPage] = useState(1);
+  const pageSize = 10;
+  const maxItems = 50;
 
   const loadPurchases = useCallback(async () => {
     setLoadingPurchases(true);
@@ -56,6 +60,7 @@ export default function OrdersPage() {
       const data = await fetchMyOrders();
       setPurchases(data || []);
       setErrorPurchases('');
+      setPurchasesPage(1);
     } catch (err) {
       setErrorPurchases(err.message || 'Không thể tải danh sách đơn mua.');
     } finally {
@@ -69,6 +74,7 @@ export default function OrdersPage() {
       const data = await fetchSellerOrders();
       setSales(data || []);
       setErrorSales('');
+      setSalesPage(1);
     } catch (err) {
       setErrorSales(err.message || 'Không thể tải danh sách đơn bán.');
     } finally {
@@ -162,14 +168,39 @@ export default function OrdersPage() {
         onBuyerConfirm={handleBuyerConfirm}
         onSellerConfirm={handleSellerConfirm}
         actionOrderId={actionOrderId}
+        page={activeTab === 'purchases' ? purchasesPage : salesPage}
+        onPageChange={activeTab === 'purchases' ? setPurchasesPage : setSalesPage}
+        pageSize={pageSize}
+        maxItems={maxItems}
       />
     </div>
   );
 }
 
-function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfirm, actionOrderId }) {
+function TabOrders({
+  type,
+  orders,
+  loading,
+  error,
+  onBuyerConfirm,
+  onSellerConfirm,
+  actionOrderId,
+  page,
+  onPageChange,
+  pageSize,
+  maxItems,
+}) {
   const isSellerView = type === 'sales';
-  const visibleOrders = orders.filter((order) => order.status !== 'Cancelled');
+  const visibleOrders = orders.filter((order) => order.status !== 'Cancelled').slice(0, maxItems);
+  const totalPages = Math.max(1, Math.ceil(visibleOrders.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  useEffect(() => {
+    if (page > totalPages) {
+      onPageChange(totalPages);
+    }
+  }, [page, totalPages, onPageChange]);
+  const start = (currentPage - 1) * pageSize;
+  const paginatedOrders = visibleOrders.slice(start, start + pageSize);
 
   const copyHash = async (hash) => {
     if (!hash) return;
@@ -203,7 +234,8 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
           </CardContent>
         </Card>
       ) : (
-        visibleOrders.map((order) => {
+        <>
+        {paginatedOrders.map((order) => {
           const badgeClass = statusBadge[order.status] || statusBadge.Pending;
           const icon =
             order.status === 'Completed' ? (
@@ -347,7 +379,29 @@ function TabOrders({ type, orders, loading, error, onBuyerConfirm, onSellerConfi
               </CardContent>
             </Card>
           );
-        })
+        })}
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            type="button"
+            className="px-3 py-1 text-xs rounded border"
+            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+          >
+            ← Trước
+          </button>
+          <span className="text-xs text-gray-600 self-center">
+            Trang {currentPage}/{totalPages} · Tối đa {maxItems} đơn gần nhất
+          </span>
+          <button
+            type="button"
+            className="px-3 py-1 text-xs rounded border"
+            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Sau →
+          </button>
+        </div>
+        </>
       )}
     </div>
   );

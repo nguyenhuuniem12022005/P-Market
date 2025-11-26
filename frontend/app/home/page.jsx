@@ -72,7 +72,7 @@ function CategoryGridSkeleton() {
 async function ProductGrid() {
   let products = [];
   try {
-    products = await getAllProducts(24);
+    products = await getAllProducts(20);
   } catch (err) {
     console.error("getAllProducts error:", err?.message || err);
     products = [];

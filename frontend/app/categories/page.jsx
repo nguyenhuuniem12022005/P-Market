@@ -8,6 +8,8 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   useEffect(() => {
     let ignore = false;
@@ -18,6 +20,7 @@ export default function CategoriesPage() {
         const res = await fetchCategories();
         if (!ignore) {
           setCategories(res?.categories || []);
+          setPage(1);
         }
       } catch (err) {
         if (!ignore) setError(err?.message || 'Không tải được danh mục');
@@ -39,8 +42,15 @@ export default function CategoriesPage() {
       {!loading && !error && categories.length === 0 && (
         <p className="text-sm text-gray-500">Chưa có danh mục nào.</p>
       )}
+      {!loading && !error && categories.length > 0 && (
+        <p className="text-xs text-gray-500 mb-2">
+          Hiển thị {Math.min(categories.length, pageSize)} / {categories.length} danh mục mỗi trang
+        </p>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {categories.map((c) => (
+        {categories
+          .slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
+          .map((c) => (
           <Link
             key={c.categoryId}
             href={`/category/${c.slug || c.categoryId}`}
@@ -53,6 +63,31 @@ export default function CategoriesPage() {
           </Link>
         ))}
       </div>
+      {categories.length > pageSize && (
+        <div className="flex justify-center items-center gap-2 mt-4">
+          <button
+            type="button"
+            className="px-3 py-1 text-xs rounded border"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            ← Trước
+          </button>
+          <span className="text-xs text-gray-600">
+            Trang {page}/{Math.max(1, Math.ceil(categories.length / pageSize))}
+          </span>
+          <button
+            type="button"
+            className="px-3 py-1 text-xs rounded border"
+            onClick={() =>
+              setPage((p) => Math.min(Math.ceil(categories.length / pageSize), p + 1))
+            }
+            disabled={page >= Math.ceil(categories.length / pageSize)}
+          >
+            Sau →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
