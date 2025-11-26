@@ -8,6 +8,9 @@ const REPUTATION_REWARD_BUYER = Number(process.env.REPUTATION_REWARD_BUYER || 5)
 const REPUTATION_REWARD_SELLER = Number(process.env.REPUTATION_REWARD_SELLER || 5);
 const GREEN_CREDIT_SELLER_GREEN_ORDER = Number(process.env.GREEN_CREDIT_SELLER_GREEN_ORDER || 5);
 const MIN_REPUTATION_TO_BUY = Number(process.env.MIN_BUYER_REPUTATION || 65);
+const HSC_RATE_VND = Number(process.env.HSC_RATE_VND || 2170); // 1 HSC = 2.170 VND
+const HSC_DECIMALS = Number(process.env.HSC_DECIMALS || 18);
+const DECIMAL_FACTOR = 10n ** BigInt(HSC_DECIMALS);
 
 async function getOrderById(orderId) {
   const [rows] = await pool.query(
@@ -24,6 +27,17 @@ async function getOrderById(orderId) {
 
 function toBool(val) {
   return String(val) === '1' || val === true;
+}
+
+function convertVndToWei(vndAmount) {
+  const rate = HSC_RATE_VND > 0 ? HSC_RATE_VND : 2170;
+  // Dùng milli-VND để giảm sai số khi chia cho rate thập phân
+  const scaledVnd = BigInt(Math.round(Number(vndAmount || 0) * 1000));
+  const scaledRate = BigInt(Math.round(rate * 1000));
+  if (scaledRate === 0n) {
+    throw ApiError.badRequest('Tỷ giá HScoin không hợp lệ');
+  }
+  return (scaledVnd * DECIMAL_FACTOR) / scaledRate;
 }
 
 async function getBuyerWalletAddress(order) {
@@ -184,11 +198,12 @@ if (Number(product.supplierId) === Number(customerId)) {
   // Gọi deposit() để khóa tiền vào escrow
   let escrowCallId = null;
   let escrowStatus = 'SUCCESS';
+  const amountWei = convertVndToWei(totalAmount);
   try {
     const depositResult = await executeSimpleToken({
       caller: walletAddress,
       method: 'deposit',
-      args: [orderId, sellerWalletAddress, totalAmount],
+      args: [orderId, sellerWalletAddress, amountWei],
       value: 0,
       contractAddress,
       userId: customerId,
@@ -211,7 +226,7 @@ if (Number(product.supplierId) === Number(customerId)) {
     await attachOrderToHscoinCall(escrowCallId, orderId);
   }
 
-  await recordEscrowLedger(orderId, 'Pending', totalAmount);
+  await recordEscrowLedger(orderId, 'Pending', amountWei.toString());
 
   return {
     orderId,
