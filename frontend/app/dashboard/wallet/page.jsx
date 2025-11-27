@@ -12,6 +12,7 @@ import {
   deployContract,
   mintSelfToken,
   fetchMyAccountBalance,
+  fetchTokenBalance,
 } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
@@ -31,6 +32,8 @@ export default function WalletPage() {
   const [mintAmount, setMintAmount] = useState('1000');
   const [accountBalance, setAccountBalance] = useState(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState(null);
+  const [loadingTokenBalance, setLoadingTokenBalance] = useState(false);
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -182,21 +185,33 @@ contract PMarketTokenEscrow {
     async function loadBalance() {
       if (!walletAddress) {
         setAccountBalance(null);
+        setTokenBalance(null);
         return;
       }
       setLoadingBalance(true);
+      setLoadingTokenBalance(true);
       try {
         const acct = await fetchMyAccountBalance();
         setAccountBalance(acct || null);
+        if (contractAddress) {
+          const tokenBal = await fetchTokenBalance({
+            contractAddress,
+            walletAddress,
+          });
+          setTokenBalance(tokenBal ?? null);
+        } else {
+          setTokenBalance(null);
+        }
       } catch (err) {
         // hiển thị lỗi nhẹ, không chặn toàn trang
         toast.error(err.message || 'Không thể lấy số dư ví.');
       } finally {
         setLoadingBalance(false);
+        setLoadingTokenBalance(false);
       }
     }
     loadBalance();
-  }, [walletAddress]);
+  }, [walletAddress, contractAddress]);
 
   const toWei = (amount) => {
     const val = Number(amount);
@@ -335,6 +350,21 @@ contract PMarketTokenEscrow {
                     </p>
                     <p className="text-xs text-gray-500">Nonce: {accountBalance.nonce ?? '—'}</p>
                   </div>
+                )}
+                {tokenBalance !== null && (
+                  <div className="mt-2 text-sm text-gray-700 space-y-1">
+                    <p>
+                      Số dư PMK: <span className="font-semibold">{tokenBalance}</span> wei
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Ước tính: {tokenBalance
+                        ? `${(Number(tokenBalance) / 1e18 * 2170).toLocaleString('vi-VN')} đ`
+                        : '—'}
+                    </p>
+                  </div>
+                )}
+                {(loadingBalance || loadingTokenBalance) && (
+                  <p className="text-xs text-gray-500 mt-1">Đang tải số dư...</p>
                 )}
               </div>
             ) : (

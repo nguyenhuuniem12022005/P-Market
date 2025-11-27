@@ -60,6 +60,10 @@ const SIMPLE_TOKEN_FUNCTIONS = {
     selector: '0x42966c68', // burn(uint256)
     inputs: ['uint256'],
   },
+  balanceOf: {
+    selector: '0x70a08231', // balanceOf(address)
+    inputs: ['address'],
+  },
   mint: {
     selector: '0x40c10f19', // mint(address,uint256)
     inputs: ['address', 'uint256'],

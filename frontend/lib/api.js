@@ -952,6 +952,26 @@ export async function fetchMyAccountBalance() {
   }
 }
 
+export async function fetchTokenBalance({ contractAddress, walletAddress }) {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/simple-token/execute`,
+      {
+        caller: walletAddress,
+        method: 'balanceOf',
+        args: [walletAddress],
+        value: 0,
+        contractAddress,
+      },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    // endpoint trả về data hoặc payload; lấy result nếu có
+    return res.data?.data?.result ?? res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function redeemGreenBadge() {
   try {
     const res = await axios.post(
