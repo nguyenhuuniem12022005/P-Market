@@ -614,6 +614,33 @@ export async function getAccountByAddress(address) {
   return accounts.find((a) => String(a.address || '').toLowerCase() === target) || null;
 }
 
+export async function getTokenBalance({ contractAddress, walletAddress }) {
+  if (!contractAddress || !walletAddress) {
+    throw ApiError.badRequest('Thiếu contractAddress hoặc walletAddress');
+  }
+  try {
+    const response = await callHscoin('/simple-token/execute', {
+      method: 'POST',
+      requireAuth: true,
+      body: {
+        caller: walletAddress,
+        method: 'balanceOf',
+        args: [walletAddress],
+        value: 0,
+        contractAddress,
+      },
+    });
+    // HScoin view call có thể trả về data hoặc trong result
+    return response?.data?.result ?? response?.data ?? null;
+  } catch (error) {
+    const msg = error?.message || '';
+    if (msg.toLowerCase().includes('balanceof')) {
+      return { unsupported: true };
+    }
+    throw error;
+  }
+}
+
 async function getDeveloperAppsFromDb(ownerId) {
   if (!ownerId) return [];
   const [rows] = await pool.query(

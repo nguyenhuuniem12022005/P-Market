@@ -253,6 +253,31 @@ export async function getMyAccountBalance(req, res, next) {
   }
 }
 
+export async function getMyTokenBalance(req, res, next) {
+  try {
+    const { contractAddress } = req.query;
+    if (!contractAddress) {
+      return res.status(400).json({ success: false, message: 'Thiếu contractAddress' });
+    }
+    const wallet = await userService.getWalletInfo(req.user?.userId).catch(() => null);
+    const address = wallet?.walletAddress;
+    if (!address) {
+      return res.status(400).json({ success: false, message: 'Vui lòng liên kết ví HScoin trước.' });
+    }
+    const balance = await blockchainService.getTokenBalance({ contractAddress, walletAddress: address });
+    return res.status(200).json({
+      success: true,
+      data: {
+        address,
+        contractAddress,
+        balance,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function listUserContracts(req, res, next) {
   try {
     const data = await blockchainService.listUserContracts(req.user?.userId);

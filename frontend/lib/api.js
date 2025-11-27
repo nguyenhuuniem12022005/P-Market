@@ -954,19 +954,11 @@ export async function fetchMyAccountBalance() {
 
 export async function fetchTokenBalance({ contractAddress, walletAddress }) {
   try {
-    const res = await axios.post(
-      `${API_URL}/blockchain/simple-token/execute`,
-      {
-        caller: walletAddress,
-        method: 'balanceOf',
-        args: [walletAddress],
-        value: 0,
-        contractAddress,
-      },
-      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
-    );
-    // endpoint trả về data hoặc payload; lấy result nếu có
-    return res.data?.data?.result ?? res.data?.data;
+    const res = await axios.get(`${API_URL}/blockchain/token-balance`, {
+      params: { contractAddress },
+      headers: authHeader(),
+    });
+    return res.data?.data?.balance;
   } catch (error) {
     handleAxiosError(error);
   }

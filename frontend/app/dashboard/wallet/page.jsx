@@ -200,7 +200,6 @@ contract PMarketTokenEscrow {
         setLoadingBalance(false);
       }
 
-      // Token balance: HScoin API không hỗ trợ balanceOf -> bắt lỗi và bỏ qua
       if (contractAddress) {
         try {
           const tokenBal = await fetchTokenBalance({
@@ -208,11 +207,11 @@ contract PMarketTokenEscrow {
             walletAddress,
           });
           setTokenBalance(tokenBal ?? null);
-        } catch (err) {
+        } catch {
           setTokenBalance(null);
         } finally {
-        setLoadingTokenBalance(false);
-      }
+          setLoadingTokenBalance(false);
+        }
       } else {
         setTokenBalance(null);
         setLoadingTokenBalance(false);
