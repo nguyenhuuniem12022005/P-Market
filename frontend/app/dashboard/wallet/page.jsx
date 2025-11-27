@@ -30,6 +30,7 @@ export default function WalletPage() {
   const [savingContract, setSavingContract] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000');
   const [accountBalance, setAccountBalance] = useState(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -168,8 +169,6 @@ contract PMarketTokenEscrow {
           setContractName(def.name || 'PMarket');
           setIsDefault(def.isDefault || false);
         }
-        const acct = await fetchMyAccountBalance();
-        setAccountBalance(acct || null);
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu ví HScoin.');
       } finally {
@@ -178,6 +177,26 @@ contract PMarketTokenEscrow {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    async function loadBalance() {
+      if (!walletAddress) {
+        setAccountBalance(null);
+        return;
+      }
+      setLoadingBalance(true);
+      try {
+        const acct = await fetchMyAccountBalance();
+        setAccountBalance(acct || null);
+      } catch (err) {
+        // hiển thị lỗi nhẹ, không chặn toàn trang
+        toast.error(err.message || 'Không thể lấy số dư ví.');
+      } finally {
+        setLoadingBalance(false);
+      }
+    }
+    loadBalance();
+  }, [walletAddress]);
 
   const toWei = (amount) => {
     const val = Number(amount);
