@@ -53,6 +53,7 @@ let hasHscoinCallTable = false;
 let hscoinWorkerTimer = null;
 let hasHscoinAlertTable = false;
 let hasUserContractTable = false;
+let hasTokenLedgerTable = false;
 
 const SIMPLE_TOKEN_FUNCTIONS = {
   // Token functions
@@ -85,6 +86,15 @@ const SIMPLE_TOKEN_FUNCTIONS = {
     selector: '0x7c41ad2c', // refund(uint256)
     inputs: ['uint256'],
   },
+};
+
+const SIMPLE_TOKEN_LEDGER_ACTIONS = {
+  mint: 'MINT',
+  burn: 'BURN',
+  transfer: 'TRANSFER',
+  deposit: 'ESCROW_DEPOSIT',
+  release: 'ESCROW_RELEASE',
+  refund: 'ESCROW_REFUND',
 };
 
 function normalizeAddress(address) {
@@ -149,6 +159,254 @@ function buildSimpleTokenCalldata(method, args = []) {
   }
   const encodedArgs = fn.inputs.map((type, idx) => encodeParameterByType(type, args[idx] ?? 0));
   return fn.selector + encodedArgs.join('');
+}
+
+function normalizeLedgerAddress(address) {
+  const normalized = normalizeAddress(address);
+  return /^0x[0-9a-f]{40}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeOrderId(orderId) {
+  const numeric = Number(orderId);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function toBigIntSafe(value) {
+  if (value === null || value === undefined) return null;
+  try {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return null;
+      return BigInt(Math.trunc(value));
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return BigInt(trimmed);
+    }
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
+async function ensureTokenLedgerTable() {
+  if (hasTokenLedgerTable) return;
+  await pool.query(
+    `
+    create table if not exists TokenBalanceLedger (
+      ledgerId int primary key auto_increment,
+      callId int not null,
+      contractAddress varchar(66) not null,
+      action varchar(32) not null,
+      fromAddress varchar(66) null,
+      toAddress varchar(66) null,
+      amount decimal(65,0) not null default 0,
+      orderId int null,
+      rawArgs longtext null,
+      createdAt timestamp default current_timestamp,
+      unique key uniq_call (callId),
+      index idx_contract_wallet (contractAddress, toAddress, fromAddress),
+      index idx_order (orderId)
+    ) engine=InnoDB
+    `
+  );
+  hasTokenLedgerTable = true;
+}
+
+async function recordTokenLedgerEntry({
+  callId,
+  contractAddress,
+  action,
+  fromAddress,
+  toAddress,
+  amount,
+  orderId,
+  rawArgs,
+}) {
+  if (!callId || !contractAddress || !action) return;
+  const normalizedContract = normalizeLedgerAddress(contractAddress);
+  const normalizedFrom = fromAddress ? normalizeLedgerAddress(fromAddress) : null;
+  const normalizedTo = toAddress ? normalizeLedgerAddress(toAddress) : null;
+  const normalizedAmount = toBigIntSafe(amount);
+  if (!normalizedContract || normalizedAmount === null || normalizedAmount < 0n) return;
+
+  await ensureTokenLedgerTable();
+  await pool.query(
+    `
+    insert into TokenBalanceLedger (callId, contractAddress, action, fromAddress, toAddress, amount, orderId, rawArgs)
+    values (?, ?, ?, ?, ?, ?, ?, ?)
+    on duplicate key update
+      action = values(action),
+      fromAddress = values(fromAddress),
+      toAddress = values(toAddress),
+      amount = values(amount),
+      orderId = values(orderId),
+      rawArgs = values(rawArgs)
+    `,
+    [
+      callId,
+      normalizedContract,
+      action,
+      normalizedFrom,
+      normalizedTo,
+      normalizedAmount.toString(),
+      normalizeOrderId(orderId),
+      rawArgs || null,
+    ]
+  );
+}
+
+async function getEscrowAggregates(orderId) {
+  const normalizedOrderId = normalizeOrderId(orderId);
+  if (!normalizedOrderId) {
+    return { deposited: 0n, released: 0n, refunded: 0n };
+  }
+  await ensureTokenLedgerTable();
+  const [[row]] = await pool.query(
+    `
+    select
+      coalesce(sum(case when action = 'ESCROW_DEPOSIT' then amount else 0 end), 0) as deposited,
+      coalesce(sum(case when action = 'ESCROW_RELEASE' then amount else 0 end), 0) as released,
+      coalesce(sum(case when action = 'ESCROW_REFUND' then amount else 0 end), 0) as refunded
+    from TokenBalanceLedger
+    where orderId = ?
+    `,
+    [normalizedOrderId]
+  );
+  return {
+    deposited: toBigIntSafe(row?.deposited || 0) || 0n,
+    released: toBigIntSafe(row?.released || 0) || 0n,
+    refunded: toBigIntSafe(row?.refunded || 0) || 0n,
+  };
+}
+
+async function getLedgerTokenBalance({ contractAddress, walletAddress }) {
+  const normalizedContract = normalizeLedgerAddress(contractAddress);
+  const normalizedWallet = normalizeLedgerAddress(walletAddress);
+  if (!normalizedContract || !normalizedWallet) {
+    throw ApiError.badRequest('�?a ch? kh�ng h?p l? �? t�nh s? d� token.');
+  }
+  await ensureTokenLedgerTable();
+  const [[row]] = await pool.query(
+    `
+    select
+      coalesce(sum(case when toAddress = ? then amount else 0 end), 0) as incoming,
+      coalesce(sum(case when fromAddress = ? then amount else 0 end), 0) as outgoing
+    from TokenBalanceLedger
+    where contractAddress = ?
+    `,
+    [normalizedWallet, normalizedWallet, normalizedContract]
+  );
+  const incoming = toBigIntSafe(row?.incoming || 0) || 0n;
+  const outgoing = toBigIntSafe(row?.outgoing || 0) || 0n;
+  const net = incoming - outgoing;
+  return net < 0n ? '0' : net.toString();
+}
+
+async function recordTokenLedgerFromCall({ callId, payload, orderId }) {
+  if (!callId || !payload) return;
+  const originalCall = payload.originalCall || {};
+  const rawArgsArray = Array.isArray(originalCall.args) ? originalCall.args : [];
+  const method = (originalCall.method || payload.method || '').toLowerCase();
+  const contractAddress =
+    payload.contractAddress || payload.body?.contractAddress || payload.body?.contract;
+  const caller = payload.body?.caller || payload.caller || payload.callerAddress;
+  const normalizedCaller = normalizeLedgerAddress(caller);
+  const safeArgs = rawArgsArray.map((arg) => (typeof arg === 'bigint' ? arg.toString() : arg));
+  const resolvedOrderId = normalizeOrderId(orderId ?? payload.orderId ?? rawArgsArray[0]);
+  const normalizedContract = normalizeLedgerAddress(contractAddress);
+  if (!method || !normalizedContract) return;
+
+  const toAmount = (idx) => toBigIntSafe(rawArgsArray[idx]);
+  let entry = null;
+
+  switch (method) {
+    case 'mint': {
+      const to = normalizeLedgerAddress(rawArgsArray[0]);
+      const amount = toAmount(1);
+      if (to && amount !== null) {
+        entry = { action: SIMPLE_TOKEN_LEDGER_ACTIONS.mint, toAddress: to, amount };
+      }
+      break;
+    }
+    case 'burn': {
+      const amount = toAmount(0);
+      if (normalizedCaller && amount !== null) {
+        entry = { action: SIMPLE_TOKEN_LEDGER_ACTIONS.burn, fromAddress: normalizedCaller, amount };
+      }
+      break;
+    }
+    case 'transfer': {
+      const to = normalizeLedgerAddress(rawArgsArray[0]);
+      const amount = toAmount(1);
+      if (normalizedCaller && to && amount !== null) {
+        entry = {
+          action: SIMPLE_TOKEN_LEDGER_ACTIONS.transfer,
+          fromAddress: normalizedCaller,
+          toAddress: to,
+          amount,
+        };
+      }
+      break;
+    }
+    case 'deposit': {
+      const amount = toAmount(2);
+      if (normalizedCaller && amount !== null) {
+        entry = {
+          action: SIMPLE_TOKEN_LEDGER_ACTIONS.deposit,
+          fromAddress: normalizedCaller,
+          amount,
+          orderId: resolvedOrderId,
+        };
+      }
+      break;
+    }
+    case 'release': {
+      const targetOrderId = resolvedOrderId;
+      if (normalizedCaller && targetOrderId !== null) {
+        const { deposited, released, refunded } = await getEscrowAggregates(targetOrderId);
+        const remaining = deposited - released - refunded;
+        if (remaining > 0n) {
+          entry = {
+            action: SIMPLE_TOKEN_LEDGER_ACTIONS.release,
+            toAddress: normalizedCaller,
+            amount: remaining,
+            orderId: targetOrderId,
+          };
+        }
+      }
+      break;
+    }
+    case 'refund': {
+      const targetOrderId = resolvedOrderId;
+      if (normalizedCaller && targetOrderId !== null) {
+        const { deposited, released, refunded } = await getEscrowAggregates(targetOrderId);
+        const remaining = deposited - released - refunded;
+        if (remaining > 0n) {
+          entry = {
+            action: SIMPLE_TOKEN_LEDGER_ACTIONS.refund,
+            toAddress: normalizedCaller,
+            amount: remaining,
+            orderId: targetOrderId,
+          };
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  if (entry) {
+    await recordTokenLedgerEntry({
+      ...entry,
+      callId,
+      contractAddress: normalizedContract,
+      orderId: entry.orderId ?? resolvedOrderId,
+      rawArgs: JSON.stringify(safeArgs),
+    });
+  }
 }
 
 function defaultLedger() {
@@ -618,27 +876,40 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
   if (!contractAddress || !walletAddress) {
     throw ApiError.badRequest('Thiếu contractAddress hoặc walletAddress');
   }
+
+  const normalizedContract = validateAddress(contractAddress);
+  const normalizedWallet = validateAddress(walletAddress);
+
+  const computeLedgerFallback = async () => {
+    const balance = await getLedgerTokenBalance({
+      contractAddress: normalizedContract,
+      walletAddress: normalizedWallet,
+    });
+    return { balance, source: 'ledger' };
+  };
+
   try {
     const response = await callHscoin('/simple-token/execute', {
       method: 'POST',
       requireAuth: true,
       body: {
-        caller: walletAddress,
+        caller: normalizedWallet,
         method: 'balanceOf',
-        args: [walletAddress],
+        args: [normalizedWallet],
         value: 0,
-        contractAddress,
+        contractAddress: normalizedContract,
       },
     });
-    // HScoin view call có thể trả về data hoặc trong result
-    return response?.data?.result ?? response?.data ?? null;
-  } catch (error) {
-    const msg = error?.message || '';
-    if (msg.toLowerCase().includes('balanceof')) {
-      return { unsupported: true };
+    const result = response?.data?.result ?? response?.data ?? null;
+    if (result !== null && result !== undefined && result?.unsupported !== true) {
+      return { balance: result, source: 'hscoin' };
     }
-    throw error;
+  } catch (error) {
+    console.warn('[HScoin] balanceOf fallback sang sổ phụ:', error.message);
+    return computeLedgerFallback();
   }
+
+  return computeLedgerFallback();
 }
 
 async function getDeveloperAppsFromDb(ownerId) {
@@ -886,6 +1157,10 @@ export async function executeSimpleToken({
   const resolvedContract = await resolveContractAddress({ userId, contractAddress });
   const normalizedArgs = Array.isArray(args) ? args : [args];
   const loggedArgs = normalizedArgs.map((v) => (typeof v === 'bigint' ? v.toString() : v));
+  const orderIdFromArgs =
+    ['deposit', 'release', 'refund'].includes(String(method || '').toLowerCase()) && normalizedArgs.length
+      ? normalizeOrderId(normalizedArgs[0])
+      : null;
   let encodedInput = null;
 
   if (rawInputData && typeof rawInputData === 'string') {
@@ -923,6 +1198,7 @@ export async function executeSimpleToken({
       body: requestPayload,
       originalCall: { method, args: loggedArgs },
     },
+    orderId: orderIdFromArgs,
   });
 
   try {
@@ -930,7 +1206,15 @@ export async function executeSimpleToken({
       contractAddress: resolvedContract,
       body: requestPayload,
     });
-    await markHscoinCallSuccess(callId, response);
+    await markHscoinCallSuccess(callId, response, {
+      orderId: orderIdFromArgs,
+      payload: {
+        contractAddress: resolvedContract,
+        body: requestPayload,
+        originalCall: { method, args: loggedArgs },
+        orderId: orderIdFromArgs,
+      },
+    });
     return {
       callId,
       status: 'SUCCESS',
@@ -1041,7 +1325,7 @@ export async function retryHscoinCall(callId) {
   }
   try {
     const response = await invokeHscoinContract(payload);
-    await markHscoinCallSuccess(callId, response, { orderId: row.orderId });
+    await markHscoinCallSuccess(callId, response, { orderId: row.orderId, payload });
     return { callId, status: 'SUCCESS', result: response?.data || response, message: 'Retry thành công' };
   } catch (error) {
     const retryable = shouldRetryHscoinError(error);
@@ -1481,19 +1765,41 @@ async function recordHscoinAlert({ callId, severity, message, metadata }) {
   );
 }
 
-async function recordHscoinContractCall({ method, caller, payload }) {
+async function recordHscoinContractCall({ method, caller, payload, orderId = null }) {
   await ensureHscoinCallTable();
+  const resolvedOrderId = normalizeOrderId(orderId);
   const [result] = await pool.query(
     `
-    insert into HscoinContractCall (method, callerAddress, payload, status, maxRetries)
-    values (?, ?, ?, 'PROCESSING', ?)
+    insert into HscoinContractCall (method, callerAddress, payload, status, maxRetries, orderId)
+    values (?, ?, ?, 'PROCESSING', ?, ?)
     `,
-    [method, caller, JSON.stringify(payload), HSCOIN_MAX_RETRY]
+    [method, caller, JSON.stringify(payload), HSCOIN_MAX_RETRY, resolvedOrderId]
   );
   return result.insertId;
 }
 
-async function markHscoinCallSuccess(callId, response, { orderId } = {}) {
+async function getHscoinCallPayload(callId) {
+  await ensureHscoinCallTable();
+  const [[row]] = await pool.query(
+    `
+    select payload, orderId, callerAddress
+    from HscoinContractCall
+    where callId = ?
+    limit 1
+    `,
+    [callId]
+  );
+  if (!row) return null;
+  const parsed = safeJsonParse(row.payload);
+  if (!parsed) return null;
+  return {
+    ...parsed,
+    orderId: parsed.orderId ?? row.orderId ?? null,
+    callerAddress: parsed.callerAddress || row.callerAddress,
+  };
+}
+
+async function markHscoinCallSuccess(callId, response, { orderId, payload: callPayloadOverride } = {}) {
   await pool.query(
     `
     update HscoinContractCall
@@ -1503,7 +1809,24 @@ async function markHscoinCallSuccess(callId, response, { orderId } = {}) {
     `,
     [response ? JSON.stringify(response) : null, callId]
   );
-  const resolvedOrderId = orderId || (await findOrderIdForCall(callId));
+
+  let callPayload = callPayloadOverride || null;
+  try {
+    if (!callPayload) {
+      callPayload = await getHscoinCallPayload(callId);
+    }
+    if (callPayload) {
+      await recordTokenLedgerFromCall({
+        callId,
+        payload: callPayload,
+        orderId,
+      });
+    }
+  } catch (ledgerError) {
+    console.warn('[HScoin] Kh�ng th? ghi s? ph? token:', ledgerError.message);
+  }
+
+  const resolvedOrderId = orderId || callPayload?.orderId || (await findOrderIdForCall(callId));
   if (resolvedOrderId) {
     await notifyHscoinParticipants(resolvedOrderId, 'SUCCESS', {
       callId,
@@ -1628,7 +1951,7 @@ async function processHscoinQueueBatch() {
 
     try {
       const response = await invokeHscoinContract(payload);
-      await markHscoinCallSuccess(job.callId, response, { orderId: job.orderId });
+      await markHscoinCallSuccess(job.callId, response, { orderId: job.orderId, payload });
     } catch (error) {
       const retryable = shouldRetryHscoinError(error);
       await markHscoinCallFailure(job.callId, error, {

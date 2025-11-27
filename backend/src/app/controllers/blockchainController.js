@@ -264,13 +264,18 @@ export async function getMyTokenBalance(req, res, next) {
     if (!address) {
       return res.status(400).json({ success: false, message: 'Vui lòng liên kết ví HScoin trước.' });
     }
-    const balance = await blockchainService.getTokenBalance({ contractAddress, walletAddress: address });
+    const balanceResult = await blockchainService.getTokenBalance({ contractAddress, walletAddress: address });
+    const balance =
+      typeof balanceResult === 'object' && balanceResult !== null ? balanceResult.balance : balanceResult;
+    const source =
+      typeof balanceResult === 'object' && balanceResult !== null ? balanceResult.source : null;
     return res.status(200).json({
       success: true,
       data: {
         address,
         contractAddress,
         balance,
+        source,
       },
     });
   } catch (error) {
