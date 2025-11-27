@@ -193,20 +193,28 @@ contract PMarketTokenEscrow {
       try {
         const acct = await fetchMyAccountBalance();
         setAccountBalance(acct || null);
-        if (contractAddress) {
-          const tokenBal = await fetchTokenBalance({
-            contractAddress,
-            walletAddress,
-          });
-          setTokenBalance(tokenBal ?? null);
-        } else {
-          setTokenBalance(null);
-        }
       } catch (err) {
         // hiển thị lỗi nhẹ, không chặn toàn trang
         toast.error(err.message || 'Không thể lấy số dư ví.');
       } finally {
         setLoadingBalance(false);
+      }
+
+      // Token balance: HScoin API không hỗ trợ balanceOf -> bắt lỗi và bỏ qua
+      if (contractAddress) {
+        try {
+          const tokenBal = await fetchTokenBalance({
+            contractAddress,
+            walletAddress,
+          });
+          setTokenBalance(tokenBal ?? null);
+        } catch (err) {
+          setTokenBalance(null);
+        } finally {
+        setLoadingTokenBalance(false);
+      }
+      } else {
+        setTokenBalance(null);
         setLoadingTokenBalance(false);
       }
     }
