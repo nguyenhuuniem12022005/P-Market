@@ -85,5 +85,6 @@ blockchainRouter.post(
 );
 
 blockchainRouter.get('/contracts', blockchainController.listUserContracts);
+blockchainRouter.get('/accounts/me', blockchainController.getMyAccountBalance);
 
 export default blockchainRouter;

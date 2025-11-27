@@ -11,6 +11,7 @@ import {
   saveUserContract,
   deployContract,
   mintSelfToken,
+  fetchMyAccountBalance,
 } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
@@ -28,6 +29,7 @@ export default function WalletPage() {
   const [isDefault, setIsDefault] = useState(true);
   const [savingContract, setSavingContract] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000');
+  const [accountBalance, setAccountBalance] = useState(null);
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -166,6 +168,8 @@ contract PMarketTokenEscrow {
           setContractName(def.name || 'PMarket');
           setIsDefault(def.isDefault || false);
         }
+        const acct = await fetchMyAccountBalance();
+        setAccountBalance(acct || null);
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu ví HScoin.');
       } finally {
@@ -300,6 +304,19 @@ contract PMarketTokenEscrow {
               <div>
                 <p className="text-sm text-gray-600">Địa chỉ đã liên kết:</p>
                 <p className="font-mono text-sm text-gray-900 break-all">{walletAddress}</p>
+                {accountBalance && (
+                  <div className="mt-2 text-sm text-gray-700 space-y-1">
+                    <p>
+                      Số dư: <span className="font-semibold">{accountBalance.balance ?? '0'} wei</span>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Ước tính: {accountBalance.balance
+                        ? `${(Number(accountBalance.balance) / 1e18 * 2170).toLocaleString('vi-VN')} đ`
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-gray-500">Nonce: {accountBalance.nonce ?? '—'}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-500">

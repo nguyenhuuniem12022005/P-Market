@@ -603,6 +603,13 @@ async function fetchAccounts() {
   }
 }
 
+export async function getAccountByAddress(address) {
+  if (!address) return null;
+  const accounts = await fetchAccounts();
+  const target = String(address).toLowerCase();
+  return accounts.find((a) => String(a.address || '').toLowerCase() === target) || null;
+}
+
 async function getDeveloperAppsFromDb(ownerId) {
   if (!ownerId) return [];
   const [rows] = await pool.query(

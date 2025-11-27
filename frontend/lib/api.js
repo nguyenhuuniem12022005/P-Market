@@ -941,6 +941,17 @@ export async function mintSelfToken({ amountWei, caller, contractAddress }) {
   }
 }
 
+export async function fetchMyAccountBalance() {
+  try {
+    const res = await axios.get(`${API_URL}/blockchain/accounts/me`, {
+      headers: authHeader(),
+    });
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function redeemGreenBadge() {
   try {
     const res = await axios.post(
