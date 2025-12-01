@@ -1167,7 +1167,11 @@ export async function executeSimpleToken({
     throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
   }
 
-  const resolvedContract = await resolveContractAddress({ userId, contractAddress });
+  const resolvedContract = await resolveContractAddress({
+    userId,
+    contractAddress,
+    walletAddress: normalizedCaller,
+  });
   const normalizedArgs = Array.isArray(args) ? args : [args];
   const loggedArgs = normalizedArgs.map((v) => (typeof v === 'bigint' ? v.toString() : v));
   const orderIdFromArgs =
@@ -1678,17 +1682,26 @@ async function getDefaultUserContract(userId) {
     : null;
 }
 
-async function resolveContractAddress({ userId, contractAddress }) {
+async function resolveContractAddress({ userId, contractAddress, walletAddress }) {
+  // 1) Tham số truyền vào
   if (contractAddress) {
     return validateAddress(contractAddress);
   }
+  // 2) Contract mặc định đã lưu cho user
   if (userId) {
     const defaultContract = await getDefaultUserContract(userId);
     if (defaultContract?.address) {
       return defaultContract.address;
     }
-    throw ApiError.badRequest('Bạn chưa lưu contract HScoin. Vui lòng nhập hoặc deploy contract trước khi thực hiện giao dịch.');
   }
+  // 3) Contract gần nhất mà ví này đã gọi (nếu có)
+  if (walletAddress) {
+    const latest = await getLatestContractByCaller(walletAddress);
+    if (latest) {
+      return latest;
+    }
+  }
+  // 4) Fallback env
   if (SIMPLE_TOKEN_ADDRESS) {
     return SIMPLE_TOKEN_ADDRESS;
   }
