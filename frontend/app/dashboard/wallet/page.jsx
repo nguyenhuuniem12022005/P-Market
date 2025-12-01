@@ -13,6 +13,7 @@ import {
   mintSelfToken,
   fetchTokenBalance,
 } from '../../../lib/api';
+import { fetchUserBalance } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
 
@@ -24,6 +25,7 @@ export default function WalletPage() {
   const [error, setError] = useState('');
   const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
   const [contracts, setContracts] = useState([]);
+  
   const [contractName, setContractName] = useState('PMarket');
   const [contractAddress, setContractAddress] = useState('');
   const [isDefault, setIsDefault] = useState(true);
@@ -31,6 +33,7 @@ export default function WalletPage() {
   const [mintAmount, setMintAmount] = useState('1000');
   const [tokenBalance, setTokenBalance] = useState(null);
   const [loadingTokenBalance, setLoadingTokenBalance] = useState(false);
+  const [balance, setBalance] = useState({ availableBalance: 0, lockedBalance: 0 });
   const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -168,6 +171,14 @@ contract PMarketTokenEscrow {
           setContractAddress(def.address || '');
           setContractName(def.name || 'PMarket');
           setIsDefault(def.isDefault || false);
+       
+        }
+        // Load off-chain balance
+        try {
+          const bal = await fetchUserBalance();
+          if (bal) setBalance(bal);
+        } catch (e) {
+          // ignore lấy số dư thất bại
         }
       } catch (err) {
         setError(err.message || 'Không thể tải dữ liệu ví HScoin.');
@@ -385,7 +396,7 @@ contract PMarketTokenEscrow {
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-4 py-5">
             <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -394,6 +405,7 @@ contract PMarketTokenEscrow {
             <div>
               <p className="text-xs uppercase text-gray-500">Đang khóa</p>
               <p className="text-2xl font-bold text-gray-900">{currency.format(stats.locked || 0)}</p>
+              <p className="text-xs text-gray-500 mt-1">Off-chain: {currency.format(balance.lockedBalance || 0)}</p>
             </div>
           </CardContent>
         </Card>
@@ -416,6 +428,18 @@ contract PMarketTokenEscrow {
             <div>
               <p className="text-xs uppercase text-gray-500">Hoàn trả</p>
               <p className="text-2xl font-bold text-gray-900">{currency.format(stats.refunded || 0)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 py-5">
+            <div className="h-12 w-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <WalletIcon size={18} />
+            </div>
+            <div>
+              <p className="text-xs uppercase text-gray-500">Số dư khả dụng</p>
+              <p className="text-2xl font-bold text-gray-900">{currency.format(balance.availableBalance || 0)}</p>
+              <p className="text-xs text-gray-500 mt-1">Tổng: {currency.format((balance.availableBalance || 0) + (balance.lockedBalance || 0))}</p>
             </div>
           </CardContent>
         </Card>

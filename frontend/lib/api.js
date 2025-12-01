@@ -265,6 +265,17 @@ export async function fetchWalletInfo() {
   }
 }
 
+export async function fetchUserBalance() {
+  try {
+    const res = await axios.get(`${API_URL}/users/me/balance`, {
+      headers: authHeader(),
+    });
+    return res.data?.data || { availableBalance: 0, lockedBalance: 0 };
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 export async function connectHsWallet(payload) {
   try {
     const res = await axios.post(`${API_URL}/users/me/wallet/connect`, payload, {

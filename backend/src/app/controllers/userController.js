@@ -169,6 +169,17 @@ export async function getWalletInfo(req, res, next) {
   }
 }
 
+// Lấy số dư off-chain (available + locked)
+import { getBalance as getUserBalanceInternal } from '../services/userBalanceService.js';
+export async function getUserBalance(req, res, next) {
+  try {
+    const balance = await getUserBalanceInternal(req.user.userId);
+    return res.status(200).json({ success: true, data: balance });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function redeemGreenBadge(req, res, next) {
   try {
     const data = await userService.redeemGreenBadge(req.user.userId);

@@ -92,6 +92,12 @@ userRouter.get(
     userController.getWalletInfo
 );
 
+// Số dư off-chain
+userRouter.get(
+    '/me/balance',
+    userController.getUserBalance
+);
+
 userRouter.post(
     '/me/wallet/connect',
     validate(userRequest.connectWallet),

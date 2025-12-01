@@ -3,6 +3,7 @@ import ApiError from '../../utils/classes/api-error.js';
 import { handleReferralAfterOrderCompleted } from './referralAutomationService.js';
 import { getEscrowSnapshot, executeSimpleToken, attachOrderToHscoinCall } from './blockchainService.js';
 import * as userService from './userService.js';
+import { adjustBalance } from './userBalanceService.js';
 
 // Fixed rewards to tránh lạm phát: mỗi bên +5 uy tín; đơn hàng xanh người bán +5 Green Credit
 const REPUTATION_REWARD_BUYER = 5;
@@ -274,6 +275,16 @@ if (Number(product.supplierId) === Number(customerId)) {
     [product.productId, orderId, Number(product.discount) || 0, null, qty, unitPrice]
   );
 
+  // Cập nhật số dư: Buyer chuyển available -> locked
+  try {
+    await adjustBalance(customerId, { availableDelta: -Number(totalAmount), lockedDelta: +Number(totalAmount) });
+  } catch (e) {
+    // Nếu lỗi thì rollback đơn hàng tối thiểu
+    await pool.query('delete from OrderDetail where salesOrderId = ?', [orderId]);
+    await pool.query('delete from SalesOrder where salesOrderId = ?', [orderId]);
+    throw e;
+  }
+
   // Gọi deposit() để khóa tiền vào escrow
   let escrowCallId = null;
   let escrowStatus = 'SUCCESS';
@@ -311,6 +322,8 @@ if (Number(product.supplierId) === Number(customerId)) {
           ]);
         }
       }
+      // Hoàn lại số dư đã chuyển vào locked
+      await adjustBalance(customerId, { availableDelta: +Number(totalAmount), lockedDelta: -Number(totalAmount) });
       throw error;
     }
   }
@@ -497,6 +510,19 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
 
   const order = await updateOrderStatus(orderId, 'Completed');
 
+  // Cập nhật số dư off-chain: buyer locked giảm, seller available tăng
+  try {
+    await adjustBalance(order.customerId, { availableDelta: 0, lockedDelta: -Number(order.totalAmount) });
+    const sellerIds = await getOrderSellerIds(orderId);
+    if (sellerIds.length) {
+      // Tạm thời chỉ lấy seller đầu tiên (multi-seller mở rộng sau)
+      await adjustBalance(sellerIds[0], { availableDelta: +Number(order.totalAmount), lockedDelta: 0 });
+    }
+  } catch (e) {
+    console.error('[UserBalance] Update failed after completion:', e.message);
+    // Không throw để tránh block hoàn tất đơn, nhưng log lại để xử lý thủ công.
+  }
+
   const rewardTasks = [];
   const greenBonus = order.isGreen && order.isGreenConfirmed ? GREEN_CREDIT_SELLER_GREEN_ORDER : 0;
 
@@ -560,6 +586,13 @@ export async function markOrderCancelled(orderId, { walletAddress, contractAddre
     } catch (error) {
       console.error(`[Escrow] Refund failed for order ${orderId}:`, error.message);
     }
+  }
+
+  // Hoàn tiền về available, giảm locked cho buyer
+  try {
+    await adjustBalance(order.customerId, { availableDelta: +Number(order.totalAmount), lockedDelta: -Number(order.totalAmount) });
+  } catch (e) {
+    console.error('[UserBalance] Refund balance update failed:', e.message);
   }
 
   await recordEscrowLedger(orderId, 'Cancelled', order.totalAmount);
