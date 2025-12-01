@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -178,33 +178,29 @@ contract PMarketTokenEscrow {
     load();
   }, []);
 
-  useEffect(() => {
-    async function loadBalance() {
-      if (!walletAddress) {
-        setTokenBalance(null);
-        setLoadingTokenBalance(false);
-        return;
-      }
-      setLoadingTokenBalance(true);
-      if (contractAddress) {
-        try {
-          const tokenBal = await fetchTokenBalance({
-            contractAddress,
-            walletAddress,
-          });
-          setTokenBalance(tokenBal ?? null);
-        } catch {
-          setTokenBalance(null);
-        } finally {
-          setLoadingTokenBalance(false);
-        }
-      } else {
-        setTokenBalance(null);
-        setLoadingTokenBalance(false);
-      }
+  const loadTokenBalance = useCallback(async () => {
+    if (!walletAddress || !contractAddress) {
+      setTokenBalance(null);
+      setLoadingTokenBalance(false);
+      return;
     }
-    loadBalance();
+    setLoadingTokenBalance(true);
+    try {
+      const tokenBal = await fetchTokenBalance({
+        contractAddress,
+        walletAddress,
+      });
+      setTokenBalance(tokenBal ?? null);
+    } catch {
+      setTokenBalance(null);
+    } finally {
+      setLoadingTokenBalance(false);
+    }
   }, [walletAddress, contractAddress]);
+
+  useEffect(() => {
+    loadTokenBalance();
+  }, [loadTokenBalance]);
 
   const toWei = (amount) => {
     const val = Number(amount);
@@ -223,6 +219,10 @@ contract PMarketTokenEscrow {
       connectWallet();
       return;
     }
+    if (!contractAddress) {
+      toast.error('Vui lòng nhập hoặc lưu contract HScoin trước khi mint.');
+      return;
+    }
     const wei = toWei(mintAmount);
     if (!wei) {
       toast.error('Số lượng mint không hợp lệ.');
@@ -235,6 +235,7 @@ contract PMarketTokenEscrow {
         contractAddress,
       });
       toast.success(`Đã mint ${mintAmount} PMK vào ví.`);
+      await loadTokenBalance();
     } catch (err) {
       toast.error(err.message || 'Mint thất bại.');
     }
