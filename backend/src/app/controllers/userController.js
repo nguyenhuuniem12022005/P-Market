@@ -1,5 +1,5 @@
 import * as userService from '../services/userService.js';
-
+import { getBalance as getUserBalanceInternal } from '../services/userBalanceService.js';
 export async function createUser(req, res) {
     const newUser = await userService.createUser(req.body);
 
@@ -170,7 +170,7 @@ export async function getWalletInfo(req, res, next) {
 }
 
 // Lấy số dư off-chain (available + locked)
-import { getBalance as getUserBalanceInternal } from '../services/userBalanceService.js';
+
 export async function getUserBalance(req, res, next) {
   try {
     const balance = await getUserBalanceInternal(req.user.userId);
