@@ -1,7 +1,12 @@
 import pool from '../../configs/mysql.js';
 import ApiError from '../../utils/classes/api-error.js';
 import { handleReferralAfterOrderCompleted } from './referralAutomationService.js';
-import { getEscrowSnapshot, executeSimpleToken, attachOrderToHscoinCall } from './blockchainService.js';
+import {
+  getEscrowSnapshot,
+  executeSimpleToken,
+  attachOrderToHscoinCall,
+  ensureUserEscrowContract,
+} from './blockchainService.js';
 import * as userService from './userService.js';
 import { adjustBalance } from './userBalanceService.js';
 
@@ -289,10 +294,11 @@ if (Number(product.supplierId) === Number(customerId)) {
   let escrowCallId = null;
   let escrowStatus = 'SUCCESS';
   const amountWei = convertVndToWei(totalAmount);
-  const escrowContract = (contractAddress || process.env.HSCOIN_SIMPLE_TOKEN_ADDRESS || '').trim().toLowerCase();
-  if (!escrowContract) {
-    throw ApiError.badRequest('Thiếu contract escrow HScoin. Vui lòng lưu contract hoặc cấu hình HSCOIN_SIMPLE_TOKEN_ADDRESS.');
-  }
+  const escrowContract = await ensureUserEscrowContract({
+    userId: customerId,
+    walletAddress,
+    contractAddress,
+  });
   try {
     const depositResult = await executeSimpleToken({
       caller: walletAddress,
