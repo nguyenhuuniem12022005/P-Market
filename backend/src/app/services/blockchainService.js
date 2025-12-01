@@ -1695,14 +1695,6 @@ async function resolveContractAddress({ userId, contractAddress }) {
   throw ApiError.badRequest('Chưa cấu hình địa chỉ contract HScoin');
 }
 
-function safeJsonParse(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
-}
-
 async function getLatestContractByCaller(walletAddress) {
   const normalized = normalizeLedgerAddress(walletAddress);
   if (!normalized) return null;
