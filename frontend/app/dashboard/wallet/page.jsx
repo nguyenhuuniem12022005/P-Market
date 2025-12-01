@@ -5,14 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import {
-  fetchEscrowEvents,
-  fetchUserContracts,
-  saveUserContract,
-  deployContract,
-  mintSelfToken,
-  fetchTokenBalance,
-} from '../../../lib/api';
+import { fetchEscrowEvents, mintSelfToken, fetchTokenBalance, fetchUserContracts } from '../../../lib/api';
 import { fetchUserBalance } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
@@ -24,159 +17,32 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
-  const [contracts, setContracts] = useState([]);
   const defaultContractEnv =
     (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_HSCOIN_SIMPLE_TOKEN_ADDRESS) || '';
-  const [contractName, setContractName] = useState('PMarket');
   const [contractAddress, setContractAddress] = useState('');
-  const [isDefault, setIsDefault] = useState(true);
-  const [savingContract, setSavingContract] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000');
   const [tokenBalance, setTokenBalance] = useState(null);
   const [loadingTokenBalance, setLoadingTokenBalance] = useState(false);
   const [balance, setBalance] = useState({ availableBalance: 0, lockedBalance: 0 });
-  const [sourceCode, setSourceCode] = useState(`// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
-
-/**
- * @title PMarketTokenEscrow
- * @dev Token nội bộ + escrow. Mint tự do để test trên devnet.
- */
-contract PMarketTokenEscrow {
-    string public name = "PMarket Token";
-    string public symbol = "PMK";
-    uint8 public decimals = 18;
-    uint256 public totalSupply;
-
-    mapping(address => uint256) public balanceOf;
-
-    enum Status { None, Deposited, Released, Refunded }
-    struct Order {
-        address buyer;
-        address seller;
-        uint256 amount;
-        Status status;
-        uint256 createdAt;
-    }
-    mapping(uint256 => Order) public orders;
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Mint(address indexed to, uint256 value);
-    event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
-    event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
-    event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
-
-    // Mint cho chính mình (devnet)
-    function mintSelf(uint256 _value) external returns (bool) {
-        require(_value > 0, "Amount=0");
-        totalSupply += _value;
-        balanceOf[msg.sender] += _value;
-        emit Mint(msg.sender, _value);
-        emit Transfer(address(0), msg.sender, _value);
-        return true;
-    }
-
-    // Mint cho người khác (devnet)
-    function mint(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0), "Invalid address");
-        require(_value > 0, "Amount=0");
-        totalSupply += _value;
-        balanceOf[_to] += _value;
-        emit Mint(_to, _value);
-        emit Transfer(address(0), _to, _value);
-        return true;
-    }
-
-    function transfer(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0), "Invalid address");
-        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
-        balanceOf[msg.sender] -= _value;
-        balanceOf[_to] += _value;
-        emit Transfer(msg.sender, _to, _value);
-        return true;
-    }
-
-    function deposit(uint256 orderId, address seller, uint256 amount) external {
-        require(orders[orderId].status == Status.None, "Order exists");
-        require(seller != address(0) && seller != msg.sender, "Bad seller");
-        require(amount > 0, "Amount=0");
-        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
-
-        balanceOf[msg.sender] -= amount;
-        balanceOf[address(this)] += amount;
-
-        orders[orderId] = Order({
-            buyer: msg.sender,
-            seller: seller,
-            amount: amount,
-            status: Status.Deposited,
-            createdAt: block.timestamp
-        });
-
-        emit Transfer(msg.sender, address(this), amount);
-        emit Deposited(orderId, msg.sender, seller, amount);
-    }
-
-    function release(uint256 orderId) external {
-        Order storage o = orders[orderId];
-        require(o.status == Status.Deposited, "Not deposited");
-        require(msg.sender == o.seller, "Not seller");
-
-        o.status = Status.Released;
-        balanceOf[address(this)] -= o.amount;
-        balanceOf[o.seller] += o.amount;
-
-        emit Transfer(address(this), o.seller, o.amount);
-        emit Released(orderId, o.seller, o.amount);
-    }
-
-    function refund(uint256 orderId) external {
-        Order storage o = orders[orderId];
-        require(o.status == Status.Deposited, "Not deposited");
-        require(msg.sender == o.buyer, "Not buyer");
-
-        o.status = Status.Refunded;
-        balanceOf[address(this)] -= o.amount;
-        balanceOf[o.buyer] += o.amount;
-
-        emit Transfer(address(this), o.buyer, o.amount);
-        emit Refunded(orderId, o.buyer, o.amount);
-    }
-
-    function getOrder(uint256 orderId) external view returns (
-        address buyer,
-        address seller,
-        uint256 amount,
-        Status status,
-        uint256 createdAt
-    ) {
-        Order storage o = orders[orderId];
-        return (o.buyer, o.seller, o.amount, o.status, o.createdAt);
-    }
-
-    function getContractBalance() external view returns (uint256) {
-        return balanceOf[address(this)];
-    }
-}`);
-  const [deploying, setDeploying] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await fetchEscrowEvents();
         setEvents(data || []);
-        const cons = await fetchUserContracts();
-        setContracts(cons || []);
-        const def = (cons || []).find((c) => c.isDefault);
-        if (def) {
-          setContractAddress(def.address || '');
-          setContractName(def.name || 'PMarket');
-          setIsDefault(def.isDefault || false);
-       
-        } else if (defaultContractEnv) {
-          setContractAddress(defaultContractEnv.toLowerCase());
-          setContractName('PMarket');
-          setIsDefault(true);
+        // Lấy contract mặc định từ backend (nếu có)
+        try {
+          const cons = await fetchUserContracts();
+          const def = (cons || []).find((c) => c.isDefault);
+          if (def?.address) {
+            setContractAddress(def.address || '');
+          } else if (defaultContractEnv) {
+            setContractAddress(defaultContractEnv.toLowerCase());
+          }
+        } catch {
+          if (defaultContractEnv) {
+            setContractAddress(defaultContractEnv.toLowerCase());
+          }
         }
         // Load off-chain balance
         try {
@@ -275,58 +141,6 @@ contract PMarketTokenEscrow {
       toast.success('Đã sao chép TxHash');
     } catch {
       toast.error('Không thể sao chép');
-    }
-  };
-
-  const handleSaveContract = async () => {
-    if (!contractAddress.trim()) {
-      toast.error('Vui lòng nhập contract address');
-      return;
-    }
-    setSavingContract(true);
-    try {
-      const data = await saveUserContract({
-        name: contractName || 'PMarket',
-        address: contractAddress,
-        isDefault,
-      });
-      toast.success('Đã lưu contract mặc định');
-      const list = await fetchUserContracts();
-      setContracts(list || []);
-    } catch (err) {
-      toast.error(err.message || 'Không thể lưu contract');
-    } finally {
-      setSavingContract(false);
-    }
-  };
-
-  const handleAutoDeploy = async () => {
-    if (!isConnected || !walletAddress) {
-      toast.error('Vui lòng liên kết ví HScoin trước khi deploy.');
-      connectWallet();
-      return;
-    }
-    setDeploying(true);
-    try {
-      const data = await deployContract({
-        sourceCode,
-        contractName,
-      });
-      const addr =
-        data?.contractAddress ||
-        data?.address;
-      if (addr) {
-        setContractAddress(addr);
-        toast.success(`Deploy thành công: ${addr}`);
-        const list = await fetchUserContracts();
-        setContracts(list || []);
-      } else {
-        toast.success('Deploy thành công');
-      }
-    } catch (err) {
-      toast.error(err.message || 'Không thể deploy contract');
-    } finally {
-      setDeploying(false);
     }
   };
 
@@ -498,111 +312,29 @@ contract PMarketTokenEscrow {
 
       <Card>
         <CardHeader>
-          <CardTitle>Hợp đồng HScoin của bạn</CardTitle>
+          <CardTitle>Mint PMK (devnet test)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-800">Tên hợp đồng</label>
+          <p className="text-sm text-gray-600">
+            Mint token nội bộ vào ví hiện tại để thử escrow bằng PMK (dùng contract đã lưu trên HScoin).
+          </p>
+          <div className="flex items-center gap-2">
             <input
-              type="text"
-              value={contractName}
-              onChange={(e) => setContractName(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              placeholder="PMarket"
+              type="number"
+              min="1"
+              value={mintAmount}
+              onChange={(e) => setMintAmount(e.target.value)}
+              className="w-32 rounded border px-3 py-2 text-sm"
             />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-800">Địa chỉ contract</label>
-            <input
-              type="text"
-              value={contractAddress}
-              onChange={(e) => setContractAddress(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
-              placeholder="0x..."
-            />
-            <p className="text-xs text-gray-500">
-              Mỗi user dùng 1 contract. Nếu chưa có, hãy deploy trên HScoin rồi nhập địa chỉ vào đây.
-            </p>
-          </div>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-            <input
-              type="checkbox"
-              checked={isDefault}
-              onChange={(e) => setIsDefault(e.target.checked)}
-              className="h-4 w-4"
-            />
-            Đặt làm contract mặc định
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Button onClick={handleSaveContract} disabled={savingContract}>
-              {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-              Lưu contract
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleAutoDeploy}
-              disabled={deploying}
-            >
-              {deploying ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-              Deploy tự động (PMarket)
+            <Button size="sm" onClick={handleMintSelf} disabled={!walletAddress}>
+              Mint vào ví
             </Button>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-gray-800">Source code</label>
-            <textarea
-              value={sourceCode}
-              onChange={(e) => setSourceCode(e.target.value)}
-              rows={12}
-              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
-            />
-            <p className="text-xs text-gray-500">
-              Nếu chưa có contract, bấm &quot;Deploy tự động&quot; để biên dịch + deploy PMarket bằng ví đã liên kết. Contract PMarket có sẵn Escrow (deposit/release/refund) cho mua bán và burn để đăng sản phẩm.
+          {contractAddress ? (
+            <p className="text-xs text-gray-500 font-mono break-all">
+              Contract đang dùng: {contractAddress}
             </p>
-          </div>
-
-          {contracts.length > 0 && (
-            <div className="mt-4 space-y-2 text-sm text-gray-700">
-              <p className="font-semibold">Contract đã lưu (tối đa 5 gần nhất):</p>
-              {contracts.slice(0, 5).map((c) => (
-                <div
-                  key={c.contractId}
-                  className="rounded-md border px-3 py-2 flex items-center justify-between"
-                >
-                  <div>
-                    <p className="font-semibold">{c.name}</p>
-                    <p className="font-mono text-xs break-all">{c.address}</p>
-                    <p className="text-xs text-gray-500">{c.network || 'HScoin Devnet'}</p>
-                  </div>
-                  {c.isDefault && (
-                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
-                      Mặc định
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-6 p-4 border rounded-lg space-y-3">
-            <h3 className="font-semibold text-gray-800">Mint PMK (devnet test)</h3>
-            <p className="text-xs text-gray-600">
-              Mint token nội bộ vào ví hiện tại để thử escrow bằng PMK.
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="1"
-                value={mintAmount}
-                onChange={(e) => setMintAmount(e.target.value)}
-                className="w-32 rounded border px-3 py-2 text-sm"
-              />
-              <Button size="sm" onClick={handleMintSelf} disabled={!walletAddress}>
-                Mint vào ví
-              </Button>
-            </div>
-          </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

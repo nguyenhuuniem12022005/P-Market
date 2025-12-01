@@ -1695,6 +1695,61 @@ async function resolveContractAddress({ userId, contractAddress }) {
   throw ApiError.badRequest('Chưa cấu hình địa chỉ contract HScoin');
 }
 
+function safeJsonParse(str) {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+}
+
+async function getLatestContractByCaller(walletAddress) {
+  const normalized = normalizeLedgerAddress(walletAddress);
+  if (!normalized) return null;
+  await ensureHscoinCallTable();
+  const [[row]] = await pool.query(
+    `
+    select payload
+    from HscoinContractCall
+    where callerAddress = ?
+    order by createdAt desc
+    limit 1
+    `,
+    [normalized]
+  );
+  const parsed = safeJsonParse(row?.payload);
+  if (!parsed) return null;
+  const payloadContract = parsed.contractAddress || parsed.body?.contractAddress || parsed.body?.contract;
+  const normalizedContract = normalizeLedgerAddress(payloadContract);
+  return normalizedContract || null;
+}
+
+export async function resolveContractForBalance({ userId, contractAddress, walletAddress }) {
+  // 1) Tham số truyền vào
+  if (contractAddress) {
+    return validateAddress(contractAddress);
+  }
+  // 2) Contract mặc định đã lưu cho user
+  if (userId) {
+    const defaultContract = await getDefaultUserContract(userId);
+    if (defaultContract?.address) {
+      return defaultContract.address;
+    }
+  }
+  // 3) Contract mới nhất mà ví này đã gọi
+  if (walletAddress) {
+    const latest = await getLatestContractByCaller(walletAddress);
+    if (latest) {
+      return latest;
+    }
+  }
+  // 4) Fallback ENV
+  if (SIMPLE_TOKEN_ADDRESS) {
+    return SIMPLE_TOKEN_ADDRESS;
+  }
+  throw ApiError.badRequest('Không xác định được contract HScoin cho ví này. Vui lòng lưu contract trước.');
+}
+
 export async function compileContract({ sourceCode, contractName }) {
   if (!sourceCode || !contractName) {
     throw ApiError.badRequest('Thiếu source code hoặc tên contract');
