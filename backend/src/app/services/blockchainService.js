@@ -886,15 +886,17 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
   const normalizedContract = validateAddress(contractAddress);
   const normalizedWallet = validateAddress(walletAddress);
 
-  const computeLedgerFallback = async () => {
+  const computeLedgerBalance = async () => {
     const balance = await getLedgerTokenBalance({
       contractAddress: normalizedContract,
       walletAddress: normalizedWallet,
     });
-    return { balance, source: 'ledger' };
+    return balance;
   };
 
   try {
+    const ledgerBalance = await computeLedgerBalance();
+
     const response = await callHscoin('/simple-token/execute', {
       method: 'POST',
       requireAuth: true,
@@ -908,14 +910,19 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
     });
     const result = response?.data?.result ?? response?.data ?? null;
     if (result !== null && result !== undefined && result?.unsupported !== true) {
+      if (ledgerBalance !== null && ledgerBalance !== undefined && String(ledgerBalance) !== String(result)) {
+        return { balance: ledgerBalance, source: 'ledger' };
+      }
       return { balance: result, source: 'hscoin' };
     }
   } catch (error) {
     console.warn('[HScoin] balanceOf fallback sang sổ phụ:', error.message);
-    return computeLedgerFallback();
+    const balance = await computeLedgerBalance();
+    return { balance, source: 'ledger' };
   }
 
-  return computeLedgerFallback();
+  const balance = await computeLedgerBalance();
+  return { balance, source: 'ledger' };
 }
 
 async function getDeveloperAppsFromDb(ownerId) {
