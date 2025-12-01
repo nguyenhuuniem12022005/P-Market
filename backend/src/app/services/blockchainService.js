@@ -1201,6 +1201,18 @@ export async function executeSimpleToken({
     orderId: orderIdFromArgs,
   });
 
+  // Ghi sổ ledger ngay lập tức để off-chain vẫn thấy số dư khi HScoin chậm/trì hoãn
+  await recordTokenLedgerFromCall({
+    callId,
+    payload: {
+      contractAddress: resolvedContract,
+      body: requestPayload,
+      originalCall: { method, args: loggedArgs },
+      orderId: orderIdFromArgs,
+    },
+    orderId: orderIdFromArgs,
+  });
+
   try {
     const response = await invokeHscoinContract({
       contractAddress: resolvedContract,
