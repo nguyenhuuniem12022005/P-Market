@@ -5,7 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { fetchEscrowEvents, mintSelfToken, fetchTokenBalance, fetchUserContracts } from '../../../lib/api';
+import {
+  fetchEscrowEvents,
+  mintSelfToken,
+  fetchTokenBalance,
+  fetchUserContracts,
+  saveUserContract,
+} from '../../../lib/api';
 import { fetchUserBalance } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
 import { useWallet } from '../../../context/WalletContext';
@@ -20,6 +26,7 @@ export default function WalletPage() {
   const defaultContractEnv =
     (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_HSCOIN_SIMPLE_TOKEN_ADDRESS) || '';
   const [contractAddress, setContractAddress] = useState('');
+  const [savingContract, setSavingContract] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000');
   const [tokenBalance, setTokenBalance] = useState(null);
   const [loadingTokenBalance, setLoadingTokenBalance] = useState(false);
@@ -83,6 +90,26 @@ export default function WalletPage() {
   useEffect(() => {
     loadTokenBalance();
   }, [loadTokenBalance]);
+
+  const handleSaveContract = async () => {
+    if (!contractAddress.trim()) {
+      toast.error('Vui lòng nhập contract address');
+      return;
+    }
+    setSavingContract(true);
+    try {
+      await saveUserContract({
+        address: contractAddress,
+        name: 'PMarket',
+        isDefault: true,
+      });
+      toast.success('Đã lưu contract mặc định');
+    } catch (err) {
+      toast.error(err.message || 'Không thể lưu contract');
+    } finally {
+      setSavingContract(false);
+    }
+  };
 
   const toWei = (amount) => {
     const val = Number(amount);
@@ -312,29 +339,52 @@ export default function WalletPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Mint PMK (devnet test)</CardTitle>
+          <CardTitle>Contract HScoin &amp; Mint</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Mint token nội bộ vào ví hiện tại để thử escrow bằng PMK (dùng contract đã lưu trên HScoin).
-          </p>
-          <div className="flex items-center gap-2">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-800">Địa chỉ contract</label>
             <input
-              type="number"
-              min="1"
-              value={mintAmount}
-              onChange={(e) => setMintAmount(e.target.value)}
-              className="w-32 rounded border px-3 py-2 text-sm"
+              type="text"
+              value={contractAddress}
+              onChange={(e) => setContractAddress(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+              placeholder="0x..."
             />
-            <Button size="sm" onClick={handleMintSelf} disabled={!walletAddress}>
-              Mint vào ví
+            <p className="text-xs text-gray-500">
+              Nhập contract đã deploy trên HScoin; lưu mặc định để các giao dịch escrow/mint dùng contract này.
+            </p>
+            <Button onClick={handleSaveContract} disabled={savingContract}>
+              {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+              Lưu contract mặc định
             </Button>
           </div>
-          {contractAddress ? (
-            <p className="text-xs text-gray-500 font-mono break-all">
-              Contract đang dùng: {contractAddress}
+
+          <div className="pt-2 border-t space-y-2">
+            <h3 className="text-sm font-semibold text-gray-800">Mint PMK (devnet test)</h3>
+            <p className="text-xs text-gray-600">
+              Mint token nội bộ vào ví hiện tại để thử escrow bằng PMK (dùng contract mặc định đã lưu).
             </p>
-          ) : null}
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                value={mintAmount}
+                onChange={(e) => setMintAmount(e.target.value)}
+                className="w-32 rounded border px-3 py-2 text-sm"
+              />
+              <Button size="sm" onClick={handleMintSelf} disabled={!walletAddress}>
+                Mint vào ví
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {contractAddress ? (
+              <p className="text-xs text-gray-500 font-mono break-all">Contract đang dùng: {contractAddress}</p>
+            ) : (
+              <p className="text-xs text-red-600">Chưa có contract. Nhập và lưu contract trước khi mint/mua escrow.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

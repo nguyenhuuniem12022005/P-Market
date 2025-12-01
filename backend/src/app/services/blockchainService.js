@@ -1944,7 +1944,7 @@ export async function ensureUserEscrowContract({ userId, walletAddress, contract
     return validateAddress(contractAddress);
   }
 
-  // Thử lấy contract mặc định / gần nhất
+  // Thử lấy contract đã lưu/đã dùng gần nhất
   try {
     const resolved = await resolveContractAddress({
       userId,
