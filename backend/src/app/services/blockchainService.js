@@ -427,6 +427,27 @@ async function getLedgerTokenBalance({ contractAddress, walletAddress }) {
   return net < 0n ? '0' : net.toString();
 }
 
+async function getLedgerTokenBalanceAllContracts(walletAddress) {
+  const normalizedWallet = normalizeLedgerAddress(walletAddress);
+  if (!normalizedWallet) {
+    throw ApiError.badRequest('�?a ch? kh�ng h?p l? �? t�nh s? d� token.');
+  }
+  await ensureTokenLedgerTable();
+  const [[row]] = await pool.query(
+    `
+    select
+      coalesce(sum(case when toAddress = ? then amount else 0 end), 0) as incoming,
+      coalesce(sum(case when fromAddress = ? then amount else 0 end), 0) as outgoing
+    from TokenBalanceLedger
+    `,
+    [normalizedWallet, normalizedWallet]
+  );
+  const incoming = toBigIntSafe(row?.incoming || 0) || 0n;
+  const outgoing = toBigIntSafe(row?.outgoing || 0) || 0n;
+  const net = incoming - outgoing;
+  return net < 0n ? '0' : net.toString();
+}
+
 async function recordTokenLedgerFromCall({ callId, payload, orderId }) {
   if (!callId || !payload) return;
   const originalCall = payload.originalCall || {};
@@ -996,12 +1017,19 @@ export async function getAccountByAddress(address) {
 }
 
 export async function getTokenBalance({ contractAddress, walletAddress }) {
-  if (!contractAddress || !walletAddress) {
+  if (!walletAddress) {
     throw ApiError.badRequest('Thiếu contractAddress hoặc walletAddress');
   }
 
-  const normalizedContract = validateAddress(contractAddress);
   const normalizedWallet = validateAddress(walletAddress);
+
+  // Nếu không truyền contractAddress, trả tổng sổ phụ trên mọi contract
+  if (!contractAddress) {
+    const balance = await getLedgerTokenBalanceAllContracts(normalizedWallet);
+    return { balance, source: 'ledger_all' };
+  }
+
+  const normalizedContract = validateAddress(contractAddress);
 
   const computeLedgerBalance = async () => {
     const balance = await getLedgerTokenBalance({

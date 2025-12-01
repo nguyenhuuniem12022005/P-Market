@@ -963,10 +963,12 @@ export async function fetchMyAccountBalance() {
   }
 }
 
-export async function fetchTokenBalance({ contractAddress, walletAddress }) {
+export async function fetchTokenBalance({ contractAddress } = {}) {
   try {
+    const params = {};
+    if (contractAddress) params.contractAddress = contractAddress;
     const res = await axios.get(`${API_URL}/blockchain/token-balance`, {
-      params: { contractAddress },
+      params,
       headers: authHeader(),
     });
     return res.data?.data?.balance;

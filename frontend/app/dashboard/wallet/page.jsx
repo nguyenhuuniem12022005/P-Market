@@ -68,24 +68,21 @@ export default function WalletPage() {
   }, []);
 
   const loadTokenBalance = useCallback(async () => {
-    if (!walletAddress || !contractAddress) {
+    if (!walletAddress) {
       setTokenBalance(null);
       setLoadingTokenBalance(false);
       return;
     }
     setLoadingTokenBalance(true);
     try {
-      const tokenBal = await fetchTokenBalance({
-        contractAddress,
-        walletAddress,
-      });
+      const tokenBal = await fetchTokenBalance();
       setTokenBalance(tokenBal ?? null);
     } catch {
       setTokenBalance(null);
     } finally {
       setLoadingTokenBalance(false);
     }
-  }, [walletAddress, contractAddress]);
+  }, [walletAddress]);
 
   useEffect(() => {
     loadTokenBalance();
