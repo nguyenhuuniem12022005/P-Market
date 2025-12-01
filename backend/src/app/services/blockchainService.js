@@ -167,8 +167,14 @@ function normalizeLedgerAddress(address) {
 }
 
 function normalizeOrderId(orderId) {
-  const numeric = Number(orderId);
-  return Number.isFinite(numeric) ? numeric : null;
+  const raw = String(orderId ?? '').trim();
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return null;
+  // Giới hạn về INT để tránh lỗi "out of range" khi dữ liệu hex bị parse thành số rất lớn
+  const MAX_INT = 2147483647;
+  if (numeric <= 0 || numeric > MAX_INT) return null;
+  return numeric;
 }
 
 function toBigIntSafe(value) {
