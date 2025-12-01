@@ -18,6 +18,7 @@ import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon }
 import { useWallet } from '../../../context/WalletContext';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+const HS_RATE_VND = 2170;
 
 export default function WalletPage() {
   const [events, setEvents] = useState([]);
@@ -25,7 +26,8 @@ export default function WalletPage() {
   const [error, setError] = useState('');
   const { isConnected, walletAddress, connectWallet, disconnectWallet, isLoadingWallet } = useWallet();
   const [contracts, setContracts] = useState([]);
-  
+  const defaultContractEnv =
+    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_HSCOIN_SIMPLE_TOKEN_ADDRESS) || '';
   const [contractName, setContractName] = useState('PMarket');
   const [contractAddress, setContractAddress] = useState('');
   const [isDefault, setIsDefault] = useState(true);
@@ -159,6 +161,11 @@ contract PMarketTokenEscrow {
 }`);
   const [deploying, setDeploying] = useState(false);
 
+  const toPmK = (vndAmount) => {
+    const val = Number(vndAmount) || 0;
+    return val <= 0 ? 0 : val / HS_RATE_VND;
+  };
+
   useEffect(() => {
     async function load() {
       try {
@@ -172,6 +179,10 @@ contract PMarketTokenEscrow {
           setContractName(def.name || 'PMarket');
           setIsDefault(def.isDefault || false);
        
+        } else if (defaultContractEnv) {
+          setContractAddress(defaultContractEnv.toLowerCase());
+          setContractName('PMarket');
+          setIsDefault(true);
         }
         // Load off-chain balance
         try {
@@ -261,6 +272,19 @@ contract PMarketTokenEscrow {
     });
     return base;
   }, [events]);
+
+  const availablePmK = useMemo(() => toPmK(balance.availableBalance), [balance.availableBalance]);
+  const totalOffchain = useMemo(
+    () => Number(balance.availableBalance || 0) + Number(balance.lockedBalance || 0),
+    [balance.availableBalance, balance.lockedBalance]
+  );
+  const totalOffchainPmK = useMemo(() => toPmK(totalOffchain), [totalOffchain]);
+  const pmkFromWei = (wei) => {
+    const val = Number(wei) || 0;
+    return val <= 0 ? 0 : val / 1e18;
+  };
+  const onChainPmK = pmkFromWei(tokenBalance);
+  const onChainVnd = onChainPmK * HS_RATE_VND;
 
   const copyHash = async (hash) => {
     if (!hash) return;
@@ -438,8 +462,21 @@ contract PMarketTokenEscrow {
             </div>
             <div>
               <p className="text-xs uppercase text-gray-500">Số dư khả dụng</p>
-              <p className="text-2xl font-bold text-gray-900">{currency.format(balance.availableBalance || 0)}</p>
-              <p className="text-xs text-gray-500 mt-1">Tổng: {currency.format((balance.availableBalance || 0) + (balance.lockedBalance || 0))}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {currency.format(onChainVnd + (balance.availableBalance || 0))}
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                On-chain: {onChainPmK.toLocaleString('vi-VN', { maximumFractionDigits: 6 })} PMK (~
+                {currency.format(onChainVnd)})
+              </p>
+              <p className="text-xs text-gray-600">
+                Off-chain: {currency.format(balance.availableBalance || 0)} (≈{' '}
+                {availablePmK.toLocaleString('vi-VN', { maximumFractionDigits: 4 })} PMK)
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Tổng off-chain: {currency.format(totalOffchain)} ({totalOffchainPmK.toLocaleString('vi-VN', { maximumFractionDigits: 4 })} PMK)
+              </p>
+              <p className="text-xs text-gray-500">* On-chain lấy từ contract, Off-chain là sổ phụ nội bộ.</p>
             </div>
           </CardContent>
         </Card>
