@@ -18,7 +18,6 @@ import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon }
 import { useWallet } from '../../../context/WalletContext';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
-const HS_RATE_VND = 2170;
 
 export default function WalletPage() {
   const [events, setEvents] = useState([]);
@@ -161,11 +160,6 @@ contract PMarketTokenEscrow {
 }`);
   const [deploying, setDeploying] = useState(false);
 
-  const toPmK = (vndAmount) => {
-    const val = Number(vndAmount) || 0;
-    return val <= 0 ? 0 : val / HS_RATE_VND;
-  };
-
   useEffect(() => {
     async function load() {
       try {
@@ -273,18 +267,6 @@ contract PMarketTokenEscrow {
     return base;
   }, [events]);
 
-  const availablePmK = useMemo(() => toPmK(balance.availableBalance), [balance.availableBalance]);
-  const totalOffchain = useMemo(
-    () => Number(balance.availableBalance || 0) + Number(balance.lockedBalance || 0),
-    [balance.availableBalance, balance.lockedBalance]
-  );
-  const totalOffchainPmK = useMemo(() => toPmK(totalOffchain), [totalOffchain]);
-  const pmkFromWei = (wei) => {
-    const val = Number(wei) || 0;
-    return val <= 0 ? 0 : val / 1e18;
-  };
-  const onChainPmK = pmkFromWei(tokenBalance);
-  const onChainVnd = onChainPmK * HS_RATE_VND;
 
   const copyHash = async (hash) => {
     if (!hash) return;
@@ -420,7 +402,7 @@ contract PMarketTokenEscrow {
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 py-5">
             <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -452,31 +434,6 @@ contract PMarketTokenEscrow {
             <div>
               <p className="text-xs uppercase text-gray-500">Hoàn trả</p>
               <p className="text-2xl font-bold text-gray-900">{currency.format(stats.refunded || 0)}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 py-5">
-            <div className="h-12 w-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <WalletIcon size={18} />
-            </div>
-            <div>
-              <p className="text-xs uppercase text-gray-500">Số dư khả dụng</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {currency.format(onChainVnd + (balance.availableBalance || 0))}
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                On-chain: {onChainPmK.toLocaleString('vi-VN', { maximumFractionDigits: 6 })} PMK (~
-                {currency.format(onChainVnd)})
-              </p>
-              <p className="text-xs text-gray-600">
-                Off-chain: {currency.format(balance.availableBalance || 0)} (≈{' '}
-                {availablePmK.toLocaleString('vi-VN', { maximumFractionDigits: 4 })} PMK)
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Tổng off-chain: {currency.format(totalOffchain)} ({totalOffchainPmK.toLocaleString('vi-VN', { maximumFractionDigits: 4 })} PMK)
-              </p>
-              <p className="text-xs text-gray-500">* On-chain lấy từ contract, Off-chain là sổ phụ nội bộ.</p>
             </div>
           </CardContent>
         </Card>
