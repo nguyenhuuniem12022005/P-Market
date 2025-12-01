@@ -278,13 +278,14 @@ if (Number(product.supplierId) === Number(customerId)) {
   let escrowCallId = null;
   let escrowStatus = 'SUCCESS';
   const amountWei = convertVndToWei(totalAmount);
+  const escrowContract = contractAddress || process.env.HSCOIN_SIMPLE_TOKEN_ADDRESS;
   try {
     const depositResult = await executeSimpleToken({
       caller: walletAddress,
       method: 'deposit',
       args: [orderId, sellerWalletAddress, amountWei],
       value: 0, // dùng token nội bộ, không gửi native coin
-      contractAddress,
+      contractAddress: escrowContract,
       userId: customerId,
     });
     escrowCallId = depositResult?.callId || null;
