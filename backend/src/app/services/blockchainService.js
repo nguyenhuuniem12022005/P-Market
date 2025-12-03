@@ -1314,9 +1314,10 @@ export async function executeSimpleToken({
   if (!normalizedCaller) {
     throw ApiError.badRequest('Thiếu địa chỉ ví caller');
   }
-  if (HSCOIN_ALLOWED_CALLERS.length && !HSCOIN_ALLOWED_CALLERS.includes(normalizedCaller)) {
-    throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
-  }
+  // Bỏ whitelist - cho phép mọi địa chỉ ví thực thi
+  // if (HSCOIN_ALLOWED_CALLERS.length && !HSCOIN_ALLOWED_CALLERS.includes(normalizedCaller)) {
+  //   throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
+  // }
 
   const resolvedContract = await resolveContractAddress({
     userId,
