@@ -1574,10 +1574,14 @@ export async function executeSimpleToken({
             orderId: orderIdFromArgs,
           },
         });
+        // Đảm bảo returnData được forward đúng cách cho view functions như getBalance
+        const result = response?.data || response;
+        const returnData = result?.returnData || result?.data?.returnData || response?.returnData;
+        
         return {
           callId,
           status: 'SUCCESS',
-          result: response?.data || response,
+          result: returnData ? { ...result, returnData } : result,
         };
       } catch (error) {
         const retryable = shouldRetryHscoinError(error);

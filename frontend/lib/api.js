@@ -1043,6 +1043,7 @@ export async function executeContractWithCalldata({ contractAddress, caller, inp
 }
 
 // Get balance bằng cách gọi getBalance function với calldata
+// Gọi trực tiếp API giống như mintSelfToken để đảm bảo consistency
 export async function fetchTokenBalance({ contractAddress, walletAddress } = {}) {
   try {
     // Nếu không có walletAddress, dùng API cũ
@@ -1070,20 +1071,33 @@ export async function fetchTokenBalance({ contractAddress, walletAddress } = {})
       contractAddress = defaultContract.address;
     }
 
-    // Encode getBalance(address) call
+    // Encode getBalance(address) call thành calldata
     const calldata = encodeFunctionCall('getBalance', [walletAddress]);
 
-    // Execute contract với calldata để gọi getBalance(address)
-    const result = await executeContractWithCalldata({
-      contractAddress,
-      caller: walletAddress,
-      inputData: calldata,
-      value: 0,
-    });
+    // Gọi trực tiếp API giống như mintSelfToken
+    const res = await axios.post(
+      `${API_URL}/blockchain/simple-token/execute`,
+      {
+        caller: walletAddress,
+        inputData: calldata.startsWith('0x') ? calldata : `0x${calldata}`,
+        value: 0,
+        contractAddress,
+      },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+
+    const result = res.data?.data;
 
     // Parse returnData từ response
-    // Backend trả về: { data: { returnData: "0x..." } } hoặc { returnData: "0x..." }
-    const returnData = result?.returnData || result?.data?.returnData || result?.data?.data?.returnData;
+    // Backend trả về: { data: { result: { returnData: "0x..." } } } hoặc { data: { returnData: "0x..." } }
+    // Hoặc từ HSCOIN trực tiếp: { data: { returnData: "0x..." } }
+    const returnData = 
+      result?.result?.returnData || 
+      result?.returnData || 
+      result?.data?.returnData || 
+      res.data?.returnData || 
+      res.data?.data?.returnData ||
+      (result?.result && typeof result.result === 'string' && result.result.startsWith('0x') ? result.result : null);
     
     if (returnData && returnData !== '0x' && returnData !== '0x0' && returnData !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
       try {
@@ -1094,14 +1108,23 @@ export async function fetchTokenBalance({ contractAddress, walletAddress } = {})
         const balanceHex = hex.length >= 64 ? hex.slice(-64) : hex.padStart(64, '0');
         return BigInt('0x' + balanceHex).toString();
       } catch (error) {
-        console.error('[API] Lỗi parse returnData:', error, 'returnData:', returnData);
-        return null;
+        console.error('[API] Lỗi parse returnData:', error, 'returnData:', returnData, 'full response:', res.data);
+        throw new Error(`Không thể parse số dư từ response: ${error.message}`);
       }
     }
 
-    return null;
+    // Nếu không có returnData, có thể là view function không trả về gì
+    console.warn('[API] Không có returnData trong response:', res.data);
+    throw new Error('Không nhận được số dư từ blockchain. Vui lòng kiểm tra contract address và thử lại.');
   } catch (error) {
-    handleAxiosError(error);
+    console.error('[API] Lỗi fetchTokenBalance:', error);
+    if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    if (error.message) {
+      throw error;
+    }
+    throw new Error('Không thể tải số dư token. Vui lòng kiểm tra contract address và thử lại.');
   }
 }
 
