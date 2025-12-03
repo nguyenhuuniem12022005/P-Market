@@ -75,23 +75,36 @@ export default function WalletPage() {
       setLoadingTokenBalance(false);
       return;
     }
+    if (!contractAddress) {
+      toast.error('Vui lòng nhập hoặc lưu contract HScoin trước khi xem số dư.');
+      setLoadingTokenBalance(false);
+      return;
+    }
     setLoadingTokenBalance(true);
     try {
       const tokenBal = await fetchTokenBalance({
         contractAddress: contractAddress || undefined,
         walletAddress,
       });
-      setTokenBalance(tokenBal ?? null);
-    } catch {
+      if (tokenBal !== null && tokenBal !== undefined) {
+        setTokenBalance(tokenBal);
+        toast.success('Đã tải số dư token thành công!');
+      } else {
+        setTokenBalance(null);
+        toast.error('Không thể lấy số dư token. Vui lòng kiểm tra contract address.');
+      }
+    } catch (err) {
       setTokenBalance(null);
+      toast.error(err.message || 'Không thể tải số dư token.');
     } finally {
       setLoadingTokenBalance(false);
     }
   }, [walletAddress, contractAddress]);
 
-  useEffect(() => {
-    loadTokenBalance();
-  }, [loadTokenBalance]);
+  // Không tự động load số dư nữa, chỉ load khi user bấm nút
+  // useEffect(() => {
+  //   loadTokenBalance();
+  // }, [loadTokenBalance]);
 
   const handleSaveContract = async () => {
     if (!contractAddress.trim()) {
@@ -221,7 +234,34 @@ export default function WalletPage() {
                   <p className="font-mono text-sm text-gray-900 break-all">{walletAddress}</p>
                 </div>
                 
-                {/* Hiển thị số dư token */}
+                {/* Nút hiện số dư */}
+                <div className="mt-3">
+                  <Button 
+                    onClick={loadTokenBalance} 
+                    disabled={loadingTokenBalance || !contractAddress}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    {loadingTokenBalance ? (
+                      <>
+                        <Loader2 className="animate-spin mr-2" size={16} />
+                        Đang tải...
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp size={16} className="mr-2" />
+                        Hiện số dư
+                      </>
+                    )}
+                  </Button>
+                  {!contractAddress && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      ⚠️ Vui lòng nhập contract address trước khi xem số dư.
+                    </p>
+                  )}
+                </div>
+                
+                {/* Hiển thị số dư token sau khi bấm nút */}
                 {loadingTokenBalance ? (
                   <div className="mt-3 p-3 bg-gray-50 rounded-md">
                     <p className="text-xs text-gray-500 mb-1">Đang tải số dư token...</p>
@@ -253,13 +293,7 @@ export default function WalletPage() {
                       </p>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                    <p className="text-xs text-yellow-700">
-                      Không thể tải số dư token. Vui lòng kiểm tra contract address hoặc thử lại sau.
-                    </p>
-                  </div>
-                )}
+                ) : null}
               </div>
             ) : (
               <p className="text-sm text-gray-500">
