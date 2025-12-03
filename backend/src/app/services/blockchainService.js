@@ -33,15 +33,27 @@ const HSCOIN_ALLOWED_CALLERS = (process.env.HSCOIN_ALLOWED_CALLERS || '')
 const DEFAULT_ESCROW_SOURCE = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract PMarketTokenEscrow {
-    string public name = "PMarket Token";
-    string public symbol = "PMK";
+contract PMarketT {
+    // ==================== TOKEN CƠ BẢN ====================
+    string public name = "SimpleToken";
+    string public symbol = "STK";
     uint8 public decimals = 18;
     uint256 public totalSupply;
-
     mapping(address => uint256) public balanceOf;
+    address public owner;
 
-    enum Status { None, Deposited, Released, Refunded }
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Mint(address indexed to, uint256 value);
+    event Burn(address indexed from, uint256 value);
+
+    // ==================== ESCROW ====================
+    enum Status {
+        None,
+        Deposited,
+        Refunded,
+        Released
+    }
+
     struct Order {
         address buyer;
         address seller;
@@ -49,34 +61,37 @@ contract PMarketTokenEscrow {
         Status status;
         uint256 createdAt;
     }
+
     mapping(uint256 => Order) public orders;
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Mint(address indexed to, uint256 value);
-    event Deposited(uint256 indexed orderId, address indexed buyer, address indexed seller, uint256 amount);
-    event Released(uint256 indexed orderId, address indexed seller, uint256 amount);
-    event Refunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
+    event Deposited(
+        uint256 indexed orderId,
+        address indexed buyer,
+        address indexed seller,
+        uint256 amount
+    );
+    event Refunded(
+        uint256 indexed orderId,
+        address indexed buyer,
+        uint256 amount
+    );
+    event Released(
+        uint256 indexed orderId,
+        address indexed seller,
+        uint256 amount
+    );
 
-    function mintSelf(uint256 _value) external returns (bool) {
-        require(_value > 0, "Amount=0");
-        totalSupply += _value;
-        balanceOf[msg.sender] += _value;
-        emit Mint(msg.sender, _value);
-        emit Transfer(address(0), msg.sender, _value);
-        return true;
+    constructor() {
+        owner = msg.sender;
+        totalSupply = 1000000 * 10 ** uint256(decimals);
+        balanceOf[msg.sender] = totalSupply;
+        emit Transfer(address(0), msg.sender, totalSupply);
     }
 
-    function mint(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0), "Invalid address");
-        require(_value > 0, "Amount=0");
-        totalSupply += _value;
-        balanceOf[_to] += _value;
-        emit Mint(_to, _value);
-        emit Transfer(address(0), _to, _value);
-        return true;
-    }
+    // ==================== TOKEN FUNC ====================
 
-    function transfer(address _to, uint256 _value) public returns (bool) {
+    // Chuyển token
+    function transfer(address _to, uint256 _value) public returns (bool success) {
         require(_to != address(0), "Invalid address");
         require(balanceOf[msg.sender] >= _value, "Insufficient balance");
         balanceOf[msg.sender] -= _value;
@@ -85,12 +100,60 @@ contract PMarketTokenEscrow {
         return true;
     }
 
-    function deposit(uint256 orderId, address seller, uint256 amount) external {
+    // Modifier onlyOwner cho gon mint/burn admin
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
+    }
+
+    // Cộng token (mint) - chỉ owner có thể gọi
+    function mint(address _to, uint256 _value)
+        public
+        onlyOwner
+        returns (bool success)
+    {
+        require(_to != address(0), "Invalid address");
+        totalSupply += _value;
+        balanceOf[_to] += _value;
+        emit Mint(_to, _value);
+        emit Transfer(address(0), _to, _value);
+        return true;
+    }
+
+    // Trừ token (burn) - người gọi tự đốt token của mình
+    function burn(uint256 _value) public returns (bool success) {
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
+        balanceOf[msg.sender] -= _value;
+        totalSupply -= _value;
+        emit Burn(msg.sender, _value);
+        emit Transfer(msg.sender, address(0), _value);
+        return true;
+    }
+
+    // Lấy số dư
+    function getBalance(address _owner) public view returns (uint256) {
+        return balanceOf[_owner];
+    }
+
+    // Lấy tổng cung
+    function getTotalSupply() public view returns (uint256) {
+        return totalSupply;
+    }
+
+    // ==================== ESCROW FUNC ====================
+
+    // Buyer deposit token vào escrow cho 1 order
+    function deposit(
+        uint256 orderId,
+        address seller,
+        uint256 amount
+    ) external {
         require(orders[orderId].status == Status.None, "Order exists");
         require(seller != address(0) && seller != msg.sender, "Bad seller");
         require(amount > 0, "Amount=0");
         require(balanceOf[msg.sender] >= amount, "Insufficient balance");
 
+        // Trừ token cua buyer, cộng vào contract
         balanceOf[msg.sender] -= amount;
         balanceOf[address(this)] += amount;
 
@@ -106,19 +169,7 @@ contract PMarketTokenEscrow {
         emit Deposited(orderId, msg.sender, seller, amount);
     }
 
-    function release(uint256 orderId) external {
-        Order storage o = orders[orderId];
-        require(o.status == Status.Deposited, "Not deposited");
-        require(msg.sender == o.seller, "Not seller");
-
-        o.status = Status.Released;
-        balanceOf[address(this)] -= o.amount;
-        balanceOf[o.seller] += o.amount;
-
-        emit Transfer(address(this), o.seller, o.amount);
-        emit Released(orderId, o.seller, o.amount);
-    }
-
+    // Buyer yêu cầu refund (tự nhận lại tiền)
     function refund(uint256 orderId) external {
         Order storage o = orders[orderId];
         require(o.status == Status.Deposited, "Not deposited");
@@ -132,19 +183,18 @@ contract PMarketTokenEscrow {
         emit Refunded(orderId, o.buyer, o.amount);
     }
 
-    function getOrder(uint256 orderId) external view returns (
-        address buyer,
-        address seller,
-        uint256 amount,
-        Status status,
-        uint256 createdAt
-    ) {
+    // Seller nhận tiền (release)
+    function release(uint256 orderId) external {
         Order storage o = orders[orderId];
-        return (o.buyer, o.seller, o.amount, o.status, o.createdAt);
-    }
+        require(o.status == Status.Deposited, "Not deposited");
+        require(msg.sender == o.seller, "Not seller");
 
-    function getContractBalance() external view returns (uint256) {
-        return balanceOf[address(this)];
+        o.status = Status.Released;
+        balanceOf[address(this)] -= o.amount;
+        balanceOf[o.seller] += o.amount;
+
+        emit Transfer(address(this), o.seller, o.amount);
+        emit Released(orderId, o.seller, o.amount);
     }
 }`;
 function resolveHscoinContractEndpoint(address) {
@@ -1546,20 +1596,49 @@ export async function executeSimpleToken({
     }
   }
 
-  // Chuẩn bị args cho API (format method + args)
+  // Chuẩn bị args cho API
+  // Một số hàm như mint có thể gây lỗi 405 với format method+args trên /simple-token/execute
+  // Nên tự động encode thành calldata để dùng endpoint /contracts/{address}/execute
+  const methodsRequiringCalldata = ['mint', 'mintSelf', 'transfer', 'burn'];
+  const shouldUseCalldata = methodsRequiringCalldata.includes(method?.toLowerCase());
+  
   let finalArgs = normalizedArgs;
   if (method?.toLowerCase() === 'burn') {
     const amount = Number(normalizedArgs[0]) || 0;
     finalArgs = [amount];
   }
 
-  const requestPayload = {
-    caller: normalizedCaller,
-    method: method,
-    args: finalArgs.map(arg => typeof arg === 'bigint' ? arg.toString() : arg),
-    value: normalizedValue,
-    contractAddress: resolvedContract,
-  };
+  let requestPayload;
+  if (shouldUseCalldata) {
+    // Tự động encode thành calldata để tránh lỗi 405
+    try {
+      const calldata = encodeFunctionCall(method, finalArgs);
+      requestPayload = {
+        caller: normalizedCaller,
+        inputData: calldata.startsWith('0x') ? calldata : `0x${calldata}`,
+        value: normalizedValue,
+      };
+    } catch (error) {
+      // Nếu encode thất bại, fallback về format method + args
+      console.warn(`[HScoin] Không thể encode ${method}, dùng format method+args:`, error.message);
+      requestPayload = {
+        caller: normalizedCaller,
+        method: method,
+        args: finalArgs.map(arg => typeof arg === 'bigint' ? arg.toString() : arg),
+        value: normalizedValue,
+        contractAddress: resolvedContract,
+      };
+    }
+  } else {
+    // Dùng format method + args cho các hàm khác
+    requestPayload = {
+      caller: normalizedCaller,
+      method: method,
+      args: finalArgs.map(arg => typeof arg === 'bigint' ? arg.toString() : arg),
+      value: normalizedValue,
+      contractAddress: resolvedContract,
+    };
+  }
 
   const callId = await recordHscoinContractCall({
     method,
@@ -2180,29 +2259,16 @@ export async function autoDeployDefaultContract({ deployer, userId }) {
     throw ApiError.badRequest('Thiếu địa chỉ deployer (ví đã liên kết)');
   }
   
-  // Kiểm tra xem user đã có contract mặc định chưa
-  if (userId) {
-    const defaultContract = await getDefaultUserContract(userId);
-    if (defaultContract?.address) {
-      return {
-        contractAddress: defaultContract.address,
-        name: defaultContract.name,
-        network: defaultContract.network,
-        message: 'Bạn đã có contract mặc định rồi.',
-        existing: true,
-      };
-    }
-  }
-
-  // Auto compile và deploy contract mặc định
+  // Luôn compile và deploy contract mới (không check existing)
+  // Điều này đảm bảo user luôn có contract mới nhất và có thể deploy lại nếu cần
   const compiled = await compileContract({
     sourceCode: DEFAULT_ESCROW_SOURCE,
-    contractName: 'PMarketTokenEscrow',
+    contractName: 'PMarketT',
   });
 
   const deployed = await deployContract({
     sourceCode: DEFAULT_ESCROW_SOURCE,
-    contractName: 'PMarketTokenEscrow',
+    contractName: 'PMarketT',
     abi: compiled?.abi,
     bytecode: compiled?.bytecode,
     deployer,
@@ -2241,7 +2307,7 @@ export async function ensureUserEscrowContract({ userId, walletAddress, contract
   }
   const deployed = await deployContract({
     sourceCode: DEFAULT_ESCROW_SOURCE,
-    contractName: 'PMarketTokenEscrow',
+    contractName: 'PMarketT',
     deployer: walletAddress,
     setDefault: true,
     userId,

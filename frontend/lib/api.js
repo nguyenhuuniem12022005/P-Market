@@ -946,14 +946,18 @@ export async function autoDeployDefaultContract() {
 }
 
 // Mint token nội bộ (mintSelf) cho ví caller trên contract mặc định
+// Dùng format inputData (calldata) để tránh lỗi API 405
 export async function mintSelfToken({ amountWei, caller, contractAddress }) {
   try {
+    // Encode mint(address,uint256) call thành calldata
+    const calldata = encodeFunctionCall('mint', [caller, amountWei]);
+    
+    // Gọi với format inputData để tránh lỗi 405
     const res = await axios.post(
       `${API_URL}/blockchain/simple-token/execute`,
       {
         caller,
-        method: 'mint',
-        args: [caller, String(amountWei)],
+        inputData: calldata.startsWith('0x') ? calldata : `0x${calldata}`,
         value: 0,
         contractAddress,
       },
