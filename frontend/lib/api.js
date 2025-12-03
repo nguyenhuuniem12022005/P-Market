@@ -1073,7 +1073,7 @@ export async function fetchTokenBalance({ contractAddress, walletAddress } = {})
     // Encode getBalance(address) call
     const calldata = encodeFunctionCall('getBalance', [walletAddress]);
 
-    // Execute contract
+    // Execute contract với calldata để gọi getBalance(address)
     const result = await executeContractWithCalldata({
       contractAddress,
       caller: walletAddress,
@@ -1082,12 +1082,21 @@ export async function fetchTokenBalance({ contractAddress, walletAddress } = {})
     });
 
     // Parse returnData từ response
-    if (result?.returnData) {
-      // returnData là hex string, decode uint256
-      const hex = result.returnData.startsWith('0x') ? result.returnData.substring(2) : result.returnData;
-      // Lấy 64 ký tự cuối (32 bytes cho uint256)
-      const balanceHex = hex.slice(-64);
-      return BigInt('0x' + balanceHex).toString();
+    // Backend trả về: { data: { returnData: "0x..." } } hoặc { returnData: "0x..." }
+    const returnData = result?.returnData || result?.data?.returnData || result?.data?.data?.returnData;
+    
+    if (returnData && returnData !== '0x' && returnData !== '0x0' && returnData !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+      try {
+        // returnData là hex string, decode uint256
+        const hex = returnData.startsWith('0x') ? returnData.substring(2) : returnData;
+        // Lấy 64 ký tự cuối (32 bytes cho uint256)
+        // Nếu hex ngắn hơn 64, pad với 0 ở đầu
+        const balanceHex = hex.length >= 64 ? hex.slice(-64) : hex.padStart(64, '0');
+        return BigInt('0x' + balanceHex).toString();
+      } catch (error) {
+        console.error('[API] Lỗi parse returnData:', error, 'returnData:', returnData);
+        return null;
+      }
     }
 
     return null;

@@ -1169,13 +1169,22 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
     });
     
     // Parse returnData từ response
-    const returnData = response?.data?.returnData || response?.returnData;
+    // HSCOIN API trả về: { data: { returnData: "0x..." } } hoặc { returnData: "0x..." }
+    const returnData = response?.data?.returnData || response?.returnData || response?.data?.data?.returnData;
     let result = null;
-    if (returnData && returnData !== '0x' && returnData !== '0x0') {
-      // Decode uint256 từ returnData (64 hex chars = 32 bytes)
-      const hex = returnData.startsWith('0x') ? returnData.substring(2) : returnData;
-      const balanceHex = hex.slice(-64); // Lấy 64 ký tự cuối
-      result = BigInt('0x' + balanceHex).toString();
+    
+    if (returnData && returnData !== '0x' && returnData !== '0x0' && returnData !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+      try {
+        // Decode uint256 từ returnData (64 hex chars = 32 bytes)
+        const hex = returnData.startsWith('0x') ? returnData.substring(2) : returnData;
+        // Lấy 64 ký tự cuối (32 bytes cho uint256)
+        // Nếu hex ngắn hơn 64, pad với 0 ở đầu
+        const balanceHex = hex.length >= 64 ? hex.slice(-64) : hex.padStart(64, '0');
+        result = BigInt('0x' + balanceHex).toString();
+      } catch (error) {
+        console.warn('[HScoin] Lỗi parse returnData:', error.message, 'returnData:', returnData);
+        result = null;
+      }
     }
     
     if (result !== null && result !== undefined) {
