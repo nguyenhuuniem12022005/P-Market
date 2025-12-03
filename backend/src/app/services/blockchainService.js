@@ -1330,20 +1330,15 @@ export async function executeSimpleToken({
     ['deposit', 'release', 'refund'].includes(String(method || '').toLowerCase()) && normalizedArgs.length
       ? normalizeOrderId(normalizedArgs[0])
       : null;
-  let encodedInput = null;
+  if (!method) {
+    throw ApiError.badRequest('Thiếu tên hàm (function)');
+  }
 
-  if (rawInputData && typeof rawInputData === 'string') {
-    encodedInput = rawInputData.trim();
-  } else {
-    if (!method) {
-      throw ApiError.badRequest('Thiếu tên hàm (function)');
-    }
-    let finalArgs = normalizedArgs;
-    if (method?.toLowerCase() === 'burn') {
-      const amount = Number(normalizedArgs[0]) || 0;
-      finalArgs = [amount];
-    }
-    encodedInput = buildSimpleTokenCalldata(method, finalArgs);
+  // Chuẩn bị args cho API
+  let finalArgs = normalizedArgs;
+  if (method?.toLowerCase() === 'burn') {
+    const amount = Number(normalizedArgs[0]) || 0;
+    finalArgs = [amount];
   }
 
   const normalizedValue =
@@ -1353,10 +1348,13 @@ export async function executeSimpleToken({
       ? value
       : Number(value) || 0;
 
+  // API /simple-token/execute cần format method + args, KHÔNG hỗ trợ inputData
   const requestPayload = {
     caller: normalizedCaller,
-    inputData: encodedInput,
+    method: method,
+    args: finalArgs.map(arg => typeof arg === 'bigint' ? arg.toString() : arg),
     value: normalizedValue,
+    contractAddress: resolvedContract,
   };
 
   const callId = await recordHscoinContractCall({
