@@ -79,6 +79,11 @@ blockchainRouter.post(
 );
 
 blockchainRouter.post(
+  '/contracts/auto-deploy',
+  blockchainController.autoDeployDefaultContract
+);
+
+blockchainRouter.post(
   '/contracts',
   validate(blockchainRequest.saveUserContract),
   blockchainController.saveUserContract

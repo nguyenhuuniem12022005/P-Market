@@ -224,6 +224,64 @@ function normalizeAddress(address) {
   return trimmed;
 }
 
+// Encode function call to calldata hex (giống evm.js)
+function encodeFunctionCall(functionName, params = []) {
+  // Function selectors (4 bytes đầu của keccak256 hash)
+  const SELECTORS = {
+    getBalance: '0xf8b2cb4f', // getBalance(address)
+    deposit: '0x8340f549', // deposit(uint256,address,uint256)
+    release: '0x37bdc99b', // release(uint256)
+    refund: '0x7c41ad2c', // refund(uint256)
+    transfer: '0xa9059cbb', // transfer(address,uint256)
+    mint: '0x40c10f19', // mint(address,uint256)
+    balanceOf: '0x70a08231', // balanceOf(address)
+    mintSelf: '0x40c10f19', // mintSelf(uint256) - có thể dùng mint
+  };
+
+  const selector = SELECTORS[functionName];
+  if (!selector) {
+    throw ApiError.badRequest(`Function ${functionName} không được hỗ trợ encode calldata`);
+  }
+
+  // Encode parameters
+  let encodedParams = '';
+  for (const param of params) {
+    if (typeof param === 'string' && param.startsWith('0x')) {
+      // Address: remove 0x, pad to 64 hex chars (32 bytes)
+      const addr = param.substring(2).toLowerCase();
+      encodedParams += addr.padStart(64, '0');
+    } else if (typeof param === 'number' || typeof param === 'bigint') {
+      // Uint256: convert to hex, pad to 64 hex chars
+      const num = BigInt(param);
+      encodedParams += num.toString(16).padStart(64, '0');
+    } else if (typeof param === 'string') {
+      // Assume it's a hex string without 0x, or try to parse as number
+      const normalized = normalizeAddress(param);
+      if (/^0x[0-9a-f]{40}$/.test(normalized)) {
+        encodedParams += normalized.substring(2).padStart(64, '0');
+      } else {
+        // Try as number
+        try {
+          const num = BigInt(param);
+          encodedParams += num.toString(16).padStart(64, '0');
+        } catch {
+          throw ApiError.badRequest(`Không thể encode tham số: ${param}`);
+        }
+      }
+    } else {
+      // Convert to string and try to parse
+      try {
+        const num = BigInt(String(param));
+        encodedParams += num.toString(16).padStart(64, '0');
+      } catch {
+        throw ApiError.badRequest(`Không thể encode tham số: ${param}`);
+      }
+    }
+  }
+
+  return selector + encodedParams;
+}
+
 function validateAddress(address, fieldName = 'Địa chỉ ví') {
   const normalized = normalizeAddress(address);
   if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
@@ -1048,26 +1106,36 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
   try {
     const ledgerBalance = await computeLedgerBalance();
 
-    const response = await callHscoin('/simple-token/execute', {
+    // Dùng format inputData (calldata) để gọi getBalance(address)
+    const calldata = encodeFunctionCall('getBalance', [normalizedWallet]);
+    const response = await callHscoin(`/contracts/${normalizedContract}/execute`, {
       method: 'POST',
       requireAuth: true,
       body: {
         caller: normalizedWallet,
-        method: 'balanceOf',
-        args: [normalizedWallet],
+        inputData: calldata.startsWith('0x') ? calldata : `0x${calldata}`,
         value: 0,
-        contractAddress: normalizedContract,
       },
     });
-    const result = response?.data?.result ?? response?.data ?? null;
-    if (result !== null && result !== undefined && result?.unsupported !== true) {
+    
+    // Parse returnData từ response
+    const returnData = response?.data?.returnData || response?.returnData;
+    let result = null;
+    if (returnData && returnData !== '0x' && returnData !== '0x0') {
+      // Decode uint256 từ returnData (64 hex chars = 32 bytes)
+      const hex = returnData.startsWith('0x') ? returnData.substring(2) : returnData;
+      const balanceHex = hex.slice(-64); // Lấy 64 ký tự cuối
+      result = BigInt('0x' + balanceHex).toString();
+    }
+    
+    if (result !== null && result !== undefined) {
       if (ledgerBalance !== null && ledgerBalance !== undefined && String(ledgerBalance) !== String(result)) {
         return { balance: ledgerBalance, source: 'ledger' };
       }
       return { balance: result, source: 'hscoin' };
     }
   } catch (error) {
-    console.warn('[HScoin] balanceOf fallback sang sổ phụ:', error.message);
+    console.warn('[HScoin] getBalance fallback sang sổ phụ:', error.message);
     const balance = await computeLedgerBalance();
     return { balance, source: 'ledger' };
   }
@@ -1314,32 +1382,12 @@ export async function executeSimpleToken({
   if (!normalizedCaller) {
     throw ApiError.badRequest('Thiếu địa chỉ ví caller');
   }
-  // Bỏ whitelist - cho phép mọi địa chỉ ví thực thi
-  // if (HSCOIN_ALLOWED_CALLERS.length && !HSCOIN_ALLOWED_CALLERS.includes(normalizedCaller)) {
-  //   throw ApiError.forbidden('Địa chỉ ví không được phép thực thi hợp đồng');
-  // }
 
   const resolvedContract = await resolveContractAddress({
     userId,
     contractAddress,
     walletAddress: normalizedCaller,
   });
-  const normalizedArgs = Array.isArray(args) ? args : [args];
-  const loggedArgs = normalizedArgs.map((v) => (typeof v === 'bigint' ? v.toString() : v));
-  const orderIdFromArgs =
-    ['deposit', 'release', 'refund'].includes(String(method || '').toLowerCase()) && normalizedArgs.length
-      ? normalizeOrderId(normalizedArgs[0])
-      : null;
-  if (!method) {
-    throw ApiError.badRequest('Thiếu tên hàm (function)');
-  }
-
-  // Chuẩn bị args cho API
-  let finalArgs = normalizedArgs;
-  if (method?.toLowerCase() === 'burn') {
-    const amount = Number(normalizedArgs[0]) || 0;
-    finalArgs = [amount];
-  }
 
   const normalizedValue =
     typeof value === 'bigint'
@@ -1348,7 +1396,162 @@ export async function executeSimpleToken({
       ? value
       : Number(value) || 0;
 
-  // API /simple-token/execute cần format method + args, KHÔNG hỗ trợ inputData
+  // Nếu có rawInputData (calldata hex), dùng endpoint /contracts/{address}/execute
+  if (rawInputData && typeof rawInputData === 'string') {
+    const requestPayload = {
+      caller: normalizedCaller,
+      inputData: rawInputData.startsWith('0x') ? rawInputData : `0x${rawInputData}`,
+      value: normalizedValue,
+    };
+
+    const callId = await recordHscoinContractCall({
+      method: 'execute',
+      caller: normalizedCaller,
+      payload: {
+        contractAddress: resolvedContract,
+        body: requestPayload,
+        originalCall: { inputData: rawInputData },
+      },
+      orderId: null,
+    });
+
+    try {
+      const response = await invokeHscoinContract({
+        contractAddress: resolvedContract,
+        body: requestPayload,
+      });
+      await markHscoinCallSuccess(callId, response, {
+        orderId: null,
+        payload: {
+          contractAddress: resolvedContract,
+          body: requestPayload,
+          originalCall: { inputData: rawInputData },
+        },
+      });
+      return {
+        callId,
+        status: 'SUCCESS',
+        result: response?.data || response,
+      };
+    } catch (error) {
+      const retryable = shouldRetryHscoinError(error);
+      await markHscoinCallFailure(callId, error, {
+        retryable,
+        currentRetries: 0,
+        maxRetries: HSCOIN_MAX_RETRY,
+      });
+      if (retryable) {
+        const apiError = ApiError.serviceUnavailable(
+          `HScoin đang tạm gián đoạn. Yêu cầu execute đã được xếp hàng để thử lại tự động.`
+        );
+        apiError.hscoinCallId = callId;
+        apiError.hscoinStatus = 'QUEUED';
+        throw apiError;
+      }
+      const apiError = ApiError.badRequest(error.message || 'Không thể thực thi hợp đồng HScoin.');
+      apiError.hscoinCallId = callId;
+      apiError.hscoinStatus = 'FAILED';
+      throw apiError;
+    }
+  }
+
+  // Nếu không có rawInputData, kiểm tra xem có muốn dùng calldata format không
+  if (!method) {
+    throw ApiError.badRequest('Thiếu tên hàm (function) hoặc inputData (calldata)');
+  }
+
+  const normalizedArgs = Array.isArray(args) ? args : [args];
+  const loggedArgs = normalizedArgs.map((v) => (typeof v === 'bigint' ? v.toString() : v));
+  const orderIdFromArgs =
+    ['deposit', 'release', 'refund'].includes(String(method || '').toLowerCase()) && normalizedArgs.length
+      ? normalizeOrderId(normalizedArgs[0])
+      : null;
+
+  // Nếu useCalldataFormat = true, encode thành calldata và dùng endpoint /contracts/{address}/execute
+  if (useCalldataFormat) {
+    try {
+      const calldata = encodeFunctionCall(method, normalizedArgs);
+      const requestPayload = {
+        caller: normalizedCaller,
+        inputData: calldata.startsWith('0x') ? calldata : `0x${calldata}`,
+        value: normalizedValue,
+      };
+
+      const callId = await recordHscoinContractCall({
+        method,
+        caller: normalizedCaller,
+        payload: {
+          contractAddress: resolvedContract,
+          body: requestPayload,
+          originalCall: { method, args: loggedArgs },
+        },
+        orderId: orderIdFromArgs,
+      });
+
+      // Ghi sổ ledger ngay lập tức
+      await recordTokenLedgerFromCall({
+        callId,
+        payload: {
+          contractAddress: resolvedContract,
+          body: requestPayload,
+          originalCall: { method, args: loggedArgs },
+          orderId: orderIdFromArgs,
+        },
+        orderId: orderIdFromArgs,
+      });
+
+      try {
+        const response = await invokeHscoinContract({
+          contractAddress: resolvedContract,
+          body: requestPayload,
+        });
+        await markHscoinCallSuccess(callId, response, {
+          orderId: orderIdFromArgs,
+          payload: {
+            contractAddress: resolvedContract,
+            body: requestPayload,
+            originalCall: { method, args: loggedArgs },
+            orderId: orderIdFromArgs,
+          },
+        });
+        return {
+          callId,
+          status: 'SUCCESS',
+          result: response?.data || response,
+        };
+      } catch (error) {
+        const retryable = shouldRetryHscoinError(error);
+        await markHscoinCallFailure(callId, error, {
+          retryable,
+          currentRetries: 0,
+          maxRetries: HSCOIN_MAX_RETRY,
+        });
+        if (retryable) {
+          const apiError = ApiError.serviceUnavailable(
+            `HScoin đang tạm gián đoạn. Yêu cầu ${method || 'giao dịch'} đã được xếp hàng để thử lại tự động.`
+          );
+          apiError.hscoinCallId = callId;
+          apiError.hscoinStatus = 'QUEUED';
+          throw apiError;
+        }
+        const apiError = ApiError.badRequest(error.message || 'Không thể thực thi hợp đồng HScoin.');
+        apiError.hscoinCallId = callId;
+        apiError.hscoinStatus = 'FAILED';
+        throw apiError;
+      }
+    } catch (error) {
+      if (error.statusCode) throw error;
+      throw ApiError.badRequest(`Lỗi encode calldata: ${error.message}`);
+    }
+  }
+
+  // Chuẩn bị args cho API (format method + args)
+  let finalArgs = normalizedArgs;
+  if (method?.toLowerCase() === 'burn') {
+    const amount = Number(normalizedArgs[0]) || 0;
+    finalArgs = [amount];
+  }
+
   const requestPayload = {
     caller: normalizedCaller,
     method: method,
@@ -1971,6 +2174,48 @@ export async function deployContract({
   };
 }
 
+export async function autoDeployDefaultContract({ deployer, userId }) {
+  if (!deployer) {
+    throw ApiError.badRequest('Thiếu địa chỉ deployer (ví đã liên kết)');
+  }
+  
+  // Kiểm tra xem user đã có contract mặc định chưa
+  if (userId) {
+    const defaultContract = await getDefaultUserContract(userId);
+    if (defaultContract?.address) {
+      return {
+        contractAddress: defaultContract.address,
+        name: defaultContract.name,
+        network: defaultContract.network,
+        message: 'Bạn đã có contract mặc định rồi.',
+        existing: true,
+      };
+    }
+  }
+
+  // Auto compile và deploy contract mặc định
+  const compiled = await compileContract({
+    sourceCode: DEFAULT_ESCROW_SOURCE,
+    contractName: 'PMarketTokenEscrow',
+  });
+
+  const deployed = await deployContract({
+    sourceCode: DEFAULT_ESCROW_SOURCE,
+    contractName: 'PMarketTokenEscrow',
+    abi: compiled?.abi,
+    bytecode: compiled?.bytecode,
+    deployer,
+    setDefault: true,
+    userId,
+  });
+
+  return {
+    ...deployed,
+    message: 'Đã tự động compile và deploy contract PMarket thành công!',
+    existing: false,
+  };
+}
+
 export async function ensureUserEscrowContract({ userId, walletAddress, contractAddress }) {
   // Nếu đã truyền contractAddress thì dùng luôn
   if (contractAddress) {
@@ -2163,8 +2408,26 @@ async function markHscoinCallFailure(
 }
 
 async function invokeHscoinContract({ contractAddress, body }) {
-  // Sử dụng endpoint /simple-token/execute thay vì /contracts/{address}/execute
-  // vì HScoin API hỗ trợ endpoint này cho tất cả các transaction
+  // HScoin hỗ trợ 2 cách execute:
+  // 1. /simple-token/execute với format { caller, method, args, value, contractAddress }
+  // 2. /contracts/{address}/execute với format { caller, inputData, value } (inputData là calldata hex)
+  
+  // Nếu body có inputData (calldata hex), dùng endpoint /contracts/{address}/execute
+  if (body.inputData && typeof body.inputData === 'string') {
+    const normalizedContract = validateAddress(contractAddress, 'Địa chỉ contract');
+    const executeBody = {
+      caller: body.caller,
+      inputData: body.inputData,
+      value: body.value || 0,
+    };
+    return callHscoin(`/contracts/${normalizedContract}/execute`, {
+      method: 'POST',
+      body: executeBody,
+      requireAuth: true,
+    });
+  }
+  
+  // Nếu không có inputData, dùng /simple-token/execute với format method + args
   const finalBody = body.contractAddress ? body : { ...body, contractAddress };
   return callHscoin('/simple-token/execute', {
     method: 'POST',

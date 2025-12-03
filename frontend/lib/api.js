@@ -932,6 +932,19 @@ export async function deployContract(payload) {
   }
 }
 
+export async function autoDeployDefaultContract() {
+  try {
+    const res = await axios.post(
+      `${API_URL}/blockchain/contracts/auto-deploy`,
+      {},
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
 // Mint token nội bộ (mintSelf) cho ví caller trên contract mặc định
 export async function mintSelfToken({ amountWei, caller, contractAddress }) {
   try {
@@ -963,15 +976,160 @@ export async function fetchMyAccountBalance() {
   }
 }
 
-export async function fetchTokenBalance({ contractAddress } = {}) {
+// Helper: Encode function call to calldata hex
+// Function selector = keccak256(functionSignature).slice(0, 10)
+// Ví dụ: getBalance(address) -> selector + encoded address
+function encodeFunctionCall(functionName, params = []) {
+  // Function selectors (4 bytes đầu của keccak256 hash)
+  const SELECTORS = {
+    getBalance: '0xf8b2cb4f', // getBalance(address)
+    deposit: '0x8340f549', // deposit(uint256,address,uint256)
+    release: '0x37bdc99b', // release(uint256)
+    refund: '0x7c41ad2c', // refund(uint256)
+    transfer: '0xa9059cbb', // transfer(address,uint256)
+    mint: '0x40c10f19', // mint(address,uint256)
+    balanceOf: '0x70a08231', // balanceOf(address)
+  };
+
+  const selector = SELECTORS[functionName];
+  if (!selector) {
+    throw new Error(`Function ${functionName} không được hỗ trợ`);
+  }
+
+  // Encode parameters
+  let encodedParams = '';
+  for (const param of params) {
+    if (typeof param === 'string' && param.startsWith('0x')) {
+      // Address: remove 0x, pad to 64 hex chars (32 bytes)
+      const addr = param.substring(2).toLowerCase();
+      encodedParams += addr.padStart(64, '0');
+    } else if (typeof param === 'number' || typeof param === 'bigint') {
+      // Uint256: convert to hex, pad to 64 hex chars
+      const num = BigInt(param);
+      encodedParams += num.toString(16).padStart(64, '0');
+    } else if (typeof param === 'string') {
+      // Assume it's a hex string without 0x
+      encodedParams += param.toLowerCase().padStart(64, '0');
+    } else {
+      // Convert to string and pad
+      encodedParams += String(param).padStart(64, '0');
+    }
+  }
+
+  return selector + encodedParams;
+}
+
+// Execute contract với inputData (calldata hex)
+export async function executeContractWithCalldata({ contractAddress, caller, inputData, value = 0 }) {
   try {
-    const params = {};
-    if (contractAddress) params.contractAddress = contractAddress;
-    const res = await axios.get(`${API_URL}/blockchain/token-balance`, {
-      params,
-      headers: authHeader(),
+    const res = await axios.post(
+      `${API_URL}/blockchain/simple-token/execute`,
+      {
+        caller,
+        inputData: inputData.startsWith('0x') ? inputData : `0x${inputData}`,
+        value,
+        contractAddress,
+      },
+      { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
+    );
+    return res.data?.data;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+// Get balance bằng cách gọi getBalance function với calldata
+export async function fetchTokenBalance({ contractAddress, walletAddress } = {}) {
+  try {
+    // Nếu không có walletAddress, dùng API cũ
+    if (!walletAddress) {
+      const params = {};
+      if (contractAddress) params.contractAddress = contractAddress;
+      const res = await axios.get(`${API_URL}/blockchain/token-balance`, {
+        params,
+        headers: authHeader(),
+      });
+      return res.data?.data?.balance;
+    }
+
+    // Nếu có walletAddress, gọi getBalance với calldata
+    if (!contractAddress) {
+      // Lấy contract mặc định từ backend
+      const contractsRes = await axios.get(`${API_URL}/blockchain/contracts`, {
+        headers: authHeader(),
+      });
+      const contracts = contractsRes.data?.data || [];
+      const defaultContract = contracts.find((c) => c.isDefault);
+      if (!defaultContract?.address) {
+        throw new Error('Chưa có contract mặc định. Vui lòng deploy contract trước.');
+      }
+      contractAddress = defaultContract.address;
+    }
+
+    // Encode getBalance(address) call
+    const calldata = encodeFunctionCall('getBalance', [walletAddress]);
+
+    // Execute contract
+    const result = await executeContractWithCalldata({
+      contractAddress,
+      caller: walletAddress,
+      inputData: calldata,
+      value: 0,
     });
-    return res.data?.data?.balance;
+
+    // Parse returnData từ response
+    if (result?.returnData) {
+      // returnData là hex string, decode uint256
+      const hex = result.returnData.startsWith('0x') ? result.returnData.substring(2) : result.returnData;
+      // Lấy 64 ký tự cuối (32 bytes cho uint256)
+      const balanceHex = hex.slice(-64);
+      return BigInt('0x' + balanceHex).toString();
+    }
+
+    return null;
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+// Escrow functions với calldata format
+export async function escrowDeposit({ contractAddress, caller, orderId, sellerAddress, amountWei }) {
+  try {
+    const calldata = encodeFunctionCall('deposit', [orderId, sellerAddress, amountWei]);
+    return await executeContractWithCalldata({
+      contractAddress,
+      caller,
+      inputData: calldata,
+      value: 0,
+    });
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function escrowRelease({ contractAddress, caller, orderId }) {
+  try {
+    const calldata = encodeFunctionCall('release', [orderId]);
+    return await executeContractWithCalldata({
+      contractAddress,
+      caller,
+      inputData: calldata,
+      value: 0,
+    });
+  } catch (error) {
+    handleAxiosError(error);
+  }
+}
+
+export async function escrowRefund({ contractAddress, caller, orderId }) {
+  try {
+    const calldata = encodeFunctionCall('refund', [orderId]);
+    return await executeContractWithCalldata({
+      contractAddress,
+      caller,
+      inputData: calldata,
+      value: 0,
+    });
   } catch (error) {
     handleAxiosError(error);
   }

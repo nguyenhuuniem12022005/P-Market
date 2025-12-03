@@ -11,6 +11,7 @@ import {
   fetchTokenBalance,
   fetchUserContracts,
   saveUserContract,
+  autoDeployDefaultContract,
 } from '../../../lib/api';
 import { fetchUserBalance } from '../../../lib/api';
 import { ShieldCheck, TrendingUp, History, Loader2, Copy, Wallet as WalletIcon } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function WalletPage() {
   const [tokenBalance, setTokenBalance] = useState(null);
   const [loadingTokenBalance, setLoadingTokenBalance] = useState(false);
   const [balance, setBalance] = useState({ availableBalance: 0, lockedBalance: 0 });
+  const [autoDeploying, setAutoDeploying] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -75,14 +77,17 @@ export default function WalletPage() {
     }
     setLoadingTokenBalance(true);
     try {
-      const tokenBal = await fetchTokenBalance();
+      const tokenBal = await fetchTokenBalance({
+        contractAddress: contractAddress || undefined,
+        walletAddress,
+      });
       setTokenBalance(tokenBal ?? null);
     } catch {
       setTokenBalance(null);
     } finally {
       setLoadingTokenBalance(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, contractAddress]);
 
   useEffect(() => {
     loadTokenBalance();
@@ -105,6 +110,32 @@ export default function WalletPage() {
       toast.error(err.message || 'Không thể lưu contract');
     } finally {
       setSavingContract(false);
+    }
+  };
+
+  const handleAutoDeploy = async () => {
+    if (!walletAddress) {
+      toast.error('Vui lòng liên kết ví HScoin trước khi deploy contract');
+      connectWallet();
+      return;
+    }
+    setAutoDeploying(true);
+    try {
+      const result = await autoDeployDefaultContract();
+      if (result?.contractAddress) {
+        setContractAddress(result.contractAddress);
+        toast.success(
+          result.existing
+            ? 'Bạn đã có contract mặc định rồi!'
+            : `Đã tự động compile và deploy contract thành công! Địa chỉ: ${result.contractAddress.substring(0, 10)}...`
+        );
+      } else {
+        toast.error('Deploy thành công nhưng không nhận được địa chỉ contract');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Không thể tự động deploy contract');
+    } finally {
+      setAutoDeploying(false);
     }
   };
 
@@ -351,10 +382,35 @@ export default function WalletPage() {
             <p className="text-xs text-gray-500">
               Nhập contract đã deploy trên HScoin; lưu mặc định để các giao dịch escrow/mint dùng contract này.
             </p>
-            <Button onClick={handleSaveContract} disabled={savingContract}>
-              {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
-              Lưu contract mặc định
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={handleSaveContract} disabled={savingContract} variant="secondary">
+                {savingContract ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                Lưu contract mặc định
+              </Button>
+              <Button 
+                onClick={handleAutoDeploy} 
+                disabled={autoDeploying || !walletAddress}
+                variant="default"
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                {autoDeploying ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={16} />
+                    Đang deploy...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={16} className="mr-2" />
+                    Tự động deploy contract
+                  </>
+                )}
+              </Button>
+            </div>
+            {!walletAddress && (
+              <p className="text-xs text-amber-600">
+                ⚠️ Vui lòng liên kết ví HScoin trước khi sử dụng tính năng tự động deploy.
+              </p>
+            )}
           </div>
 
           <div className="pt-2 border-t space-y-2">

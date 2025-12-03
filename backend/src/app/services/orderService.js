@@ -307,6 +307,7 @@ if (Number(product.supplierId) === Number(customerId)) {
       value: 0, // dùng token nội bộ, không gửi native coin
       contractAddress,
       userId: customerId,
+      useCalldataFormat: true, // Dùng format inputData (calldata hex) như HSCOIN
     });
     escrowCallId = depositResult?.callId || null;
     escrowStatus = depositResult?.status || 'SUCCESS';
@@ -506,6 +507,7 @@ export async function markOrderCompleted(orderId, { triggerReferral = true, wall
       value: 0,
       contractAddress: releaseContract,
       userId: orderBefore.customerId,
+      useCalldataFormat: true, // Dùng format inputData (calldata hex) như HSCOIN
     });
   } catch (error) {
     console.error(`[Escrow] Release failed for order ${orderId}:`, error.message);

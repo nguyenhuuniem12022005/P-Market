@@ -508,38 +508,64 @@ export async function connectWallet(userId, { walletAddress, privateKey }) {
         throw ApiError.badRequest('Thiếu thông tin ví HScoin');
     }
 
+    // Normalize và validate địa chỉ ví
     const cleanAddress = walletAddress.trim().toLowerCase();
-    const cleanKey = privateKey.trim().replace(/^0x/, '').toLowerCase();
+    const normalizedAddress = cleanAddress.startsWith('0x') ? cleanAddress : `0x${cleanAddress}`;
 
-    // Validate format
-    if (!/^(0x)?[0-9a-f]{40}$/i.test(cleanAddress)) {
-        throw ApiError.badRequest('Địa chỉ ví không hợp lệ');
+    if (!/^0x[0-9a-f]{40}$/i.test(normalizedAddress)) {
+        throw ApiError.badRequest('Địa chỉ ví không hợp lệ (phải bắt đầu bằng 0x và có 40 ký tự hex)');
     }
 
+    // Normalize private key: loại bỏ 0x prefix và chuyển về lowercase
+    const cleanKey = privateKey.trim().replace(/^0x/, '').toLowerCase();
+
+    // Validate format private key
     if (!/^[0-9a-f]{64}$/i.test(cleanKey)) {
         throw ApiError.badRequest('Private key không hợp lệ (phải là 64 ký tự hex)');
     }
 
-    const normalizedAddress = cleanAddress.startsWith('0x') ? cleanAddress : `0x${cleanAddress}`;
-
-    // Gọi API HScoin để validate private key
+    // BƯỚC 1: Gọi API HSCOIN để lấy thông tin ví theo địa chỉ
+    let hscoinWalletData;
     try {
         const response = await fetch(`https://hsc-w3oq.onrender.com/api/wallet/${normalizedAddress}`);
-        if (!response.ok) {
-            throw ApiError.badRequest('Địa chỉ ví không tồn tại trên HScoin');
-        }
-        const data = await response.json();
-        const correctPrivateKey = (data.private_key || '').toLowerCase().replace(/^0x/, '');
         
-        if (correctPrivateKey !== cleanKey) {
-            throw ApiError.badRequest('Private key không khớp với địa chỉ ví. Vui lòng kiểm tra lại.');
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw ApiError.badRequest('Địa chỉ ví không tồn tại trên hệ thống HScoin');
+            }
+            throw ApiError.badRequest(`Không thể truy cập HScoin API (${response.status})`);
+        }
+
+        hscoinWalletData = await response.json();
+        
+        if (!hscoinWalletData || !hscoinWalletData.private_key) {
+            throw ApiError.badRequest('HScoin không trả về thông tin private key cho ví này');
         }
     } catch (error) {
-        if (error.statusCode) throw error;
+        // Nếu là ApiError thì throw lại
+        if (error.statusCode) {
+            throw error;
+        }
+        // Nếu là lỗi network hoặc parse JSON
         console.error('[Wallet] HScoin API error:', error.message);
-        throw ApiError.badRequest('Không thể xác thực ví với HScoin. Vui lòng thử lại.');
+        throw ApiError.badRequest('Không thể kết nối với HScoin để xác thực ví. Vui lòng thử lại sau.');
     }
 
+    // BƯỚC 2: So sánh private key user nhập với private key từ HSCOIN
+    // Normalize private key từ HSCOIN: loại bỏ 0x prefix và chuyển về lowercase
+    const hscoinPrivateKey = (hscoinWalletData.private_key || '')
+        .trim()
+        .replace(/^0x/, '')
+        .toLowerCase();
+
+    // So sánh chính xác (case-sensitive sau khi đã normalize)
+    if (hscoinPrivateKey !== cleanKey) {
+        throw ApiError.badRequest(
+            'Private key bạn nhập KHÔNG khớp với ví trên HScoin. Không thể liên kết ví.'
+        );
+    }
+
+    // BƯỚC 3: Nếu private key khớp → mã hóa và lưu vào database
     const encryptedKey = encryptPrivateKey(cleanKey);
     await pool.query(
         `
@@ -552,6 +578,7 @@ export async function connectWallet(userId, { walletAddress, privateKey }) {
 
     return getWalletInfo(userId);
 }
+
 
 export async function disconnectWallet(userId) {
     await pool.query(
@@ -579,20 +606,10 @@ export async function getWalletInfo(userId) {
         throw ApiError.notFound('Không tìm thấy người dùng');
     }
 
-    // Normalize địa chỉ ví để đảm bảo có prefix 0x
-    let walletAddress = rows[0].walletAddress || null;
-    if (walletAddress) {
-        walletAddress = walletAddress.trim().toLowerCase();
-        // Thêm prefix 0x nếu thiếu
-        if (/^[0-9a-f]{40}$/.test(walletAddress)) {
-            walletAddress = `0x${walletAddress}`;
-        }
-    }
-
     return {
-        walletAddress,
+        walletAddress: rows[0].walletAddress || null,
         connectedAt: rows[0].walletConnectedAt || null,
-        isConnected: Boolean(walletAddress),
+        isConnected: Boolean(rows[0].walletAddress),
     };
 }
 

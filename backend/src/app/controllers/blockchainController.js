@@ -214,6 +214,30 @@ export async function deployContract(req, res, next) {
   }
 }
 
+export async function autoDeployDefaultContract(req, res, next) {
+  try {
+    const wallet = await userService.getWalletInfo(req.user?.userId).catch(() => null);
+    const linkedWallet = wallet?.walletAddress;
+    if (!linkedWallet) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng liên kết ví HScoin trước khi deploy contract.',
+      });
+    }
+    const data = await blockchainService.autoDeployDefaultContract({
+      deployer: linkedWallet,
+      userId: req.user?.userId,
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Đã tự động compile và deploy contract PMarket thành công!',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function saveUserContract(req, res, next) {
   try {
     const payload = {
