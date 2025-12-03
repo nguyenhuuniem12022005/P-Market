@@ -215,30 +215,50 @@ export default function WalletPage() {
           <div>
             <p className="text-xs uppercase text-emerald-600 font-semibold">Trạng thái ví HScoin</p>
             {isConnected && walletAddress ? (
-              <div>
-                <p className="text-sm text-gray-600">Địa chỉ đã liên kết:</p>
-                <p className="font-mono text-sm text-gray-900 break-all">{walletAddress}</p>
-                {tokenBalance !== null && (
-                  <div className="mt-2 text-sm text-gray-700 space-y-1">
-                    <p>
-                      Số dư PMK:{' '}
-                      <span className="font-semibold">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-600">Địa chỉ đã liên kết:</p>
+                  <p className="font-mono text-sm text-gray-900 break-all">{walletAddress}</p>
+                </div>
+                
+                {/* Hiển thị số dư token */}
+                {loadingTokenBalance ? (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                    <p className="text-xs text-gray-500 mb-1">Đang tải số dư token...</p>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="animate-spin" size={16} />
+                      <span className="text-xs text-gray-400">Đang gọi getBalance từ blockchain...</span>
+                    </div>
+                  </div>
+                ) : tokenBalance !== null ? (
+                  <div className="mt-3 p-4 bg-emerald-50 border border-emerald-200 rounded-md">
+                    <p className="text-xs text-emerald-600 font-semibold uppercase mb-2">Số dư token (STK)</p>
+                    <div className="space-y-1">
+                      <p className="text-lg font-bold text-gray-900">
                         {((Number(tokenBalance) || 0) / 1e18).toLocaleString('vi-VN', {
                           maximumFractionDigits: 6,
-                        })}
-                      </span>{' '}
-                      PMK
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Ước tính:{' '}
-                      {tokenBalance
-                        ? `${((Number(tokenBalance) / 1e18) * 2170).toLocaleString('vi-VN')} đ`
-                        : '—'}
+                        })}{' '}
+                        <span className="text-sm font-normal text-gray-600">STK</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Ước tính giá trị:{' '}
+                        <span className="font-semibold text-gray-700">
+                          {tokenBalance
+                            ? `${((Number(tokenBalance) / 1e18) * 2170).toLocaleString('vi-VN')} đ`
+                            : '—'}
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Số dư gốc: {Number(tokenBalance || 0).toLocaleString('vi-VN')} wei
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-xs text-yellow-700">
+                      Không thể tải số dư token. Vui lòng kiểm tra contract address hoặc thử lại sau.
                     </p>
                   </div>
-                )}
-                {loadingTokenBalance && (
-                  <p className="text-xs text-gray-500 mt-1">Đang tải số dư...</p>
                 )}
               </div>
             ) : (
