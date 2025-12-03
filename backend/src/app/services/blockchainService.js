@@ -1376,6 +1376,7 @@ export async function executeSimpleToken({
   contractAddress,
   userId,
   rawInputData,
+  useCalldataFormat = false, // Nếu true, tự động encode method+args thành calldata
 }) {
 
   const normalizedCaller = normalizeAddress(caller);
