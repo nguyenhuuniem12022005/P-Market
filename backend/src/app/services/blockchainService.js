@@ -2166,12 +2166,10 @@ async function markHscoinCallFailure(
 async function invokeHscoinContract({ contractAddress, body }) {
   // Sử dụng endpoint /simple-token/execute thay vì /contracts/{address}/execute
   // vì HScoin API hỗ trợ endpoint này cho tất cả các transaction
+  const finalBody = body.contractAddress ? body : { ...body, contractAddress };
   return callHscoin('/simple-token/execute', {
     method: 'POST',
-    body: {
-      ...body,
-      contractAddress,
-    },
+    body: finalBody,
     requireAuth: true,
   });
 }
