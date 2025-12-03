@@ -215,13 +215,19 @@ const SIMPLE_TOKEN_LEDGER_ACTIONS = {
 };
 
 function normalizeAddress(address) {
-  return String(address || '').trim().toLowerCase();
+  const trimmed = String(address || '').trim().toLowerCase();
+  if (!trimmed) return '';
+  // Tự động thêm prefix 0x nếu thiếu và là chuỗi 40 ký tự hex hợp lệ
+  if (/^[0-9a-f]{40}$/.test(trimmed)) {
+    return `0x${trimmed}`;
+  }
+  return trimmed;
 }
 
-function validateAddress(address) {
+function validateAddress(address, fieldName = 'Địa chỉ ví') {
   const normalized = normalizeAddress(address);
   if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
-    throw ApiError.badRequest('Địa chỉ contract không hợp lệ');
+    throw ApiError.badRequest(`${fieldName} không hợp lệ. Địa chỉ phải bắt đầu bằng 0x và có 40 ký tự hex.`);
   }
   return normalized;
 }
@@ -241,7 +247,7 @@ function encodeUint256(value) {
 function encodeAddressParam(value) {
   const normalized = normalizeAddress(value);
   if (!/^0x[0-9a-f]{40}$/.test(normalized)) {
-    throw ApiError.badRequest('Tham số địa chỉ không hợp lệ');
+    throw ApiError.badRequest(`Địa chỉ ví không hợp lệ: "${value}". Địa chỉ phải bắt đầu bằng 0x và có 40 ký tự hex.`);
   }
   return normalized.replace(/^0x/, '').padStart(64, '0');
 }
@@ -1029,7 +1035,7 @@ export async function getTokenBalance({ contractAddress, walletAddress }) {
     return { balance, source: 'ledger_all' };
   }
 
-  const normalizedContract = validateAddress(contractAddress);
+  const normalizedContract = validateAddress(contractAddress, 'Địa chỉ contract');
 
   const computeLedgerBalance = async () => {
     const balance = await getLedgerTokenBalance({
@@ -1718,7 +1724,7 @@ export async function saveUserContract({ userId, name, address, network = 'HScoi
   if (!userId) {
     throw ApiError.badRequest('Thiếu thông tin người dùng');
   }
-  const normalizedAddress = validateAddress(address);
+  const normalizedAddress = validateAddress(address, 'Địa chỉ contract');
   await ensureUserContractTable();
 
   if (isDefault) {
@@ -1830,7 +1836,7 @@ async function getDefaultUserContract(userId) {
 async function resolveContractAddress({ userId, contractAddress, walletAddress }) {
   // 1) Tham số truyền vào
   if (contractAddress) {
-    return validateAddress(contractAddress);
+    return validateAddress(contractAddress, 'Địa chỉ contract');
   }
   // 2) Contract mặc định đã lưu cho user
   if (userId) {
@@ -1877,7 +1883,7 @@ async function getLatestContractByCaller(walletAddress) {
 export async function resolveContractForBalance({ userId, contractAddress, walletAddress }) {
   // 1) Tham số truyền vào
   if (contractAddress) {
-    return validateAddress(contractAddress);
+    return validateAddress(contractAddress, 'Địa chỉ contract');
   }
   // 2) Contract mặc định đã lưu cho user
   if (userId) {
@@ -1969,7 +1975,7 @@ export async function deployContract({
 export async function ensureUserEscrowContract({ userId, walletAddress, contractAddress }) {
   // Nếu đã truyền contractAddress thì dùng luôn
   if (contractAddress) {
-    return validateAddress(contractAddress);
+    return validateAddress(contractAddress, 'Địa chỉ contract');
   }
 
   // Thử lấy contract đã lưu/đã dùng gần nhất
@@ -2158,10 +2164,14 @@ async function markHscoinCallFailure(
 }
 
 async function invokeHscoinContract({ contractAddress, body }) {
-  const endpoint = resolveHscoinContractEndpoint(contractAddress);
-  return callHscoin(endpoint, {
+  // Sử dụng endpoint /simple-token/execute thay vì /contracts/{address}/execute
+  // vì HScoin API hỗ trợ endpoint này cho tất cả các transaction
+  return callHscoin('/simple-token/execute', {
     method: 'POST',
-    body,
+    body: {
+      ...body,
+      contractAddress,
+    },
     requireAuth: true,
   });
 }

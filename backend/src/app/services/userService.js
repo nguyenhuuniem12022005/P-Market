@@ -579,10 +579,20 @@ export async function getWalletInfo(userId) {
         throw ApiError.notFound('Không tìm thấy người dùng');
     }
 
+    // Normalize địa chỉ ví để đảm bảo có prefix 0x
+    let walletAddress = rows[0].walletAddress || null;
+    if (walletAddress) {
+        walletAddress = walletAddress.trim().toLowerCase();
+        // Thêm prefix 0x nếu thiếu
+        if (/^[0-9a-f]{40}$/.test(walletAddress)) {
+            walletAddress = `0x${walletAddress}`;
+        }
+    }
+
     return {
-        walletAddress: rows[0].walletAddress || null,
+        walletAddress,
         connectedAt: rows[0].walletConnectedAt || null,
-        isConnected: Boolean(rows[0].walletAddress),
+        isConnected: Boolean(walletAddress),
     };
 }
 
