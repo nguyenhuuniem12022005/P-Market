@@ -1408,7 +1408,7 @@ export async function executeSimpleToken({
     });
     if (retryable) {
       const apiError = ApiError.serviceUnavailable(
-        'HScoin đang tạm gián đoạn. Yêu cầu burn đã được xếp hàng để thử lại tự động.'
+        `HScoin đang tạm gián đoạn. Yêu cầu ${method || 'giao dịch'} đã được xếp hàng để thử lại tự động.`
       );
       apiError.hscoinCallId = callId;
       apiError.hscoinStatus = 'QUEUED';
